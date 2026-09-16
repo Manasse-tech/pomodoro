@@ -1,0 +1,229 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  /* Focusly brand tokens (accent follows the timer mode) */
+  --color-brand: var(--brand);
+  --color-soft: var(--soft);
+  --color-faint: var(--faint);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-brand-glow: var(--brand-glow);
+}
+
+/* ---------- Focusly palette (ported from original design) ---------- */
+
+:root,
+[data-theme="dark"] {
+  --radius: 1rem;
+  --background: #0f1013;
+  --foreground: #eef0f4;
+  --card: #17191e;
+  --card-foreground: #eef0f4;
+  --popover: #1d1f25;
+  --popover-foreground: #eef0f4;
+  --primary: #ff6b5b;
+  --primary-foreground: #14161a;
+  --secondary: #1d1f25;
+  --secondary-foreground: #c9ccd4;
+  --muted: #1d1f25;
+  --muted-foreground: #9ba0ab;
+  --accent: #23262d;
+  --accent-foreground: #eef0f4;
+  --destructive: #ff5d5d;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #ff6b5b;
+  --soft: #c9ccd4;
+  --faint: #787d88;
+  --surface-2: #1d1f25;
+  --surface-3: #23262d;
+  --brand: #ff6b5b;
+  --brand-glow: rgba(255, 107, 91, 0.45);
+  --header-bg: rgba(15, 16, 19, 0.88);
+  --shadow-soft: 0 30px 80px -30px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme="light"] {
+  --background: #f7f7f9;
+  --foreground: #14161a;
+  --card: #ffffff;
+  --card-foreground: #14161a;
+  --popover: #ffffff;
+  --popover-foreground: #14161a;
+  --primary: #ff6b5b;
+  --primary-foreground: #14161a;
+  --secondary: #f0f1f4;
+  --secondary-foreground: #3b3f47;
+  --muted: #f0f1f4;
+  --muted-foreground: #4a4f5a;
+  --accent: #e6e8ec;
+  --accent-foreground: #14161a;
+  --destructive: #e5484d;
+  --border: rgba(0, 0, 0, 0.09);
+  --input: rgba(0, 0, 0, 0.16);
+  --ring: #ff6b5b;
+  --soft: #3b3f47;
+  --faint: #5a5f6a;
+  --surface-2: #f0f1f4;
+  --surface-3: #e6e8ec;
+  --brand: #ff6b5b;
+  --brand-glow: rgba(255, 107, 91, 0.4);
+  --header-bg: rgba(247, 247, 249, 0.88);
+  --shadow-soft: 0 30px 80px -30px rgba(0, 0, 0, 0.18);
+}
+
+/* Timer mode drives the brand accent */
+body[data-mode="focus"] {
+  --brand: #ff6b5b;
+  --brand-glow: rgba(255, 107, 91, 0.45);
+}
+body[data-mode="short"] {
+  --brand: #37d3b0;
+  --brand-glow: rgba(55, 211, 176, 0.45);
+}
+body[data-mode="long"] {
+  --brand: #6aa6ff;
+  --brand-glow: rgba(106, 166, 255, 0.45);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    transition:
+      background-color 0.3s,
+      color 0.3s;
+  }
+  ::selection {
+    background: var(--brand);
+    color: #14161a;
+  }
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+/* ---------- Focusly global niceties ---------- */
+
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  padding: 10px 16px;
+  background: var(--brand);
+  color: #14161a;
+  border-radius: 8px;
+  font-weight: 600;
+  z-index: 200;
+  transition: top 0.2s;
+}
+.skip-link:focus {
+  top: 8px;
+}
+
+kbd {
+  font-family: var(--font-geist-mono), ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  padding: 2px 7px;
+  border: 1px solid var(--input);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--soft);
+}
+
+.time-display {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Slim scrollbars for lists */
+.slim-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+.slim-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.slim-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.slim-scroll::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 999px;
+}
+.slim-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--input);
+}
+
+/* Ring progress */
+.ring-fg {
+  transition:
+    stroke-dashoffset 0.35s linear,
+    stroke 0.35s ease;
+  filter: drop-shadow(0 0 9px var(--brand-glow));
+}
+
+/* Typewriter caret for hero */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+}
+.pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://focusly.example/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://focusly.example/#outils</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://focusly.example/#guide</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://focusly.example/#blog</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://focusly.example/#blog/methode-pomodoro-debutant</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://focusly.example/#blog/pauses-cerveau</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://focusly.example/#blog/comparaison-methodes</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://focusly.example/#blog/activites-pauses</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://focusly.example/#blog/erreurs-pomodoro</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://focusly.example/#blog/etudiants-revisions</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://focusly.example/#a-propos</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://focusly.example/#contact</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://focusly.example/#confidentialite</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://focusly.example/#conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://focusly.example/#mentions-legales</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://focusly.example/#plan-du-site</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+</urlset>

@@ -1,0 +1,402 @@
+     1→   220→<!-- ACCUEIL -->
+     2→   221→<section class="view" data-view="accueil" hidden>
+     3→   222→  <div class="container" style="padding:32px 20px 64px">
+     4→   223→    <div class="hero">
+     5→   224→      <h1>Concentrez-vous.<br><em>Un Pomodoro à la fois.</em></h1>
+     6→   225→      <p>Focusly réunit un minuteur Pomodoro, un gestionnaire de tâches et des guides pratiques. Gratuit, sans compte, respectueux de votre vie privée.</p>
+     7→   226→      <div class="hero-cta">
+     8→   227→        <a class="btn primary" href="#outils">Ouvrir les outils</a>
+     9→   228→        <a class="btn ghost" href="#guide">Lire le guide</a>
+    10→   229→      </div>
+    11→   230→    </div>
+    12→   231→    <section class="section">
+    13→   232→      <h2>Pourquoi Focusly ?</h2>
+    14→   233→      <p>La méthode Pomodoro, créée par Francesco Cirillo à la fin des années 1980, consiste à alterner des blocs de concentration intense et de courtes pauses. Des décennies de recherche en neurosciences cognitives ont confirmé son efficacité : notre attention est une ressource limitée, et la fragmenter en blocs délimités réduit la fatigue mentale tout en améliorant la qualité du travail produit.</p>
+    15→   234→      <p>Focusly est volontairement minimaliste : pas de compte à créer, pas de publicité intrusive, pas de collecte de données. Vos sessions, tâches et notes sont enregistrées uniquement dans votre navigateur.</p>
+    16→   235→    </section>
+    17→   236→    <section class="section">
+    18→   237→      <h2>Vos outils</h2>
+    19→   238→      <div class="cards">
+    20→   239→        <a class="card" href="#outils"><span class="tag">Concentration</span><h3>Minuteur Pomodoro</h3><p>Sessions personnalisables, cycle de pauses, statistiques du jour.</p></a>
+    21→   240→        <a class="card" href="#outils"><span class="tag">Organisation</span><h3>Gestionnaire de tâches</h3><p>Liste simple, efficace, persistante entre les sessions.</p></a>
+    22→   241→        <a class="card" href="#outils"><span class="tag">Notes</span><h3>Bloc-notes rapide</h3><p>Idées, réflexions, points à revoir. Sauvegarde automatique.</p></a>
+    23→   242→        <a class="card" href="#outils"><span class="tag">Suivi</span><h3>Historique et export</h3><p>Consultez vos sessions et exportez vos données en JSON.</p></a>
+    24→   243→      </div>
+    25→   244→    </section>
+    26→   245→    <section class="section">
+    27→   246→      <h2>À lire sur le blog</h2>
+    28→   247→      <div class="cards">
+    29→   248→        <a class="card" href="#blog/methode-pomodoro-debutant"><span class="tag">Guide</span><h3>La méthode Pomodoro expliquée aux débutants</h3><p>Origines, principes et mise en pratique immédiate.</p></a>
+    30→   249→        <a class="card" href="#blog/pauses-cerveau"><span class="tag">Neurosciences</span><h3>Pourquoi les pauses sont essentielles</h3><p>Le réseau du mode par défaut et l'ennui créatif.</p></a>
+    31→   250→        <a class="card" href="#blog/comparaison-methodes"><span class="tag">Comparatif</span><h3>Pomodoro vs Deep Work vs Time Blocking</h3><p>Trois approches, trois contextes.</p></a>
+    32→   251→        <a class="card" href="#blog/erreurs-pomodoro"><span class="tag">Pratique</span><h3>Les 5 erreurs qui ruinent votre Pomodoro</h3><p>Repérer ces pièges pour ne plus perdre votre concentration.</p></a>
+    33→   252→      </div>
+    34→   253→      <a class="btn ghost block" href="#blog">Voir tous les articles →</a>
+    35→   254→    </section>
+    36→   255→  </div>
+    37→   256→</section>
+    38→   257→
+    39→   258→<!-- OUTILS -->
+    40→   259→<section class="view" data-view="outils" hidden>
+    41→   260→  <div class="container" style="padding:32px 20px 64px">
+    42→   261→    <h1 class="page-title">Vos outils</h1>
+    43→   262→    <p class="page-subtitle">Minuteur, tâches, notes et historique. Vos données restent sur votre appareil.</p>
+    44→   263→
+    45→   264→    <div class="timer-card" role="region" aria-label="Minuteur Pomodoro">
+    46→   265→      <div class="timer-head">
+    47→   266→        <h2>Minuteur</h2>
+    48→   267→        <button class="icon-btn sm" id="openSettings" aria-label="Réglages" title="Réglages">
+    49→   268→          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    50→   269→        </button>
+    51→   270→      </div>
+    52→   271→      <nav class="modes" role="tablist" aria-label="Mode du minuteur">
+    53→   272→        <button class="mode active" data-mode="focus" role="tab" aria-selected="true">Concentration</button>
+    54→   273→        <button class="mode" data-mode="short" role="tab" aria-selected="false">Pause courte</button>
+    55→   274→        <button class="mode" data-mode="long" role="tab" aria-selected="false">Pause longue</button>
+    56→   275→      </nav>
+    57→   276→      <div class="timer-wrap">
+    58→   277→        <svg class="ring" viewBox="0 0 260 260" aria-hidden="true">
+    59→   278→          <circle class="ring-bg" cx="130" cy="130" r="118"></circle>
+    60→   279→          <circle id="ringFg" class="ring-fg" cx="130" cy="130" r="118" transform="rotate(-90 130 130)"></circle>
+    61→   280→        </svg>
+    62→   281→        <div class="timer-content">
+    63→   282→          <div id="time" class="time" role="timer" aria-live="polite" aria-atomic="true">25:00</div>
+    64→   283→          <div id="label" class="timer-label">Concentration</div>
+    65→   284→          <div class="dots" id="dots" aria-hidden="true"></div>
+    66→   285→        </div>
+    67→   286→      </div>
+    68→   287→      <div class="controls">
+    69→   288→        <button id="startBtn" class="btn primary">Démarrer</button>
+    70→   289→        <button id="resetBtn" class="btn ghost">Réinitialiser</button>
+    71→   290→        <button id="skipBtn" class="btn ghost" aria-label="Mode suivant" title="Passer">⏭</button>
+    72→   291→      </div>
+    73→   292→      <section class="stats" aria-label="Statistiques du jour">
+    74→   293→        <div class="stat"><span id="statPomos">0</span><small>Pomodoros</small></div>
+    75→   294→        <div class="stat"><span id="statMinutes">0</span><small>Minutes</small></div>
+    76→   295→        <div class="stat"><span id="statBreaks">0</span><small>Pauses</small></div>
+    77→   296→      </section>
+    78→   297→    </div>
+    79→   298→
+    80→   299→    <div class="tools-grid">
+    81→   300→      <section class="panel">
+    82→   301→        <div class="panel-head"><h2>Tâches</h2><span class="count" id="tasksCount">0</span></div>
+    83→   302→        <form class="task-form" id="taskForm" autocomplete="off">
+    84→   303→          <label for="taskInput" class="sr-only">Nouvelle tâche</label>
+    85→   304→          <input id="taskInput" type="text" placeholder="Ajouter une tâche…" maxlength="200" required>
+    86→   305→          <button class="btn primary" type="submit">Ajouter</button>
+    87→   306→        </form>
+    88→   307→        <ul class="task-list" id="taskList"></ul>
+    89→   308→        <div id="tasksEmpty" class="empty">Aucune tâche pour le moment.</div>
+    90→   309→        <button class="btn danger sm" id="clearDoneTasks" type="button">Effacer les tâches terminées</button>
+    91→   310→      </section>
+    92→   311→
+    93→   312→      <section class="panel">
+    94→   313→        <div class="panel-head"><h2>Notes rapides</h2><span class="count" id="notesCount">0</span></div>
+    95→   314→        <form class="note-form" id="noteForm" autocomplete="off">
+    96→   315→          <label for="noteInput" class="sr-only">Titre</label>
+    97→   316→          <input id="noteInput" type="text" placeholder="Titre…" maxlength="100" required>
+    98→   317→          <label for="noteBody" class="sr-only">Contenu</label>
+    99→   318→          <textarea id="noteBody" placeholder="Contenu…" maxlength="5000"></textarea>
+   100→   319→          <button class="btn primary" type="submit">Enregistrer</button>
+   101→   320→        </form>
+   102→   321→        <ul class="note-list" id="noteList"></ul>
+   103→   322→        <div id="notesEmpty" class="empty">Aucune note pour le moment.</div>
+   104→   323→      </section>
+   105→   324→
+   106→   325→      <section class="panel wide">
+   107→   326→        <div class="panel-head">
+   108→   327→          <h2>Historique des sessions</h2>
+   109→   328→          <div style="display:flex;gap:6px;flex-wrap:wrap">
+   110→   329→            <button class="btn ghost sm" id="exportBtn" type="button">Exporter (JSON)</button>
+   111→   330→            <button class="btn ghost sm" id="importBtn" type="button">Importer</button>
+   112→   331→            <input type="file" id="importFile" accept="application/json" hidden>
+   113→   332→            <button class="btn danger sm" id="clearHistory" type="button">Effacer</button>
+   114→   333→          </div>
+   115→   334→        </div>
+   116→   335→        <ul class="history-list" id="historyList"></ul>
+   117→   336→        <div id="historyEmpty" class="empty">Aucune session enregistrée.</div>
+   118→   337→      </section>
+   119→   338→    </div>
+   120→   339→  </div>
+   121→   340→</section>
+   122→   341→
+   123→   342→<!-- GUIDE -->
+   124→   343→<section class="view" data-view="guide" hidden>
+   125→   344→  <div class="container" style="padding:32px 20px 64px">
+   126→   345→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › Guide</nav>
+   127→   346→    <article>
+   128→   347→      <h1 class="page-title">Le guide complet de la méthode Pomodoro</h1>
+   129→   348→      <p class="meta">Mis à jour en 2025 · Lecture ~10 minutes</p>
+   130→   349→      <p>La méthode Pomodoro est probablement la technique de gestion du temps la plus connue au monde. Derrière son apparente simplicité — travailler 25 minutes, faire une pause de 5 — se cache un dispositif rigoureux, appuyé par des décennies de recherche en psychologie cognitive.</p>
+   131→   350→      <h2>1. Qu'est-ce que la méthode Pomodoro ?</h2>
+   132→   351→      <p>Développée par Francesco Cirillo à la fin des années 1980, la méthode repose sur une intuition simple : notre attention n'est pas un réservoir infini. Cirillo utilisait un minuteur de cuisine en forme de tomate (pomodoro en italien) pour fragmenter son travail en sessions courtes et intenses.</p>
+   133→   352→      <h2>2. Les cinq étapes de la méthode originale</h2>
+   134→   353→      <ol>
+   135→   354→        <li><strong>Choisir une tâche</strong> précise et unique.</li>
+   136→   355→        <li><strong>Régler un minuteur sur 25 minutes</strong> (un « Pomodoro »).</li>
+   137→   356→        <li><strong>Travailler sans interruption</strong> jusqu'à la sonnerie.</li>
+   138→   357→        <li><strong>Prendre une pause de 5 minutes.</strong></li>
+   139→   358→        <li><strong>Après quatre Pomodoros</strong>, prendre une pause longue de 15 à 30 minutes.</li>
+   140→   359→      </ol>
+   141→   360→      <h2>3. Pourquoi ça fonctionne : les trois leviers</h2>
+   142→   361→      <h3>Le levier attentionnel</h3>
+   143→   362→      <p>Notre attention soutenue s'épuise au bout de 20 à 45 minutes selon les individus. En découpant le travail en blocs courts, on évite d'atteindre le seuil de fatigue cognitive où les erreurs se multiplient.</p>
+   144→   363→      <h3>Le levier motivationnel</h3>
+   145→   364→      <p>Un bloc de 25 minutes est psychologiquement beaucoup plus facile à démarrer qu'une tâche « jusqu'à ce qu'elle soit finie ». En abaissant le coût perçu de l'engagement initial, la méthode contourne la procrastination.</p>
+   146→   365→      <h3>Le levier métacognitif</h3>
+   147→   366→      <p>Suivre ses sessions permet de prendre conscience de sa productivité réelle. Combien de Pomodoros pour rédiger ce rapport ? Ce retour d'information permet d'estimer plus justement la durée des tâches futures.</p>
+   148→   367→      <h2>4. Adapter les durées à votre profil</h2>
+   149→   368→      <ul>
+   150→   369→        <li><strong>Travail créatif profond</strong> : 50/10, voire 90/20.</li>
+   151→   370→        <li><strong>Travail administratif</strong> : 15/3 peut suffire.</li>
+   152→   371→        <li><strong>Étudiants en révision</strong> : 25/5 reste idéal.</li>
+   153→   372→        <li><strong>Développeurs</strong> : 45/10 est un bon compromis.</li>
+   154→   373→      </ul>
+   155→   374→      <p>Dans Focusly, ajustez ces durées via le bouton ⚙ du minuteur.</p>
+   156→   375→      <h2>5. Les pièges les plus fréquents</h2>
+   157→   376→      <ul>
+   158→   377→        <li><strong>Multiplier les micro-interruptions</strong> : consulter son téléphone annule presque totalement les bénéfices.</li>
+   159→   378→        <li><strong>Zapper les pauses</strong> : travailler « tant qu'on est dedans » sape la structure.</li>
+   160→   379→        <li><strong>Vouloir tout mesurer</strong> : le Pomodoro est un outil, pas une religion.</li>
+   161→   380→      </ul>
+   162→   381→      <h2>6. Comment démarrer aujourd'hui</h2>
+   163→   382→      <ol>
+   164→   383→        <li><strong>Jour 1-2</strong> : trois Pomodoros par jour, sans objectif de performance.</li>
+   165→   384→        <li><strong>Jour 3-4</strong> : cinq Pomodoros, en notant à chaque fin de session ce que vous avez accompli.</li>
+   166→   385→        <li><strong>Jour 5-6</strong> : ajustez vos durées si nécessaire, explorez les pauses longues.</li>
+   167→   386→        <li><strong>Jour 7</strong> : faites le bilan.</li>
+   168→   387→      </ol>
+   169→   388→      <h2>En résumé</h2>
+   170→   389→      <p>La méthode Pomodoro n'est pas une baguette magique. C'est un cadre simple, éprouvé, qui exploite trois leviers pour vous aider à travailler avec plus de régularité et moins de friction.</p>
+   171→   390→      <p><a href="#outils">→ Essayer le minuteur maintenant</a></p>
+   172→   391→    </article>
+   173→   392→  </div>
+   174→   393→</section>
+   175→   394→
+   176→   395→<!-- BLOG -->
+   177→   396→<section class="view" data-view="blog" hidden>
+   178→   397→  <div class="container" style="padding:32px 20px 64px">
+   179→   398→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › Blog</nav>
+   180→   399→    <h1 class="page-title">Le blog de Focusly</h1>
+   181→   400→    <p class="page-subtitle">Articles et guides sur la concentration, la productivité et la gestion du temps.</p>
+   182→   401→    <div class="cards">
+   183→   402→      <a class="card" href="#blog/methode-pomodoro-debutant"><span class="tag">Guide</span><h3>La méthode Pomodoro expliquée aux débutants</h3><p>Origines, principes, mise en pratique.</p></a>
+   184→   403→      <a class="card" href="#blog/pauses-cerveau"><span class="tag">Neurosciences</span><h3>Pourquoi les pauses sont essentielles à votre cerveau</h3><p>Le réseau du mode par défaut et l'ennui créatif.</p></a>
+   185→   404→      <a class="card" href="#blog/comparaison-methodes"><span class="tag">Comparatif</span><h3>Pomodoro vs Deep Work vs Time Blocking</h3><p>Trois approches, trois contextes.</p></a>
+   186→   405→      <a class="card" href="#blog/activites-pauses"><span class="tag">Pratique</span><h3>10 activités pour des pauses vraiment réparatrices</h3><p>Ce qu'il faut faire — et éviter — pendant vos 5 minutes.</p></a>
+   187→   406→      <a class="card" href="#blog/erreurs-pomodoro"><span class="tag">Pratique</span><h3>Les 5 erreurs qui ruinent votre méthode Pomodoro</h3><p>Repérer les pièges classiques.</p></a>
+   188→   407→      <a class="card" href="#blog/etudiants-revisions"><span class="tag">Étudiants</span><h3>Réviser efficacement avec la méthode Pomodoro</h3><p>Adapter la méthode aux examens.</p></a>
+   189→   408→    </div>
+   190→   409→  </div>
+   191→   410→</section>
+   192→   411→
+   193→   412→<!-- ARTICLES -->
+   194→   413→<section class="view" data-view="blog/methode-pomodoro-debutant" hidden>
+   195→   414→  <div class="container" style="padding:32px 20px 64px">
+   196→   415→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › <a href="#blog">Blog</a> › Article</nav>
+   197→   416→    <article>
+   198→   417→      <h1 class="page-title">La méthode Pomodoro expliquée aux débutants</h1>
+   199→   418→      <p class="meta">Publié le 12 mars 2025 · Lecture ~8 minutes</p>
+   200→   419→      <p>Vous avez probablement déjà entendu parler de la méthode Pomodoro. Peut-être l'avez-vous essayée sans trop de succès, ou peut-être n'avez-vous jamais osé vous lancer. Cet article vous explique, sans jargon, ce qu'est cette méthode et comment la mettre en pratique dès aujourd'hui.</p>
+   201→   420→      <h2>Une invention estudiantine devenue mondiale</h2>
+   202→   421→      <p>En 1987, un étudiant italien nommé Francesco Cirillo peine à se concentrer sur ses révisions. Un jour, il attrape le minuteur de cuisine en forme de tomate de sa mère, le règle sur dix minutes, et se lance un défi : « Je vais me concentrer intensément, juste dix minutes. » Le minuteur fonctionne. Il baptise sa découverte « méthode Pomodoro ».</p>
+   203→   422→      <h2>Le principe en une phrase</h2>
+   204→   423→      <p>Travailler par blocs courts et intenses, séparés par des pauses obligatoires, plutôt que de s'acharner sur une tâche pendant des heures. Ce principe repose sur une réalité physiologique : notre attention n'est pas un réservoir infini.</p>
+   205→   424→      <h2>Les règles fondamentales</h2>
+   206→   425→      <ul>
+   207→   426→        <li>Un Pomodoro dure <strong>25 minutes</strong>.</li>
+   208→   427→        <li>Il est indivisible.</li>
+   209→   428→        <li>Après chaque Pomodoro, une <strong>pause de 5 minutes</strong>.</li>
+   210→   429→        <li>Après quatre Pomodoros, la pause dure <strong>15 à 30 minutes</strong>.</li>
+   211→   430→      </ul>
+   212→   431→      <h2>Pourquoi ça marche vraiment</h2>
+   213→   432→      <ol>
+   214→   433→        <li><strong>La contrainte temporelle</strong> réduit la procrastination.</li>
+   215→   434→        <li><strong>La pause planifiée</strong> permet au cerveau de consolider.</li>
+   216→   435→        <li><strong>La mesure objective</strong> fournit un retour précieux.</li>
+   217→   436→      </ol>
+   218→   437→      <h2>Comment démarrer concrètement</h2>
+   219→   438→      <p>Oubliez les applications complexes. Prenez le minuteur Focusly, choisissez <strong>une seule tâche</strong>, et lancez un Pomodoro. Vingt-cinq minutes plus tard, notez ce que vous avez accompli. Puis prenez cinq minutes de pause — vraiment cinq minutes.</p>
+   220→   439→      <h2>Les premiers jours : à quoi s'attendre</h2>
+   221→   440→      <p>Il est normal de trouver les premières sessions difficiles. Au bout de trois à cinq jours, cette résistance s'atténue. Votre cerveau a compris le rythme.</p>
+   222→   441→      <h2>Et après ?</h2>
+   223→   442→      <p>Une fois la méthode maîtrisée, vous pourrez ajuster les durées et l'intégrer à d'autres techniques. Commencez par la base.</p>
+   224→   443→      <p style="margin-top:32px"><a href="#blog">← Retour au blog</a></p>
+   225→   444→    </article>
+   226→   445→  </div>
+   227→   446→</section>
+   228→   447→
+   229→   448→<section class="view" data-view="blog/pauses-cerveau" hidden>
+   230→   449→  <div class="container" style="padding:32px 20px 64px">
+   231→   450→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › <a href="#blog">Blog</a> › Article</nav>
+   232→   451→    <article>
+   233→   452→      <h1 class="page-title">Pourquoi les pauses sont essentielles à votre cerveau</h1>
+   234→   453→      <p class="meta">Publié le 20 mars 2025 · Lecture ~6 minutes</p>
+   235→   454→      <p>Dans notre culture du « toujours plus », la pause est souvent perçue comme une faiblesse. Les neurosciences racontent une histoire radicalement différente : sans pauses, le cerveau ne consolide pas, ne récupère pas, et finit par produire un travail de moindre qualité.</p>
+   236→   455→      <h2>Le cerveau n'est pas une machine à effort continu</h2>
+   237→   456→      <p>Notre attention soutenue repose sur un réseau de régions cérébrales qui consomme énormément d'énergie. Après environ 20 à 45 minutes d'effort cognitif intense, ce réseau commence à montrer des signes de fatigue.</p>
+   238→   457→      <h2>Le réseau du mode par défaut</h2>
+   239→   458→      <p>L'une des découvertes les plus fascinantes des neurosciences récentes est l'existence du <strong>Default Mode Network</strong> (DMN). Il s'active précisément lorsque nous ne sommes pas engagés dans une tâche cognitive exigeante. Ce réseau joue un rôle central dans :</p>
+   240→   459→      <ul>
+   241→   460→        <li>La <strong>consolidation mnésique</strong>.</li>
+   242→   461→        <li>La <strong>créativité</strong>.</li>
+   243→   462→        <li>La <strong>régulation émotionnelle</strong>.</li>
+   244→   463→        <li>La <strong>planification à long terme</strong>.</li>
+   245→   464→      </ul>
+   246→   465→      <h2>Ce qui empêche le cerveau de récupérer</h2>
+   247→   466→      <p>Regarder son fil Twitter pendant cinq minutes ne sollicite pas le DMN : cela sur-sollicite au contraire les circuits de l'attention et de la récompense.</p>
+   248→   467→      <h2>La théorie de la restauration de l'attention</h2>
+   249→   468→      <p>Deux psychologues américains, Rachel et Stephen Kaplan, ont proposé la théorie de la restauration de l'attention. Pour la restaurer, il faut s'exposer à des environnements qui satisfont quatre critères : être ailleurs, être fascinant, être cohérent, être compatible.</p>
+   250→   469→      <h2>Conséquences pratiques pour votre Pomodoro</h2>
+   251→   470→      <p>La méthode Pomodoro intègre déjà ces principes. Mais l'efficacité dépend entièrement de la qualité des pauses. Une pause de cinq minutes passée sur les réseaux sociaux annule presque totalement les bénéfices.</p>
+   252→   471→      <p><a href="#blog">← Retour au blog</a></p>
+   253→   472→    </article>
+   254→   473→  </div>
+   255→   474→</section>
+   256→   475→
+   257→   476→<section class="view" data-view="blog/comparaison-methodes" hidden>
+   258→   477→  <div class="container" style="padding:32px 20px 64px">
+   259→   478→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › <a href="#blog">Blog</a> › Article</nav>
+   260→   479→    <article>
+   261→   480→      <h1 class="page-title">Pomodoro vs Deep Work vs Time Blocking</h1>
+   262→   481→      <p class="meta">Publié le 28 mars 2025 · Lecture ~7 minutes</p>
+   263→   482→      <p>Trois méthodes dominent aujourd'hui le discours sur la productivité. Elles sont souvent présentées comme concurrentes. En réalité, elles répondent à des problèmes différents et se combinent remarquablement bien.</p>
+   264→   483→      <h2>La méthode Pomodoro : structurer l'effort</h2>
+   265→   484→      <p><strong>Principe :</strong> alterner des blocs de travail courts et des pauses fixes. <strong>Point fort :</strong> s'attaque à la procrastination. <strong>Limite :</strong> fragmente le travail.</p>
+   266→   485→      <h2>Deep Work : protéger l'immersion</h2>
+   267→   486→      <p><strong>Principe :</strong> réserver des plages de plusieurs heures à un travail cognitif intense. <strong>Point fort :</strong> atteindre le « flow ». <strong>Limite :</strong> difficile sans maîtrise préalable.</p>
+   268→   487→      <h2>Time Blocking : planifier chaque heure</h2>
+   269→   488→      <p><strong>Principe :</strong> attribuer à chaque tâche une plage horaire précise. <strong>Point fort :</strong> vision réaliste de la journée. <strong>Limite :</strong> demande de la discipline.</p>
+   270→   489→      <h2>Comment les combiner</h2>
+   271→   490→      <ol>
+   272→   491→        <li><strong>Time Blocking</strong> pour structurer la journée.</li>
+   273→   492→        <li><strong>Deep Work</strong> dans les plages créatives.</li>
+   274→   493→        <li><strong>Pomodoro</strong> pour les tâches administratives.</li>
+   275→   494→      </ol>
+   276→   495→      <h2>Quelle méthode pour quel profil ?</h2>
+   277→   496→      <ul>
+   278→   497→        <li><strong>Étudiants</strong> : Pomodoro en priorité.</li>
+   279→   498→        <li><strong>Développeurs / créatifs</strong> : Deep Work comme méthode principale.</li>
+   280→   499→        <li><strong>Entrepreneurs</strong> : Time Blocking indispensable.</li>
+   281→   500→        <li><strong>Personnes distraites</strong> : commencez par le Pomodoro.</li>
+   282→   501→      </ul>
+   283→   502→      <p><a href="#blog">← Retour au blog</a></p>
+   284→   503→    </article>
+   285→   504→  </div>
+   286→   505→</section>
+   287→   506→
+   288→   507→<section class="view" data-view="blog/activites-pauses" hidden>
+   289→   508→  <div class="container" style="padding:32px 20px 64px">
+   290→   509→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › <a href="#blog">Blog</a> › Article</nav>
+   291→   510→    <article>
+   292→   511→      <h1 class="page-title">10 activités pour des pauses vraiment réparatrices</h1>
+   293→   512→      <p class="meta">Publié le 4 avril 2025 · Lecture ~6 minutes</p>
+   294→   513→      <p>Une pause n'est pas un vide : c'est un moment où le cerveau bascule dans un autre mode de fonctionnement.</p>
+   295→   514→      <h2>Ce qu'il faut éviter</h2>
+   296→   515→      <ul>
+   297→   516→        <li><strong>Consulter les réseaux sociaux</strong>.</li>
+   298→   517→        <li><strong>Lire ses emails</strong>.</li>
+   299→   518→        <li><strong>Regarder une vidéo courte</strong>.</li>
+   300→   519→      </ul>
+   301→   520→      <h2>Les 10 activités</h2>
+   302→   521→      <ol>
+   303→   522→        <li>Se lever et s'étirer (1 min).</li>
+   304→   523→        <li>Marcher quelques minutes (3-5 min).</li>
+   305→   524→        <li>Regarder par la fenêtre (2-3 min).</li>
+   306→   525→        <li>Boire un verre d'eau (1 min).</li>
+   307→   526→        <li>Respirer consciemment (2 min).</li>
+   308→   527→        <li>Écrire trois lignes dans un carnet (2 min).</li>
+   309→   528→        <li>Faire une micro-tâche ménagère (3 min).</li>
+   310→   529→        <li>Discuter brièvement avec quelqu'un (5 min).</li>
+   311→   530→        <li>Écouter un morceau de musique (3-4 min).</li>
+   312→   531→        <li>Fermer les yeux (5 min).</li>
+   313→   532→      </ol>
+   314→   533→      <h2>Le rituel de la pause longue</h2>
+   315→   534→      <p>La pause longue (15-30 minutes) mérite un traitement particulier : marche, déjeuner sans écran, sieste de 20 minutes maximum.</p>
+   316→   535→      <h2>Une règle simple</h2>
+   317→   536→      <p>Pendant vos pauses, éloignez-vous de l'écran. Tout le reste découle naturellement.</p>
+   318→   537→      <p><a href="#blog">← Retour au blog</a></p>
+   319→   538→    </article>
+   320→   539→  </div>
+   321→   540→</section>
+   322→   541→
+   323→   542→<section class="view" data-view="blog/erreurs-pomodoro" hidden>
+   324→   543→  <div class="container" style="padding:32px 20px 64px">
+   325→   544→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › <a href="#blog">Blog</a> › Article</nav>
+   326→   545→    <article>
+   327→   546→      <h1 class="page-title">Les 5 erreurs qui ruinent votre méthode Pomodoro</h1>
+   328→   547→      <p class="meta">Publié le 11 avril 2025 · Lecture ~6 minutes</p>
+   329→   548→      <p>La méthode Pomodoro est simple. Trop simple, peut-être : c'est précisément parce qu'on croit l'avoir comprise en cinq minutes qu'on la pratique mal pendant des mois.</p>
+   330→   549→      <h2>Erreur 1 : interrompre un Pomodoro en cours</h2>
+   331→   550→      <p>Un Pomodoro interrompu n'est plus un Pomodoro. Si une interruption survient, la règle est de considérer la session comme perdue.</p>
+   332→   551→      <h2>Erreur 2 : zapper les pauses</h2>
+   333→   552→      <p>La pause n'est pas un luxe, c'est ce qui rend les sessions suivantes possibles.</p>
+   334→   553→      <h2>Erreur 3 : utiliser son téléphone pendant les pauses</h2>
+   335→   554→      <p>Consulter son téléphone pendant cinq minutes ne repose pas le cerveau, cela l'épuise davantage.</p>
+   336→   555→      <h2>Erreur 4 : utiliser le Pomodoro pour tout</h2>
+   337→   556→      <p>Le Pomodoro est moins adapté aux réunions, au travail créatif profond et à la réflexion diffuse.</p>
+   338→   557→      <h2>Erreur 5 : ne pas mesurer ses progrès</h2>
+   339→   558→      <p>Suivez vos sessions (Focusly le fait automatiquement) et prenez cinq minutes chaque semaine pour analyser.</p>
+   340→   559→      <h2>Bonus : croire qu'il faut être motivé</h2>
+   341→   560→      <p>La méthode a précisément été conçue pour fonctionner <em>sans</em> motivation préalable.</p>
+   342→   561→      <p><a href="#blog">← Retour au blog</a></p>
+   343→   562→    </article>
+   344→   563→  </div>
+   345→   564→</section>
+   346→   565→
+   347→   566→<section class="view" data-view="blog/etudiants-revisions" hidden>
+   348→   567→  <div class="container" style="padding:32px 20px 64px">
+   349→   568→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › <a href="#blog">Blog</a> › Article</nav>
+   350→   569→    <article>
+   351→   570→      <h1 class="page-title">Réviser efficacement avec la méthode Pomodoro</h1>
+   352→   571→      <p class="meta">Publié le 18 avril 2025 · Lecture ~7 minutes</p>
+   353→   572→      <p>La période des examens est un moment de tension. La méthode Pomodoro est particulièrement adaptée aux révisions, à condition d'être adaptée aux spécificités de la mémorisation.</p>
+   354→   573→      <h2>Pourquoi le Pomodoro est idéal pour les révisions</h2>
+   355→   574→      <ul>
+   356→   575→        <li>Il rend le démarrage plus facile.</li>
+   357→   576→        <li>Il impose une limite.</li>
+   358→   577→        <li>Il fragmente naturellement le travail.</li>
+   359→   578→      </ul>
+   360→   579→      <h2>Adapter les durées</h2>
+   361→   580→      <ul>
+   362→   581→        <li><strong>Mémorisation brute</strong> : 15-20 min.</li>
+   363→   582→        <li><strong>Compréhension de concepts</strong> : 30-45 min.</li>
+   364→   583→        <li><strong>Rédaction</strong> : 45-50 min.</li>
+   365→   584→        <li><strong>Révision générale</strong> : 25 min.</li>
+   366→   585→      </ul>
+   367→   586→      <h2>La structure idéale d'une journée</h2>
+   368→   587→      <ol>
+   369→   588→        <li><strong>8h30 - 9h00 :</strong> révision des fiches de la veille.</li>
+   370→   589→        <li><strong>9h00 - 10h30 :</strong> apprentissage de nouveaux contenus.</li>
+   371→   590→        <li><strong>10h30 - 11h00 :</strong> pause longue.</li>
+   372→   591→        <li><strong>11h00 - 12h30 :</strong> exercices d'application.</li>
+   373→   592→        <li><strong>14h00 - 16h00 :</strong> révision active.</li>
+   374→   593→        <li><strong>16h30 - 18h00 :</strong> auto-évaluation.</li>
+   375→   594→      </ol>
+   376→   595→      <h2>La règle d'or : la récupération active</h2>
+   377→   596→      <p>Le piège classique est de confondre <em>relire</em> et <em>réviser</em>. Pour vraiment mémoriser, il faut se tester.</p>
+   378→   597→      <h2>Le sommeil</h2>
+   379→   598→      <p>Aucune méthode de productivité ne remplace le sommeil. Visez au minimum 7 heures.</p>
+   380→   599→      <p><a href="#blog">← Retour au blog</a></p>
+   381→   600→    </article>
+   382→   601→  </div>
+   383→   602→</section>
+   384→   603→
+   385→   604→<!-- À PROPOS -->
+   386→   605→<section class="view" data-view="a-propos" hidden>
+   387→   606→  <div class="container" style="padding:32px 20px 64px">
+   388→   607→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › À propos</nav>
+   389→   608→    <article>
+   390→   609→      <h1 class="page-title">À propos de Focusly</h1>
+   391→   610→      <p class="page-subtitle">Un projet indépendant dédié à la concentration et à la productivité.</p>
+   392→   611→      <h2>Notre mission</h2>
+   393→   612→      <p>Focusly est un projet indépendant dont l'objectif est simple : offrir un outil de concentration minimaliste, gratuit et respectueux de la vie privée, accompagné de ressources éditoriales de qualité.</p>
+   394→   613→      <h2>Notre approche</h2>
+   395→   614→      <ul>
+   396→   615→        <li><strong>Minimalisme</strong> : chaque fonctionnalité doit justifier sa présence.</li>
+   397→   616→        <li><strong>Respect de la vie privée</strong> : vos données restent sur votre appareil.</li>
+   398→   617→        <li><strong>Transparence</strong> : nous expliquons clairement quelles données sont utilisées.</li>
+   399→   618→      </ul>
+   400→   619→      <h2>Qui sommes-nous ?</h2>
+   401→
+   402→[showing lines 220-619 of 1340; use offset=620 with limit to continue reading]

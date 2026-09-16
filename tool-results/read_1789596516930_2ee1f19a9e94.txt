@@ -1,0 +1,402 @@
+     1→     1→<!DOCTYPE html>
+     2→     2→<html lang="fr" data-theme="dark">
+     3→     3→<head>
+     4→     4→<meta charset="UTF-8">
+     5→     5→<meta name="viewport" content="width=device-width, initial-scale=1">
+     6→     6→<meta name="theme-color" content="#0f1013">
+     7→     7→<title>Focusly — Minuteur Pomodoro et outils de concentration</title>
+     8→     8→<meta name="description" content="Minuteur Pomodoro gratuit, gestionnaire de tâches, notes et guides sur la concentration.">
+     9→     9→<style>
+    10→    10→:root{
+    11→    11→  --bg:#0f1013; --surface:#17191e; --surface-2:#1d1f25; --surface-3:#23262d;
+    12→    12→  --text:#eef0f4; --text-soft:#c9ccd4; --muted:#9ba0ab; --muted-2:#787d88;
+    13→    13→  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.14);
+    14→    14→  --accent:#ff6b5b; --glow:rgba(255,107,91,.45);
+    15→    15→  --shadow:0 30px 80px -30px rgba(0,0,0,.9);
+    16→    16→  --radius:18px; --radius-lg:26px;
+    17→    17→}
+    18→    18→[data-theme="light"]{
+    19→    19→  --bg:#f7f7f9; --surface:#fff; --surface-2:#f0f1f4; --surface-3:#e6e8ec;
+    20→    20→  --text:#14161a; --text-soft:#3b3f47; --muted:#4a4f5a; --muted-2:#5a5f6a;
+    21→    21→  --line:rgba(0,0,0,.09); --line-2:rgba(0,0,0,.16);
+    22→    22→  --shadow:0 30px 80px -30px rgba(0,0,0,.18);
+    23→    23→}
+    24→    24→body[data-mode="focus"]{--accent:#ff6b5b;--glow:rgba(255,107,91,.45)}
+    25→    25→body[data-mode="short"]{--accent:#37d3b0;--glow:rgba(55,211,176,.45)}
+    26→    26→body[data-mode="long"]{--accent:#6aa6ff;--glow:rgba(106,166,255,.45)}
+    27→    27→*,*::before,*::after{box-sizing:border-box}
+    28→    28→html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+    29→    29→body{margin:0;min-height:100vh;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);line-height:1.65;font-size:16px;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
+    30→    30→a{color:var(--accent);text-decoration:none}
+    31→    31→a:hover{text-decoration:underline}
+    32→    32→img,svg{max-width:100%;display:block}
+    33→    33→button{font-family:inherit}
+    34→    34→:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+    35→    35→[hidden]{display:none!important}
+    36→    36→.container{width:min(920px,100%);margin:0 auto;padding:0 20px}
+    37→    37→.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    38→    38→.skip-link{position:absolute;top:-100px;left:8px;padding:10px 16px;background:var(--accent);color:#0f1013;border-radius:8px;font-weight:600;z-index:200;transition:top .2s}
+    39→    39→.skip-link:focus{top:8px}
+    40→    40→
+    41→    41→/* HEADER */
+    42→    42→.site-header{position:sticky;top:0;z-index:50;background:rgba(15,16,19,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+    43→    43→[data-theme="light"] .site-header{background:rgba(247,247,249,.88)}
+    44→    44→.site-header .container{display:flex;align-items:center;justify-content:space-between;padding-top:12px;padding-bottom:12px;gap:12px;flex-wrap:wrap}
+    45→    45→.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:var(--text);letter-spacing:-.01em}
+    46→    46→.brand:hover{text-decoration:none}
+    47→    47→.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--glow)}
+    48→    48→.site-nav{display:flex;gap:2px;flex-wrap:wrap;align-items:center}
+    49→    49→.site-nav a{padding:8px 12px;border-radius:10px;color:var(--text-soft);font-size:14px;font-weight:500;transition:background .2s,color .2s;min-height:36px;display:inline-flex;align-items:center}
+    50→    50→.site-nav a:hover{background:var(--surface-2);color:var(--text);text-decoration:none}
+    51→    51→.site-nav a.active{background:var(--surface-3);color:var(--text)}
+    52→    52→.toolbar{display:flex;gap:6px;align-items:center}
+    53→    53→.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--muted);cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+    54→    54→.icon-btn:hover{background:var(--surface-2);color:var(--text);border-color:var(--line-2)}
+    55→    55→.icon-btn.sm{width:32px;height:32px;border-radius:8px;font-size:13px}
+    56→    56→
+    57→    57→/* TYPO */
+    58→    58→.page-title{font-size:clamp(28px,5vw,40px);line-height:1.2;margin:0 0 12px;letter-spacing:-.02em}
+    59→    59→.page-subtitle{font-size:17px;color:var(--muted);margin:0 0 32px;max-width:660px}
+    60→    60→article{max-width:720px}
+    61→    61→article h2{font-size:24px;margin:36px 0 12px;letter-spacing:-.01em}
+    62→    62→article h3{font-size:19px;margin:28px 0 10px}
+    63→    63→article p{margin:0 0 16px}
+    64→    64→article ul,article ol{padding-left:22px;margin:0 0 16px}
+    65→    65→article li{margin-bottom:6px}
+    66→    66→article blockquote{margin:24px 0;padding:14px 20px;border-left:3px solid var(--accent);background:rgba(255,107,91,.06);border-radius:0 10px 10px 0;color:var(--text-soft);font-style:italic}
+    67→    67→.meta{font-size:13px;color:var(--muted-2);margin:0 0 24px}
+    68→    68→.breadcrumb{font-size:13px;color:var(--muted);margin-bottom:16px}
+    69→    69→.breadcrumb a{color:var(--muted)}
+    70→    70→.breadcrumb a:hover{color:var(--text)}
+    71→    71→
+    72→    72→/* HERO */
+    73→    73→.hero{text-align:center;margin-bottom:40px}
+    74→    74→.hero h1{font-size:clamp(30px,6vw,46px);margin:0 0 14px;letter-spacing:-.025em;line-height:1.15}
+    75→    75→.hero h1 em{color:var(--accent);font-style:normal}
+    76→    76→.hero p{font-size:17px;color:var(--muted);max-width:580px;margin:0 auto 28px}
+    77→    77→.hero-cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    78→    78→
+    79→    79→/* CARDS */
+    80→    80→.cards{display:grid;grid-template-columns:1fr;gap:14px;margin:36px 0}
+    81→    81→@media(min-width:640px){.cards{grid-template-columns:1fr 1fr}}
+    82→    82→.card{display:block;padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);transition:border-color .2s,transform .2s;color:var(--text);text-decoration:none}
+    83→    83→.card:hover{border-color:var(--line-2);transform:translateY(-2px);text-decoration:none}
+    84→    84→.card .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+    85→    85→.card h3{margin:0 0 6px;font-size:17px;letter-spacing:-.01em;color:var(--text)}
+    86→    86→.card p{margin:0;font-size:14px;color:var(--muted);line-height:1.55}
+    87→    87→.section{margin:56px 0}
+    88→    88→.section h2{font-size:26px;margin:0 0 20px;letter-spacing:-.015em}
+    89→    89→.section>p{color:var(--text-soft)}
+    90→    90→
+    91→    91→/* BUTTONS */
+    92→    92→.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 20px;border:1px solid transparent;border-radius:14px;font-family:inherit;font-size:14.5px;font-weight:600;cursor:pointer;min-height:44px;transition:background .2s,color .2s,filter .2s,transform .1s,border-color .2s}
+    93→    93→.btn:active{transform:translateY(1px)}
+    94→    94→.btn.primary{background:var(--accent);color:#0f1013;box-shadow:0 12px 32px -14px var(--accent)}
+    95→    95→.btn.primary:hover{filter:brightness(1.09);text-decoration:none;color:#0f1013}
+    96→    96→.btn.ghost{background:var(--surface);border-color:var(--line);color:var(--text-soft)}
+    97→    97→.btn.ghost:hover{background:var(--surface-2);color:var(--text);text-decoration:none;border-color:var(--line-2)}
+    98→    98→.btn.danger{background:transparent;border-color:var(--line);color:var(--muted)}
+    99→    99→.btn.danger:hover{color:#ff8f8f;background:rgba(255,107,91,.1);border-color:#ff6b5b;text-decoration:none}
+   100→   100→.btn.block{width:100%}
+   101→   101→.btn.sm{padding:8px 12px;font-size:13px;min-height:36px}
+   102→   102→
+   103→   103→/* TIMER */
+   104→   104→.timer-card{width:min(440px,100%);margin:0 auto 40px;display:flex;flex-direction:column;gap:20px;padding:24px 22px 20px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow)}
+   105→   105→.timer-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+   106→   106→.timer-head h2{margin:0;font-size:11.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+   107→   107→.modes{display:flex;gap:5px;padding:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px}
+   108→   108→.mode{flex:1;padding:9px 4px;border:0;border-radius:10px;min-height:36px;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer;transition:background .25s,color .25s;white-space:nowrap}
+   109→   109→.mode:hover{color:var(--text-soft)}
+   110→   110→.mode.active{background:var(--surface-3);color:var(--text)}
+   111→   111→.timer-wrap{position:relative;width:min(260px,68vw);aspect-ratio:1;margin:0 auto}
+   112→   112→.ring{position:absolute;inset:0;width:100%;height:100%}
+   113→   113→.ring-bg{fill:none;stroke:var(--line);stroke-width:8}
+   114→   114→.ring-fg{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;stroke-dasharray:741.42;stroke-dashoffset:0;filter:drop-shadow(0 0 9px var(--glow));transition:stroke-dashoffset .35s linear,stroke .35s ease}
+   115→   115→.timer-content{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center}
+   116→   116→.time{font-size:clamp(42px,12vw,54px);font-weight:300;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+   117→   117→.timer-label{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+   118→   118→.dots{display:flex;gap:6px;height:6px}
+   119→   119→.dots i{width:6px;height:6px;border-radius:50%;background:var(--line-2);transition:background .3s,box-shadow .3s}
+   120→   120→.dots i.on{background:var(--accent);box-shadow:0 0 8px -1px var(--accent)}
+   121→   121→.controls{display:flex;gap:10px}
+   122→   122→.controls .btn.primary{flex:1}
+   123→   123→.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-top:18px;border-top:1px solid var(--line)}
+   124→   124→.stat{display:flex;flex-direction:column;align-items:center;gap:2px}
+   125→   125→.stat span{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+   126→   126→.stat small{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+   127→   127→
+   128→   128→/* OUTILS */
+   129→   129→.tools-grid{display:grid;grid-template-columns:1fr;gap:20px;margin-top:32px}
+   130→   130→@media(min-width:900px){.tools-grid{grid-template-columns:1fr 1fr}}
+   131→   131→.panel{padding:22px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);display:flex;flex-direction:column;gap:16px}
+   132→   132→.panel.wide{grid-column:1/-1}
+   133→   133→.panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+   134→   134→.panel-head h2{margin:0;font-size:16px;font-weight:700;letter-spacing:-.01em}
+   135→   135→.panel-head .count{font-size:12px;color:var(--muted);font-weight:600}
+   136→   136→.task-form,.note-form{display:flex;gap:8px;flex-wrap:wrap}
+   137→   137→.task-form input,.note-form input,.note-form textarea{flex:1;min-width:0;padding:11px 14px;min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--text);font-family:inherit;font-size:15px;transition:border-color .2s}
+   138→   138→.task-form input:focus,.note-form input:focus,.note-form textarea:focus{outline:none;border-color:var(--accent)}
+   139→   139→.note-form textarea{min-height:100px;resize:vertical;width:100%}
+   140→   140→.task-list,.note-list,.history-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto}
+   141→   141→.task-item,.note-item,.history-item{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+   142→   142→.task-item.done{opacity:.55}
+   143→   143→.task-item.done .task-text{text-decoration:line-through}
+   144→   144→.task-item input[type="checkbox"]{width:20px;height:20px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer;flex:none}
+   145→   145→.task-text{flex:1;font-size:14.5px;line-height:1.5;word-break:break-word}
+   146→   146→.note-body{flex:1;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:var(--text-soft)}
+   147→   147→.note-date,.history-date{font-size:11px;color:var(--muted-2);margin-top:4px}
+   148→   148→.empty{padding:24px 16px;text-align:center;font-size:13.5px;color:var(--muted-2);border:1px dashed var(--line);border-radius:12px}
+   149→   149→
+   150→   150→/* FORM */
+   151→   151→.form{display:flex;flex-direction:column;gap:14px;max-width:560px}
+   152→   152→.form label{font-size:13.5px;font-weight:600;color:var(--text-soft);display:block;margin-bottom:6px}
+   153→   153→.form input,.form textarea{width:100%;padding:12px 14px;min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);font-family:inherit;font-size:15px}
+   154→   154→.form textarea{min-height:160px;resize:vertical}
+   155→   155→.form input:focus,.form textarea:focus{outline:none;border-color:var(--accent)}
+   156→   156→.form .checkbox{display:flex;align-items:flex-start;gap:10px;font-size:13.5px;color:var(--text-soft)}
+   157→   157→.form .checkbox input{width:18px;height:18px;min-height:auto;margin-top:2px;accent-color:var(--accent)}
+   158→   158→
+   159→   159→/* MODALE */
+   160→   160→.overlay{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(5,6,8,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .25s}
+   161→   161→.overlay.open{opacity:1;pointer-events:auto}
+   162→   162→.modal{width:min(440px,100%);max-height:90vh;overflow-y:auto;padding:22px;background:var(--surface);border:1px solid var(--line-2);border-radius:22px;box-shadow:0 40px 90px -30px #000;transform:translateY(12px) scale(.97);transition:transform .28s cubic-bezier(.2,.9,.3,1.2)}
+   163→   163→.overlay.open .modal{transform:none}
+   164→   164→.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+   165→   165→.modal-head h2{margin:0;font-size:13px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+   166→   166→.rows{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+   167→   167→.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+   168→   168→.row>label{font-size:14px;color:var(--text-soft)}
+   169→   169→.stepper{display:flex;align-items:center;gap:2px;padding:3px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+   170→   170→.stepper button{width:36px;height:36px;flex:none;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:17px;cursor:pointer}
+   171→   171→.stepper button:hover{background:var(--surface-3);color:var(--text)}
+   172→   172→.stepper input{width:52px;padding:0;border:0;background:transparent;color:var(--text);text-align:center;font-family:inherit;font-size:15px;font-weight:600;-moz-appearance:textfield;appearance:textfield}
+   173→   173→.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+   174→   174→.stepper input:focus{outline:none}
+   175→   175→.hint{margin:12px 0 0;font-size:12px;line-height:1.6;color:var(--muted-2);text-align:center}
+   176→   176→kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;padding:2px 7px;border:1px solid var(--line-2);border-bottom-width:2px;border-radius:6px;background:var(--surface-2);color:var(--text-soft)}
+   177→   177→
+   178→   178→/* FOOTER */
+   179→   179→.site-footer{border-top:1px solid var(--line);padding:40px 0;margin-top:60px;color:var(--muted);font-size:13.5px}
+   180→   180→.footer-grid{display:grid;grid-template-columns:1fr;gap:24px;margin-bottom:28px}
+   181→   181→@media(min-width:640px){.footer-grid{grid-template-columns:2fr 1fr 1fr 1fr}}
+   182→   182→.footer-grid h4{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-soft);margin:0 0 12px}
+   183→   183→.footer-grid ul{list-style:none;padding:0;margin:0}
+   184→   184→.footer-grid li{margin-bottom:6px}
+   185→   185→.footer-grid a{color:var(--muted)}
+   186→   186→.footer-grid a:hover{color:var(--text)}
+   187→   187→.footer-bottom{padding-top:20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--muted-2)}
+   188→   188→
+   189→   189→@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}html{scroll-behavior:auto}}
+   190→   190→@media(max-width:520px){.site-nav a{padding:6px 9px;font-size:13px}.timer-card{padding:20px 16px 16px;border-radius:22px}.stat span{font-size:17px}}
+   191→   191→</style>
+   192→   192→</head>
+   193→   193→<body data-mode="focus">
+   194→   194→<a href="#main" class="skip-link">Aller au contenu principal</a>
+   195→   195→
+   196→   196→<header class="site-header">
+   197→   197→  <div class="container">
+   198→   198→    <a class="brand" href="#accueil" aria-label="Focusly — accueil"><span class="dot" aria-hidden="true"></span>Focusly</a>
+   199→   199→    <nav class="site-nav" aria-label="Navigation principale">
+   200→   200→      <a href="#accueil" data-route="accueil">Accueil</a>
+   201→   201→      <a href="#outils" data-route="outils">Outils</a>
+   202→   202→      <a href="#guide" data-route="guide">Guide</a>
+   203→   203→      <a href="#blog" data-route="blog">Blog</a>
+   204→   204→      <a href="#a-propos" data-route="a-propos">À propos</a>
+   205→   205→      <a href="#contact" data-route="contact">Contact</a>
+   206→   206→    </nav>
+   207→   207→    <div class="toolbar">
+   208→   208→      <button class="icon-btn" id="themeToggle" aria-label="Basculer le thème" title="Thème">
+   209→   209→        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+   210→   210→      </button>
+   211→   211→      <button class="icon-btn" id="helpBtn" aria-label="Raccourcis clavier" title="Raccourcis">
+   212→   212→        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+   213→   213→      </button>
+   214→   214→    </div>
+   215→   215→  </div>
+   216→   216→</header>
+   217→   217→
+   218→   218→<main id="main">
+   219→   219→
+   220→   220→<!-- ACCUEIL -->
+   221→   221→<section class="view" data-view="accueil" hidden>
+   222→   222→  <div class="container" style="padding:32px 20px 64px">
+   223→   223→    <div class="hero">
+   224→   224→      <h1>Concentrez-vous.<br><em>Un Pomodoro à la fois.</em></h1>
+   225→   225→      <p>Focusly réunit un minuteur Pomodoro, un gestionnaire de tâches et des guides pratiques. Gratuit, sans compte, respectueux de votre vie privée.</p>
+   226→   226→      <div class="hero-cta">
+   227→   227→        <a class="btn primary" href="#outils">Ouvrir les outils</a>
+   228→   228→        <a class="btn ghost" href="#guide">Lire le guide</a>
+   229→   229→      </div>
+   230→   230→    </div>
+   231→   231→    <section class="section">
+   232→   232→      <h2>Pourquoi Focusly ?</h2>
+   233→   233→      <p>La méthode Pomodoro, créée par Francesco Cirillo à la fin des années 1980, consiste à alterner des blocs de concentration intense et de courtes pauses. Des décennies de recherche en neurosciences cognitives ont confirmé son efficacité : notre attention est une ressource limitée, et la fragmenter en blocs délimités réduit la fatigue mentale tout en améliorant la qualité du travail produit.</p>
+   234→   234→      <p>Focusly est volontairement minimaliste : pas de compte à créer, pas de publicité intrusive, pas de collecte de données. Vos sessions, tâches et notes sont enregistrées uniquement dans votre navigateur.</p>
+   235→   235→    </section>
+   236→   236→    <section class="section">
+   237→   237→      <h2>Vos outils</h2>
+   238→   238→      <div class="cards">
+   239→   239→        <a class="card" href="#outils"><span class="tag">Concentration</span><h3>Minuteur Pomodoro</h3><p>Sessions personnalisables, cycle de pauses, statistiques du jour.</p></a>
+   240→   240→        <a class="card" href="#outils"><span class="tag">Organisation</span><h3>Gestionnaire de tâches</h3><p>Liste simple, efficace, persistante entre les sessions.</p></a>
+   241→   241→        <a class="card" href="#outils"><span class="tag">Notes</span><h3>Bloc-notes rapide</h3><p>Idées, réflexions, points à revoir. Sauvegarde automatique.</p></a>
+   242→   242→        <a class="card" href="#outils"><span class="tag">Suivi</span><h3>Historique et export</h3><p>Consultez vos sessions et exportez vos données en JSON.</p></a>
+   243→   243→      </div>
+   244→   244→    </section>
+   245→   245→    <section class="section">
+   246→   246→      <h2>À lire sur le blog</h2>
+   247→   247→      <div class="cards">
+   248→   248→        <a class="card" href="#blog/methode-pomodoro-debutant"><span class="tag">Guide</span><h3>La méthode Pomodoro expliquée aux débutants</h3><p>Origines, principes et mise en pratique immédiate.</p></a>
+   249→   249→        <a class="card" href="#blog/pauses-cerveau"><span class="tag">Neurosciences</span><h3>Pourquoi les pauses sont essentielles</h3><p>Le réseau du mode par défaut et l'ennui créatif.</p></a>
+   250→   250→        <a class="card" href="#blog/comparaison-methodes"><span class="tag">Comparatif</span><h3>Pomodoro vs Deep Work vs Time Blocking</h3><p>Trois approches, trois contextes.</p></a>
+   251→   251→        <a class="card" href="#blog/erreurs-pomodoro"><span class="tag">Pratique</span><h3>Les 5 erreurs qui ruinent votre Pomodoro</h3><p>Repérer ces pièges pour ne plus perdre votre concentration.</p></a>
+   252→   252→      </div>
+   253→   253→      <a class="btn ghost block" href="#blog">Voir tous les articles →</a>
+   254→   254→    </section>
+   255→   255→  </div>
+   256→   256→</section>
+   257→   257→
+   258→   258→<!-- OUTILS -->
+   259→   259→<section class="view" data-view="outils" hidden>
+   260→   260→  <div class="container" style="padding:32px 20px 64px">
+   261→   261→    <h1 class="page-title">Vos outils</h1>
+   262→   262→    <p class="page-subtitle">Minuteur, tâches, notes et historique. Vos données restent sur votre appareil.</p>
+   263→   263→
+   264→   264→    <div class="timer-card" role="region" aria-label="Minuteur Pomodoro">
+   265→   265→      <div class="timer-head">
+   266→   266→        <h2>Minuteur</h2>
+   267→   267→        <button class="icon-btn sm" id="openSettings" aria-label="Réglages" title="Réglages">
+   268→   268→          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+   269→   269→        </button>
+   270→   270→      </div>
+   271→   271→      <nav class="modes" role="tablist" aria-label="Mode du minuteur">
+   272→   272→        <button class="mode active" data-mode="focus" role="tab" aria-selected="true">Concentration</button>
+   273→   273→        <button class="mode" data-mode="short" role="tab" aria-selected="false">Pause courte</button>
+   274→   274→        <button class="mode" data-mode="long" role="tab" aria-selected="false">Pause longue</button>
+   275→   275→      </nav>
+   276→   276→      <div class="timer-wrap">
+   277→   277→        <svg class="ring" viewBox="0 0 260 260" aria-hidden="true">
+   278→   278→          <circle class="ring-bg" cx="130" cy="130" r="118"></circle>
+   279→   279→          <circle id="ringFg" class="ring-fg" cx="130" cy="130" r="118" transform="rotate(-90 130 130)"></circle>
+   280→   280→        </svg>
+   281→   281→        <div class="timer-content">
+   282→   282→          <div id="time" class="time" role="timer" aria-live="polite" aria-atomic="true">25:00</div>
+   283→   283→          <div id="label" class="timer-label">Concentration</div>
+   284→   284→          <div class="dots" id="dots" aria-hidden="true"></div>
+   285→   285→        </div>
+   286→   286→      </div>
+   287→   287→      <div class="controls">
+   288→   288→        <button id="startBtn" class="btn primary">Démarrer</button>
+   289→   289→        <button id="resetBtn" class="btn ghost">Réinitialiser</button>
+   290→   290→        <button id="skipBtn" class="btn ghost" aria-label="Mode suivant" title="Passer">⏭</button>
+   291→   291→      </div>
+   292→   292→      <section class="stats" aria-label="Statistiques du jour">
+   293→   293→        <div class="stat"><span id="statPomos">0</span><small>Pomodoros</small></div>
+   294→   294→        <div class="stat"><span id="statMinutes">0</span><small>Minutes</small></div>
+   295→   295→        <div class="stat"><span id="statBreaks">0</span><small>Pauses</small></div>
+   296→   296→      </section>
+   297→   297→    </div>
+   298→   298→
+   299→   299→    <div class="tools-grid">
+   300→   300→      <section class="panel">
+   301→   301→        <div class="panel-head"><h2>Tâches</h2><span class="count" id="tasksCount">0</span></div>
+   302→   302→        <form class="task-form" id="taskForm" autocomplete="off">
+   303→   303→          <label for="taskInput" class="sr-only">Nouvelle tâche</label>
+   304→   304→          <input id="taskInput" type="text" placeholder="Ajouter une tâche…" maxlength="200" required>
+   305→   305→          <button class="btn primary" type="submit">Ajouter</button>
+   306→   306→        </form>
+   307→   307→        <ul class="task-list" id="taskList"></ul>
+   308→   308→        <div id="tasksEmpty" class="empty">Aucune tâche pour le moment.</div>
+   309→   309→        <button class="btn danger sm" id="clearDoneTasks" type="button">Effacer les tâches terminées</button>
+   310→   310→      </section>
+   311→   311→
+   312→   312→      <section class="panel">
+   313→   313→        <div class="panel-head"><h2>Notes rapides</h2><span class="count" id="notesCount">0</span></div>
+   314→   314→        <form class="note-form" id="noteForm" autocomplete="off">
+   315→   315→          <label for="noteInput" class="sr-only">Titre</label>
+   316→   316→          <input id="noteInput" type="text" placeholder="Titre…" maxlength="100" required>
+   317→   317→          <label for="noteBody" class="sr-only">Contenu</label>
+   318→   318→          <textarea id="noteBody" placeholder="Contenu…" maxlength="5000"></textarea>
+   319→   319→          <button class="btn primary" type="submit">Enregistrer</button>
+   320→   320→        </form>
+   321→   321→        <ul class="note-list" id="noteList"></ul>
+   322→   322→        <div id="notesEmpty" class="empty">Aucune note pour le moment.</div>
+   323→   323→      </section>
+   324→   324→
+   325→   325→      <section class="panel wide">
+   326→   326→        <div class="panel-head">
+   327→   327→          <h2>Historique des sessions</h2>
+   328→   328→          <div style="display:flex;gap:6px;flex-wrap:wrap">
+   329→   329→            <button class="btn ghost sm" id="exportBtn" type="button">Exporter (JSON)</button>
+   330→   330→            <button class="btn ghost sm" id="importBtn" type="button">Importer</button>
+   331→   331→            <input type="file" id="importFile" accept="application/json" hidden>
+   332→   332→            <button class="btn danger sm" id="clearHistory" type="button">Effacer</button>
+   333→   333→          </div>
+   334→   334→        </div>
+   335→   335→        <ul class="history-list" id="historyList"></ul>
+   336→   336→        <div id="historyEmpty" class="empty">Aucune session enregistrée.</div>
+   337→   337→      </section>
+   338→   338→    </div>
+   339→   339→  </div>
+   340→   340→</section>
+   341→   341→
+   342→   342→<!-- GUIDE -->
+   343→   343→<section class="view" data-view="guide" hidden>
+   344→   344→  <div class="container" style="padding:32px 20px 64px">
+   345→   345→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › Guide</nav>
+   346→   346→    <article>
+   347→   347→      <h1 class="page-title">Le guide complet de la méthode Pomodoro</h1>
+   348→   348→      <p class="meta">Mis à jour en 2025 · Lecture ~10 minutes</p>
+   349→   349→      <p>La méthode Pomodoro est probablement la technique de gestion du temps la plus connue au monde. Derrière son apparente simplicité — travailler 25 minutes, faire une pause de 5 — se cache un dispositif rigoureux, appuyé par des décennies de recherche en psychologie cognitive.</p>
+   350→   350→      <h2>1. Qu'est-ce que la méthode Pomodoro ?</h2>
+   351→   351→      <p>Développée par Francesco Cirillo à la fin des années 1980, la méthode repose sur une intuition simple : notre attention n'est pas un réservoir infini. Cirillo utilisait un minuteur de cuisine en forme de tomate (pomodoro en italien) pour fragmenter son travail en sessions courtes et intenses.</p>
+   352→   352→      <h2>2. Les cinq étapes de la méthode originale</h2>
+   353→   353→      <ol>
+   354→   354→        <li><strong>Choisir une tâche</strong> précise et unique.</li>
+   355→   355→        <li><strong>Régler un minuteur sur 25 minutes</strong> (un « Pomodoro »).</li>
+   356→   356→        <li><strong>Travailler sans interruption</strong> jusqu'à la sonnerie.</li>
+   357→   357→        <li><strong>Prendre une pause de 5 minutes.</strong></li>
+   358→   358→        <li><strong>Après quatre Pomodoros</strong>, prendre une pause longue de 15 à 30 minutes.</li>
+   359→   359→      </ol>
+   360→   360→      <h2>3. Pourquoi ça fonctionne : les trois leviers</h2>
+   361→   361→      <h3>Le levier attentionnel</h3>
+   362→   362→      <p>Notre attention soutenue s'épuise au bout de 20 à 45 minutes selon les individus. En découpant le travail en blocs courts, on évite d'atteindre le seuil de fatigue cognitive où les erreurs se multiplient.</p>
+   363→   363→      <h3>Le levier motivationnel</h3>
+   364→   364→      <p>Un bloc de 25 minutes est psychologiquement beaucoup plus facile à démarrer qu'une tâche « jusqu'à ce qu'elle soit finie ». En abaissant le coût perçu de l'engagement initial, la méthode contourne la procrastination.</p>
+   365→   365→      <h3>Le levier métacognitif</h3>
+   366→   366→      <p>Suivre ses sessions permet de prendre conscience de sa productivité réelle. Combien de Pomodoros pour rédiger ce rapport ? Ce retour d'information permet d'estimer plus justement la durée des tâches futures.</p>
+   367→   367→      <h2>4. Adapter les durées à votre profil</h2>
+   368→   368→      <ul>
+   369→   369→        <li><strong>Travail créatif profond</strong> : 50/10, voire 90/20.</li>
+   370→   370→        <li><strong>Travail administratif</strong> : 15/3 peut suffire.</li>
+   371→   371→        <li><strong>Étudiants en révision</strong> : 25/5 reste idéal.</li>
+   372→   372→        <li><strong>Développeurs</strong> : 45/10 est un bon compromis.</li>
+   373→   373→      </ul>
+   374→   374→      <p>Dans Focusly, ajustez ces durées via le bouton ⚙ du minuteur.</p>
+   375→   375→      <h2>5. Les pièges les plus fréquents</h2>
+   376→   376→      <ul>
+   377→   377→        <li><strong>Multiplier les micro-interruptions</strong> : consulter son téléphone annule presque totalement les bénéfices.</li>
+   378→   378→        <li><strong>Zapper les pauses</strong> : travailler « tant qu'on est dedans » sape la structure.</li>
+   379→   379→        <li><strong>Vouloir tout mesurer</strong> : le Pomodoro est un outil, pas une religion.</li>
+   380→   380→      </ul>
+   381→   381→      <h2>6. Comment démarrer aujourd'hui</h2>
+   382→   382→      <ol>
+   383→   383→        <li><strong>Jour 1-2</strong> : trois Pomodoros par jour, sans objectif de performance.</li>
+   384→   384→        <li><strong>Jour 3-4</strong> : cinq Pomodoros, en notant à chaque fin de session ce que vous avez accompli.</li>
+   385→   385→        <li><strong>Jour 5-6</strong> : ajustez vos durées si nécessaire, explorez les pauses longues.</li>
+   386→   386→        <li><strong>Jour 7</strong> : faites le bilan.</li>
+   387→   387→      </ol>
+   388→   388→      <h2>En résumé</h2>
+   389→   389→      <p>La méthode Pomodoro n'est pas une baguette magique. C'est un cadre simple, éprouvé, qui exploite trois leviers pour vous aider à travailler avec plus de régularité et moins de friction.</p>
+   390→   390→      <p><a href="#outils">→ Essayer le minuteur maintenant</a></p>
+   391→   391→    </article>
+   392→   392→  </div>
+   393→   393→</section>
+   394→   394→
+   395→   395→<!-- BLOG -->
+   396→   396→<section class="view" data-view="blog" hidden>
+   397→   397→  <div class="container" style="padding:32px 20px 64px">
+   398→   398→    <nav class="breadcrumb"><a href="#accueil">Accueil</a> › Blog</nav>
+   399→   399→    <h1 class="page-title">Le blog de Focusly</h1>
+   400→   400→    <p class="page-subtitle">Articles et guides sur la concentration, la productivité et la gestion du temps.</p>
+
+[showing lines 1-400 of 1340; use offset=401 with limit to continue reading]
