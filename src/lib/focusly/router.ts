@@ -7,6 +7,7 @@ import { getPost } from "./blog";
 export const ROUTES = [
   "accueil",
   "outils",
+  "statistiques",
   "guide",
   "blog",
   "a-propos",
@@ -22,6 +23,7 @@ export type TopRoute = (typeof ROUTES)[number];
 export const ROUTE_TITLES: Record<string, string> = {
   accueil: "Focusly — Minuteur Pomodoro et outils de concentration",
   outils: "Outils — Focusly",
+  statistiques: "Statistiques — Focusly",
   guide: "Guide de la méthode Pomodoro — Focusly",
   blog: "Blog — Focusly",
   "a-propos": "À propos — Focusly",
@@ -43,6 +45,15 @@ export function navigate(route: string) {
   window.location.hash = route;
 }
 
+/** Resolve the document title for a route (blog articles get their own). */
+function titleFor(route: string): string {
+  if (route.startsWith("blog/")) {
+    const post = getPost(route.slice(5));
+    return post ? `${post.title} — Focusly` : "Page introuvable — Focusly";
+  }
+  return ROUTE_TITLES[route] ?? "Page introuvable — Focusly";
+}
+
 /**
  * Hash-based router: returns the current route (e.g. "blog/pauses-cerveau")
  * and a navigate() helper. Updates document.title and scrolls to top on change.
@@ -53,23 +64,34 @@ export function useHashRoute() {
   const [route, setRoute] = useState<string>("accueil");
 
   useEffect(() => {
+    let raf = 0;
+    const timers: number[] = [];
     const onChange = () => {
-      setRoute(getHashRoute());
+      const next = getHashRoute();
+      setRoute(next);
+      // Set imperatively: deep-link reloads must not depend on effect ordering.
+      const applyTitle = () => {
+        document.title = titleFor(next);
+      };
+      applyTitle();
+      // Next.js' client router re-asserts the pathname metadata (hash-stripped,
+      // i.e. the accueil title) right after hydration — re-assert our
+      // hash-route title over the following frames so deep links keep it.
+      raf = requestAnimationFrame(applyTitle);
+      timers.push(window.setTimeout(applyTitle, 0), window.setTimeout(applyTitle, 250));
       window.scrollTo({ top: 0, behavior: "auto" });
     };
     onChange();
     window.addEventListener("hashchange", onChange);
-    return () => window.removeEventListener("hashchange", onChange);
+    return () => {
+      window.removeEventListener("hashchange", onChange);
+      cancelAnimationFrame(raf);
+      timers.forEach((t) => window.clearTimeout(t));
+    };
   }, []);
 
   useEffect(() => {
-    // Article routes get their own title from the blog data
-    if (route.startsWith("blog/")) {
-      const post = getPost(route.slice(5));
-      document.title = post ? `${post.title} — Focusly` : "Page introuvable — Focusly";
-      return;
-    }
-    document.title = ROUTE_TITLES[route] ?? "Page introuvable — Focusly";
+    document.title = titleFor(route);
   }, [route]);
 
   const go = useCallback((r: string) => navigate(r), []);

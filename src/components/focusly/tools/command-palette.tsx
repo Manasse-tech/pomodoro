@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  BarChart3,
   BookOpen,
   Home,
   Info,
@@ -39,6 +40,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { route: "accueil", label: "Accueil", icon: Home },
   { route: "outils", label: "Outils", icon: Timer },
+  { route: "statistiques", label: "Statistiques", icon: BarChart3 },
   { route: "guide", label: "Guide", icon: BookOpen },
   { route: "blog", label: "Blog", icon: Newspaper },
   { route: "a-propos", label: "À propos", icon: Info },

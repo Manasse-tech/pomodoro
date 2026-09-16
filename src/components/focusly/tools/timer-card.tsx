@@ -144,6 +144,18 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
         <div className="flex items-center gap-2 rounded-xl border bg-secondary px-3 py-2 text-[13px]">
           <span className="text-faint">Tâche :</span>
           <span className="min-w-0 flex-1 truncate font-medium">{activeTask.text}</span>
+          {(activeTask.spent ?? 0) > 0 || (activeTask.estimate ?? 1) > 1 ? (
+            <span
+              title={`Estimation : ${activeTask.estimate ?? 1} · Effectués : ${activeTask.spent ?? 0}`}
+              className={`time-display shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                (activeTask.spent ?? 0) >= (activeTask.estimate ?? 1)
+                  ? "bg-brand/20 text-brand"
+                  : "bg-background/70 text-soft"
+              }`}
+            >
+              {activeTask.spent ?? 0}/{activeTask.estimate ?? 1}
+            </span>
+          ) : null}
           <button
             onClick={() => setActiveTask(activeTask.id)}
             aria-label="Détacher la tâche du minuteur"
@@ -157,7 +169,7 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
       <div className="flex gap-2.5">
         <Button
           size="lg"
-          className="flex-1 rounded-2xl bg-brand text-[15px] font-semibold text-[#14161a] shadow-[0_12px_32px_-14px_var(--brand)] hover:bg-brand hover:brightness-110"
+          className="flex-1 rounded-2xl bg-brand text-[15px] font-semibold text-[#14161a] shadow-[0_12px_32px_-14px_var(--brand)] transition-transform active:scale-[0.98] hover:bg-brand hover:brightness-110"
           onClick={running ? pauseTimer : startTimer}
         >
           {running ? (

@@ -11,6 +11,7 @@ import { SettingsDialog } from "./tools/settings-dialog";
 import { OutilsView } from "./tools/outils-view";
 import { AccueilView } from "./content/accueil-view";
 import { GuideView } from "./content/guide-view";
+import { StatistiquesView } from "./content/statistiques-view";
 import { BlogView } from "./content/blog-view";
 import { BlogArticleView } from "./content/blog-article-view";
 import { AProposView } from "./content/a-propos-view";
@@ -22,7 +23,7 @@ import {
   PlanDuSiteView,
 } from "./content/legal-views";
 import { NotFoundView } from "./content/not-found-view";
-import { playChime, notify } from "@/lib/focusly/chime";
+import { playEndSound, notify, playCountdownTick } from "@/lib/focusly/chime";
 import { useFocusly } from "@/lib/focusly/store";
 import { useHashRoute } from "@/lib/focusly/router";
 import { todayKey, MODE_LABELS } from "@/lib/focusly/types";
@@ -42,6 +43,7 @@ const JSON_LD = {
 function CurrentView({ route }: { route: string }) {
   if (route === "accueil") return <AccueilView />;
   if (route === "outils") return <OutilsView />;
+  if (route === "statistiques") return <StatistiquesView />;
   if (route === "guide") return <GuideView />;
   if (route === "blog") return <BlogView />;
   if (route.startsWith("blog/")) return <BlogArticleView slug={route.slice(5)} />;
@@ -58,6 +60,8 @@ export function FocuslyApp() {
   const { route } = useHashRoute();
   const reduceMotion = useReducedMotion();
   const goalCelebrated = useRef(false);
+  /** last second for which the countdown tick already fired */
+  const lastCountdown = useRef(0);
   const theme = useFocusly((s) => s.theme);
   const mode = useFocusly((s) => s.mode);
   const running = useFocusly((s) => s.running);
@@ -84,7 +88,7 @@ export function FocuslyApp() {
         const s = useFocusly.getState();
         const finished = s.history[s.history.length - 1];
         const nextMode = s.mode;
-        if (s.settings.sound) playChime(s.settings.volume);
+        if (s.settings.sound) playEndSound(s.settings.soundKind, s.settings.volume);
         if (s.settings.notifications) {
           notify(
             nextMode === "focus"
@@ -108,7 +112,7 @@ export function FocuslyApp() {
           (s.daily[todayKey()]?.pomodoros ?? 0) >= s.settings.dailyGoal
         ) {
           goalCelebrated.current = true;
-          if (s.settings.sound) playChime(s.settings.volume);
+          if (s.settings.sound) playEndSound("carillon", s.settings.volume);
           toast.success("Objectif du jour atteint, bravo !", {
             description:
               s.settings.dailyGoal + " pomodoros accomplis. Chaque jour compte, à demain.",
@@ -117,6 +121,23 @@ export function FocuslyApp() {
         }
         if (s.settings.autoStart) {
           useFocusly.getState().startTimer();
+        }
+      } else {
+        // Countdown ticks during the final 5 seconds (once per second)
+        const st = useFocusly.getState();
+        if (
+          st.running &&
+          st.settings.sound &&
+          st.settings.tickLast &&
+          st.timeLeft <= 5 &&
+          st.timeLeft >= 1
+        ) {
+          if (lastCountdown.current !== st.timeLeft) {
+            lastCountdown.current = st.timeLeft;
+            playCountdownTick(st.settings.volume);
+          }
+        } else if (st.timeLeft > 5) {
+          lastCountdown.current = 0;
         }
       }
     }, 250);
@@ -130,6 +151,22 @@ export function FocuslyApp() {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  /* Register the service worker for offline support (PWA) */
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    const secure =
+      window.location.protocol === "https:" ||
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+    if (!secure) return;
+    const id = window.setTimeout(() => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {
+        /* offline support unavailable — ignore */
+      });
+    }, 1500);
+    return () => window.clearTimeout(id);
   }, []);
 
   /* Keyboard shortcuts (disabled while typing or when a dialog is open) */

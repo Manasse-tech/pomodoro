@@ -3,6 +3,15 @@ export type Mode = "focus" | "short" | "long";
 
 export type Theme = "dark" | "light";
 
+/** End-of-session alert sound */
+export type SoundKind = "carillon" | "cloche" | "digital";
+
+export const SOUND_KINDS: Array<{ value: SoundKind; label: string }> = [
+  { value: "carillon", label: "Carillon" },
+  { value: "cloche", label: "Cloche" },
+  { value: "digital", label: "Digital" },
+];
+
 export interface TimerSettings {
   /** Focus session duration in minutes (1–180) */
   focus: number;
@@ -14,10 +23,14 @@ export interface TimerSettings {
   longEvery: number;
   /** Daily pomodoro goal (1–20) */
   dailyGoal: number;
-  /** Play a chime when a session ends */
+  /** Play a sound when a session ends */
   sound: boolean;
+  /** Which end-of-session sound to play */
+  soundKind: SoundKind;
   /** Chime volume 0–1 */
   volume: number;
+  /** Play a soft tick during the last 5 seconds of a session */
+  tickLast: boolean;
   /** Show a browser notification when a session ends */
   notifications: boolean;
   /** Automatically start the next session after completion */
@@ -31,7 +44,9 @@ export const DEFAULT_SETTINGS: TimerSettings = {
   longEvery: 4,
   dailyGoal: 8,
   sound: true,
+  soundKind: "carillon",
   volume: 0.6,
+  tickLast: false,
   notifications: false,
   autoStart: false,
 };
@@ -43,6 +58,10 @@ export interface TaskItem {
   created: number;
   /** Task currently linked to the timer */
   active?: boolean;
+  /** Estimated number of pomodoros (default 1) */
+  estimate?: number;
+  /** Pomodoros completed while this task was linked (default 0) */
+  spent?: number;
 }
 
 export interface NoteItem {

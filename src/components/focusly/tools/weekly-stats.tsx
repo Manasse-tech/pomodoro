@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Flame, Timer, TrendingUp, Award } from "lucide-react";
+import { Flame, Timer, TrendingUp, Award, ArrowRight } from "lucide-react";
 import { useFocusly } from "@/lib/focusly/store";
 import { computeStreaks } from "@/lib/focusly/streaks";
 import { todayKey, type DailyStat } from "@/lib/focusly/types";
@@ -128,6 +128,17 @@ export function WeeklyStats() {
           Record : <strong className="font-semibold text-foreground">{streaks.best} jour{streaks.best > 1 ? "s" : ""}</strong>
         </span>
       </div>
+
+      <a
+        href="#statistiques"
+        className="group inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold text-brand transition-colors hover:text-foreground hover:no-underline"
+      >
+        Voir toutes les statistiques
+        <ArrowRight
+          className="size-4 transition-transform group-hover:translate-x-0.5"
+          aria-hidden
+        />
+      </a>
     </section>
   );
 }

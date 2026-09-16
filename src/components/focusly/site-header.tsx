@@ -10,6 +10,7 @@ import { useFocusly } from "@/lib/focusly/store";
 const NAV = [
   { route: "accueil", label: "Accueil" },
   { route: "outils", label: "Outils" },
+  { route: "statistiques", label: "Stats" },
   { route: "guide", label: "Guide" },
   { route: "blog", label: "Blog" },
   { route: "a-propos", label: "À propos" },

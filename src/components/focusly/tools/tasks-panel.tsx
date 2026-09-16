@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Crosshair, Plus, Trash2 } from "lucide-react";
+import { Crosshair, Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,10 +14,14 @@ export function TasksPanel() {
   const removeTask = useFocusly((s) => s.removeTask);
   const clearDoneTasks = useFocusly((s) => s.clearDoneTasks);
   const setActiveTask = useFocusly((s) => s.setActiveTask);
+  const setTaskEstimate = useFocusly((s) => s.setTaskEstimate);
   const [value, setValue] = useState("");
+  const [estimate, setEstimate] = useState(1);
 
   const remaining = tasks.filter((t) => !t.done).length;
   const doneCount = tasks.length - remaining;
+  const plannedTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.estimate ?? 1), 0);
+  const spentTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.spent ?? 0), 0);
 
   return (
     <section
@@ -31,14 +35,22 @@ export function TasksPanel() {
         </span>
       </div>
 
+      {tasks.length > 0 && remaining > 0 && (
+        <p className="-mt-2 text-[11.5px] text-faint" aria-live="polite">
+          Progression : {spentTotal} sur {plannedTotal} pomodoro{plannedTotal > 1 ? "s" : ""}{" "}
+          estimé{plannedTotal > 1 ? "s" : ""} — tâches en cours
+        </p>
+      )}
+
       <form
         className="flex flex-wrap gap-2"
         autoComplete="off"
         onSubmit={(e) => {
           e.preventDefault();
           if (!value.trim()) return;
-          addTask(value);
+          addTask(value, estimate);
           setValue("");
+          setEstimate(1);
         }}
       >
         <label htmlFor="task-input" className="sr-only">
@@ -52,6 +64,37 @@ export function TasksPanel() {
           maxLength={200}
           className="min-h-11 flex-1 rounded-xl"
         />
+        <div
+          role="group"
+          aria-label="Estimation en pomodoros"
+          className="flex items-center rounded-xl border bg-secondary"
+        >
+          <button
+            type="button"
+            aria-label="Diminuer l’estimation"
+            onClick={() => setEstimate((v) => Math.max(1, v - 1))}
+            disabled={estimate <= 1}
+            className="grid size-9 place-items-center rounded-l-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-35 disabled:hover:bg-transparent"
+          >
+            <Minus className="size-3.5" />
+          </button>
+          <span
+            aria-live="polite"
+            title={`${estimate} pomodoro${estimate > 1 ? "s" : ""} estimé${estimate > 1 ? "s" : ""}`}
+            className="w-9 text-center text-[13px] font-semibold tabular-nums"
+          >
+            {estimate}
+          </span>
+          <button
+            type="button"
+            aria-label="Augmenter l’estimation"
+            onClick={() => setEstimate((v) => Math.min(12, v + 1))}
+            disabled={estimate >= 12}
+            className="grid size-9 place-items-center rounded-r-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-35 disabled:hover:bg-transparent"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </div>
         <Button type="submit" className="min-h-11 rounded-xl">
           <Plus className="size-4" /> Ajouter
         </Button>
@@ -78,6 +121,42 @@ export function TasksPanel() {
             >
               {t.text}
             </span>
+            {!t.done && (
+              <div
+                role="group"
+                aria-label={`Estimation de la tâche : ${t.text}`}
+                className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-background/60"
+              >
+                <button
+                  type="button"
+                  aria-label="Diminuer l’estimation"
+                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) - 1)}
+                  disabled={(t.estimate ?? 1) <= 1}
+                  className="grid size-6 place-items-center rounded-l-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <Minus className="size-3" />
+                </button>
+                <span
+                  title={`Estimation : ${t.estimate ?? 1} pomodoro${(t.estimate ?? 1) > 1 ? "s" : ""} · Effectués : ${t.spent ?? 0}`}
+                  className={`w-9 text-center text-[11px] font-semibold tabular-nums ${
+                    (t.spent ?? 0) >= (t.estimate ?? 1)
+                      ? "text-brand"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {t.spent ?? 0}/{t.estimate ?? 1}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Augmenter l’estimation"
+                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) + 1)}
+                  disabled={(t.estimate ?? 1) >= 12}
+                  className="grid size-6 place-items-center rounded-r-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <Plus className="size-3" />
+                </button>
+              </div>
+            )}
             {!t.done && (
               <button
                 onClick={() => setActiveTask(t.id)}

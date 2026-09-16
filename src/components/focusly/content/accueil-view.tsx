@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, History, ListChecks, NotebookPen, Timer } from "lucide-react";
+import { ArrowRight, BarChart3, History, ListChecks, NotebookPen, Timer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ const OUTILS: Array<{ tag: string; title: string; desc: string; icon: LucideIcon
   {
     tag: "Suivi",
     title: "Historique et export",
-    desc: "Consultez vos sessions et exportez vos données en JSON.",
+    desc: "Consultez vos sessions et exportez vos données en JSON ou CSV.",
     icon: History,
   },
 ];
@@ -112,6 +112,21 @@ export function AccueilView() {
               <p className={CARD_TEXT_CLASS}>{outil.desc}</p>
             </Link>
           ))}
+          <Link
+            href="#statistiques"
+            className={`${CARD_CLASS} sm:col-span-2`}
+          >
+            <BarChart3 className="mb-3 size-5 text-brand" aria-hidden />
+            <span className={CARD_TAG_CLASS}>Analyse</span>
+            <h3 className={CARD_TITLE_CLASS}>Statistiques mensuelles</h3>
+            <p className={CARD_TEXT_CLASS}>
+              Calendrier de votre concentration, séries de jours actifs et export CSV.
+              <ArrowRight
+                className="ml-1.5 inline size-4 text-faint transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand"
+                aria-hidden
+              />
+            </p>
+          </Link>
         </div>
       </section>
 

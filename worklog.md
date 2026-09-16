@@ -196,3 +196,70 @@ Stable : 0 erreur lint/tsc, hydratation propre, tous les parcours vérifiés au 
 - Service worker PWA (cache offline) — à tester prudemment en sandbox
 - Sons multiples + tick des 5 dernières secondes ; estimation pomodoros par tâche
 - Page statistiques dédiée (heatmap mensuelle) ; export CSV en plus du JSON
+
+---
+Task ID: r3-1
+Agent: frontend-styling-expert
+Task: Page « Statistiques » — heatmap mensuelle, KPI globaux, export CSV
+
+Work Log:
+- Lu worklog.md + contrats confirmés : store (useFocusly((s) => s.daily), EMPTY_STAT), types (todayKey = clé locale YYYY-MM-DD → décomposition locale obligatoire), streaks (computeStreaks → {current,best}), csv (dailyToCsv, downloadTextFile), Breadcrumb (items Accueil + page courante), Button (variant outline/secondary/ghost, size icon, asChild), tokens globals.css (bg-brand via --color-brand, text-soft/text-faint, --brand-glow, ring-offset-card)
+- Créé `src/components/focusly/content/statistiques-view.tsx` (seul fichier touché) : "use client", export function StatistiquesView() sans props, conteneur mx-auto max-w-[920px] px-5 py-8 sm:py-10, Breadcrumb Accueil/Statistiques, h1 + sous-titre « Vos données restent sur votre appareil »
+- KPI row : grid grid-cols-2 lg:grid-cols-4 gap-4, 4 cartes rounded-3xl border bg-card p-5 (icône lucide text-brand, valeur time-display text-2xl, label uppercase 10px) : Pomodoros au total (Flame), Temps de concentration « X h YY min / Y min » (Timer), Jours actifs + hint « / N jours enregistrés » (CalendarCheck), Série record + « actuelle : N j » (Award)
+- Heatmap : carte p-6, h2 « Calendrier mensuel » + mois capitalisé (« Mars 2025 ») en text-brand, nav ChevronLeft/ChevronRight (Button outline size-icon rounded-lg, aria-labels FR), « Mois suivant » disabled sur le mois courant, retour arrière illimité ; grille grid-cols-7 gap-1 min-w-[320px] dans overflow-x-auto ; en-têtes lun mar mer jeu ven sam dim (toLocaleDateString fr-FR weekday short, point retiré, semaine de référence lundi 2024-01-01 déterministe) ; offset lundi-first = (getDay()+6)%7 + padding final pour compléter la dernière semaine
+- Cellules : aspect-square rounded-md transition-transform hover:scale-110 ; intensité 5 niveaux (0 bg-secondary, 1–2 bg-brand/25, 3–4 bg-brand/45, 5–6 bg-brand/70, 7+ bg-brand + shadow var(--brand-glow)) ; jours futurs invisible ; aujourd’hui ring-2 ring-brand ring-offset-2 ring-offset-card ; title par cellule « 12 mars 2025 — 4 pomodoros, 100 min de concentration » / « aucun pomodoro » (date formatée depuis new Date(y, m, d) LOCAL, jamais new Date(key) UTC) ; grille role="img" + aria-label « Mars 2025 : N pomodoros sur M pomodoros enregistrés »
+- Légende « Moins / Plus » (5 pastilles size-3, text-[11px] text-faint) ; bandeau série sous la grille identique au style weekly-stats (rounded-xl border bg-secondary px-3 py-2, Award)
+- Actions : Button secondary rounded-xl « Exporter en CSV » (Download) → downloadTextFile(dailyToCsv(daily), focusly-statistiques-<todayKey>.csv) + toast.success, ou toast.info si aucun jour ; Button ghost asChild « ← Retour aux outils » (#outils)
+- Empty state : carte border-dashed « Aucune donnée pour l’instant. … » affichée quand 0 jour enregistré (KPI + heatmap quand même rendus) ; toasts sonner, apostrophes typographiques, aucune couleur bleue, aucun emoji
+- Vérifié : bunx tsc --noEmit → 0 erreur dans src/ (seul bruit préexistant examples/ et skills/) ; bunx eslint src/components/focusly/content/statistiques-view.tsx → 0 erreur 0 warning ; sanity-check bun des libellés fr (lun…dim, Mars 2025, offset 1er mars 2025 = 5) ; pas de dev server ni build (consigne)
+
+Stage Summary:
+- `src/components/focusly/content/statistiques-view.tsx` créé : vue « Statistiques » complète prête à être montée par focusly-app sur la route "statistiques" (déjà déclarée dans ROUTES + ROUTE_TITLES) — il ne reste qu’au main à ajouter `if (route === "statistiques") return <StatistiquesView />` dans CurrentView
+- Données : totaux globaux (pomodoros, focusSeconds, jours actifs, jours enregistrés) + computeStreaks ; aucune modification des contrats, aucun autre fichier touché
+- Détails d’implémentation : état de mois local {y, m} initialisé paresseusement (client-only, aucune route rendue en SSR), clés de jours reconstruites avec des parties locales (padStart) identiques à todayKey, WEEKDAY_LABELS constants module-scope déterministes
+
+---
+Task ID: r3 (cron webDevReview — tour 3)
+Agent: main (Z.ai Code) + sous-agent frontend-styling-expert (r3-1)
+Task: Assessment + QA agent-browser, nouvelles fonctionnalités (stats mensuelles, sons, estimations, PWA), polish styling
+
+## État du projet au départ
+Stable : 0 erreur lint/tsc, tous les parcours vérifiés aux tours 1-2. Décision : pas de bugs bloquants → avancer les fonctionnalités recommandées au tour 2.
+
+## Work Log
+- Fix lint : `analysis/**`, `download/**`, `mini-services/**` ajoutés aux ignores ESLint (fichier resize.js hérité de l'analyse)
+- **Page Statistiques dédiée (#statistiques)** (r3-1) : heatmap mensuelle (5 niveaux d'intensité brand, navigation mois par mois bloquée vers le futur, lundi-first, tooltips FR, today cerclé, legend Moins/Plus), 4 KPI (pomodoros total, temps de concentration, jours actifs, série record), bandeau séries, export CSV, empty state, responsive (KPI 2×2 mobile, heatmap scroll interne)
+- **Export CSV** : `src/lib/focusly/csv.ts` (dailyToCsv séparateur `;` FR + downloadTextFile) ; page stats + libellés accueil mis à jour (« JSON ou CSV »)
+- **Moteur de sons** : `playEndSound(kind, volume)` — carillon (3 notes), cloche (2 frappes + partiels inharmoniques), digital (3 bips carrés) ; `playCountdownTick` (blip 740 Hz) ; sélecteur segmenté 3 sons + bouton écoute (preview) + switch « Tic des dernières secondes » dans les réglages ; tick joué une fois par seconde pendant les 5 dernières secondes (garde anti-doublon par ref)
+- **Estimations de pomodoros par tâche** : `TaskItem.estimate` (1–12) + `spent` ; stepper −/+ dans le formulaire (reset après ajout), stepper compact 0/3 par ligne, ligne de progression « X sur Y pomodoros estimés », badge sur la tâche liée du minuteur (surbrillance brand quand atteint), crédit automatique du pomodoro à la complétion d'une session focus
+- **PWA offline** : `public/sw.js` (v3) + `public/offline.html` + manifest enrichi (id, scope, categories, raccourcis Outils/Stats) ; enregistrement sécurisé (https/localhost uniquement, 1,5 s après chargement) ; sitemap.xml : + #statistiques
+- **Intégration** : route « statistiques » (ROUTES, titres, CurrentView), nav header « Stats », palette Ctrl+K (BarChart3), lien « Voir toutes les statistiques → » dans le panneau hebdo, carte pleine largeur « Statistiques mensuelles » sur l'accueil, plan du site mis à jour
+- **Migration store** : `merge` personnalisé dans zustand persist (settings = défauts + persistés) → les nouveaux champs (soundKind, tickLast) gardent leur défaut chez les utilisateurs existants
+
+## Bugs trouvés et corrigés ce tour
+1. **SW v1 cassait l'itération dev** (cache-first sur /_next/static → chunks JS périmés après recompile) → v2 : network-first pour /_next ; v3 : revalidation `cache: "no-cache"` sur navigations + /_next (garantit les mises à jour même avec un cache HTTP agressif), cache-first réservé aux icônes/manifest/fonts ; cleanup des vieux caches à l'activation
+2. **Titre périmé sur deep-link reload** (le routeur client Next re-assert le titre du pathname sans hash après hydratation) → titre posé impérativement dans onChange + re-assertion rAF/0 ms/250 ms ; vérifié sur article blog, #statistiques, 404
+3. Heatmap desktop : cellules ~125 px trop grandes → grille plafonnée max-w-[420px] centrée (cellules ~55 px)
+4. Grammaire FR : « 1 pomodoros enregistrés » (aria heatmap) → accord singulier ; ligne de progression reformulée
+
+## Vérifications agent-browser
+- Stats : KPI réels (2 pomodoros, 2 min, 1 jour actif, série 1), navigation mois (sept → août → juillet, bouton suivant désactivé au mois courant), export CSV → toast « Export CSV téléchargé. »
+- Session 1 min avec tâche liée « Rédiger le rapport » (estimation 3) : badge 0/3 → 1/3, ligne « 1 sur 3 pomodoros estimés », stats +1, bascule auto pause courte, objectif 2/2 atteint
+- Réglages : sélecteur Carillon/Cloche/Digital (sélection persistée), switch tic activé, preview au clic
+- PWA : SW v3 activé et contrôleur, caches v3 créés, /sw.js + /offline.html 200 ; accueil nav « Stats » active
+- Mobile 375 px : aucun overflow horizontal (accueil, stats, outils) ; heatmap scroll interne
+- Thème clair : heatmap/KPI vérifiés visuellement (screenshots desktop + mobile)
+- Palette Ctrl+K : entrée « Statistiques » présente ; plan du site : lien « Statistiques » présent
+- Contact honeypot : 200 sans ligne DB (DB vérifiée : 0 message) ; données locales de test effacées (état d'usine)
+- tsc : 0 erreur src/ ; eslint : 0/0 ; dev.log : 200 propres, aucune erreur runtime
+
+## Stage Summary
+- 4 fonctionnalités livrées (stats mensuelles + CSV, 3 sons + tic, estimations de tâches, PWA offline), 4 bugs corrigés, intégration complète (nav, palette, accueil, plan du site, sitemap, manifest)
+- Fichiers clés : `content/statistiques-view.tsx`, `lib/focusly/csv.ts`, `public/sw.js`, `public/offline.html`, `types.ts`/`store.ts`/`chime.ts` (contrats étendus)
+- Risques : aucun connu ; le SW revalide /_next donc plus de chunks périmés en dev ; l'audio n'est pas vérifiable en headless (lecture seule du chemin de code)
+
+## Recommandations tour suivant
+- Vibration mobile à la fin de session (navigator.vibrate, garde feature-detect)
+- Page statistiques : heatmap année complète (12 mois) + répartition par jour de la semaine
+- Tâches : glisser-déposer pour réordonner ; notes : recherche
+- Contact : sauvegarde optionnelle des exports côté serveur (endpoint POST chiffré) ou QR code de partage

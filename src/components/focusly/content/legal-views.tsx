@@ -239,6 +239,7 @@ export function MentionsLegalesView() {
 const MAIN_PAGES: TopRoute[] = [
   "accueil",
   "outils",
+  "statistiques",
   "guide",
   "blog",
   "a-propos",
@@ -254,6 +255,7 @@ const LEGAL_PAGES: TopRoute[] = [
 const SITEMAP_LABELS: Record<string, string> = {
   accueil: "Accueil",
   outils: "Outils",
+  statistiques: "Statistiques",
   guide: "Guide de la méthode Pomodoro",
   blog: "Blog",
   "a-propos": "À propos",

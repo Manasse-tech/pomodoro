@@ -69,11 +69,13 @@ interface FocuslyState extends PersistShape {
   /** Record the finished session and switch to the next mode. Returns next mode. */
   completeSession: () => Mode;
 
-  addTask: (text: string) => void;
+  addTask: (text: string, estimate?: number) => void;
   toggleTask: (id: string, done: boolean) => void;
   removeTask: (id: string) => void;
   clearDoneTasks: () => void;
   setActiveTask: (id: string | null) => void;
+  /** Set the pomodoro estimate of a task (clamped 1–12) */
+  setTaskEstimate: (id: string, estimate: number) => void;
 
   addNote: (title: string, body: string) => void;
   removeNote: (id: string) => void;
@@ -219,6 +221,10 @@ export const useFocusly = create<FocuslyState>()(
             timeLeft: durationOf(s.settings, next),
             daily: { ...s.daily, [key]: day },
             history,
+            // Credit the linked task for the completed pomodoro
+            tasks: s.tasks.map((t) =>
+              t.active ? { ...t, spent: (t.spent ?? 0) + 1 } : t,
+            ),
           });
         } else {
           day.breaks += 1;
@@ -235,10 +241,16 @@ export const useFocusly = create<FocuslyState>()(
         return next;
       },
 
-      addTask: (text) => {
+      addTask: (text, estimate) => {
         const v = text.trim();
         if (!v) return;
-        set({ tasks: [...get().tasks, { id: uid(), text: v, done: false, created: Date.now() }].slice(-200) });
+        const est = clamp(Math.round(estimate ?? 1), 1, 12);
+        set({
+          tasks: [
+            ...get().tasks,
+            { id: uid(), text: v, done: false, created: Date.now(), estimate: est, spent: 0 },
+          ].slice(-200),
+        });
       },
 
       toggleTask: (id, done) =>
@@ -251,6 +263,13 @@ export const useFocusly = create<FocuslyState>()(
       setActiveTask: (id) =>
         set({
           tasks: get().tasks.map((t) => ({ ...t, active: t.id === id ? !t.active : false })),
+        }),
+
+      setTaskEstimate: (id, estimate) =>
+        set({
+          tasks: get().tasks.map((t) =>
+            t.id === id ? { ...t, estimate: clamp(Math.round(estimate), 1, 12) } : t,
+          ),
         }),
 
       addNote: (title, body) => {
@@ -382,6 +401,15 @@ export const useFocusly = create<FocuslyState>()(
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
+      /** Deep-merge settings so newly added fields keep their defaults after an update */
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<FocuslyState>;
+        return {
+          ...current,
+          ...p,
+          settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
+        } as FocuslyState;
+      },
       partialize: (s): PersistShape => ({
         settings: s.settings,
         daily: s.daily,

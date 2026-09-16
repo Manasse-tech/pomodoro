@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hors ligne — Focusly</title>
+  <style>
+    :root { color-scheme: dark light; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0f1013;
+      color: #f2f3f5;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 420px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 24px;
+      padding: 40px 32px;
+    }
+    .dot {
+      width: 10px; height: 10px; border-radius: 999px;
+      background: #ff7a59;
+      box-shadow: 0 0 12px rgba(255, 122, 89, 0.6);
+      display: inline-block; margin-bottom: 18px;
+    }
+    h1 { font-size: 22px; margin: 0 0 10px; letter-spacing: -0.01em; }
+    p { margin: 0 0 24px; line-height: 1.6; color: rgba(242, 243, 245, 0.66); font-size: 14.5px; }
+    a {
+      display: inline-block; min-height: 44px; line-height: 44px; padding: 0 22px;
+      border-radius: 16px; background: #ff7a59; color: #14161a;
+      font-weight: 600; text-decoration: none; font-size: 14.5px;
+    }
+    @media (prefers-color-scheme: light) {
+      body { background: #f7f6f3; color: #1a1c20; }
+      .card { border-color: rgba(0, 0, 0, 0.1); background: rgba(0, 0, 0, 0.03); }
+      p { color: rgba(26, 28, 32, 0.62); }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <span class="dot" aria-hidden="true"></span>
+    <h1>Vous êtes hors ligne</h1>
+    <p>
+      Impossible de charger cette page pour le moment. Vérifiez votre connexion,
+      puis réessayez — vos données Focusly restent enregistrées sur votre appareil.
+    </p>
+    <a href="/">Réessayer</a>
+  </main>
+</body>
+</html>

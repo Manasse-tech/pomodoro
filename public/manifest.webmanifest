@@ -26,5 +26,22 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "id": "/",
+  "scope": "/",
+  "categories": [
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "Minuteur et outils",
+      "short_name": "Outils",
+      "url": "/#outils"
+    },
+    {
+      "name": "Statistiques",
+      "short_name": "Stats",
+      "url": "/#statistiques"
+    }
   ]
 }

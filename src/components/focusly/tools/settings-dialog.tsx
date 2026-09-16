@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
+import { Minus, Play, Plus, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -27,9 +27,10 @@ import { Switch } from "@/components/ui/switch";
 import { useFocusly } from "@/lib/focusly/store";
 import {
   notificationPermission,
+  playEndSound,
   requestNotificationPermission,
 } from "@/lib/focusly/chime";
-import { SETTINGS_FIELDS } from "@/lib/focusly/types";
+import { SETTINGS_FIELDS, SOUND_KINDS, type SoundKind } from "@/lib/focusly/types";
 
 export function SettingsDialog() {
   const open = useFocusly((s) => s.settingsOpen);
@@ -127,20 +128,78 @@ export function SettingsDialog() {
           </div>
 
           {settings.sound && (
-            <div className="flex items-center justify-between gap-4 px-0.5">
-              <Label htmlFor="set-volume" className="text-sm text-soft">
-                Volume
-              </Label>
-              <Slider
-                id="set-volume"
-                min={0}
-                max={100}
-                step={5}
-                value={[Math.round(settings.volume * 100)]}
-                onValueChange={([v]) => updateSettings({ volume: v / 100 })}
-                className="w-40"
-              />
-            </div>
+            <>
+              <div className="flex flex-col gap-2 px-0.5">
+                <Label className="text-sm text-soft">Son de fin de session</Label>
+                <div
+                  role="group"
+                  aria-label="Choix du son de fin"
+                  className="grid grid-cols-3 gap-1 rounded-xl border bg-secondary p-1"
+                >
+                  {SOUND_KINDS.map((k) => (
+                    <div key={k.value} className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        aria-pressed={settings.soundKind === k.value}
+                        onClick={() => updateSettings({ soundKind: k.value as SoundKind })}
+                        className={`min-h-9 flex-1 whitespace-nowrap rounded-lg px-1 text-[12.5px] font-semibold transition-colors ${
+                          settings.soundKind === k.value
+                            ? "bg-brand text-[#14161a] shadow-[0_2px_10px_-3px_var(--brand)]"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {k.label}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Écouter le son : ${k.label}`}
+                        title="Écouter"
+                        onClick={() => playEndSound(k.value, settings.volume)}
+                        className={`grid size-7 shrink-0 place-items-center rounded-md transition-colors ${
+                          settings.soundKind === k.value
+                            ? "text-[#14161a]/70 hover:text-[#14161a]"
+                            : "text-faint hover:text-foreground"
+                        }`}
+                      >
+                        <Play className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 px-0.5">
+                <Label htmlFor="set-volume" className="flex items-center gap-1.5 text-sm text-soft">
+                  <Volume2 className="size-3.5 text-faint" aria-hidden />
+                  Volume
+                </Label>
+                <Slider
+                  id="set-volume"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={[Math.round(settings.volume * 100)]}
+                  onValueChange={([v]) => updateSettings({ volume: v / 100 })}
+                  className="w-40"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label htmlFor="set-tick" className="text-sm text-soft">
+                    Tic des dernières secondes
+                  </Label>
+                  <p className="text-[11px] text-faint">
+                    Un tic discret pendant les 5 dernières secondes.
+                  </p>
+                </div>
+                <Switch
+                  id="set-tick"
+                  checked={settings.tickLast}
+                  onCheckedChange={(v) => updateSettings({ tickLast: v })}
+                />
+              </div>
+            </>
           )}
 
           <div className="flex items-center justify-between gap-3">
