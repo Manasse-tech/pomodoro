@@ -54,7 +54,8 @@ export function AccueilView() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
+    <div className="relative mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
+      <div className="hero-glow" aria-hidden />
       {/* Héros */}
       <section>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">

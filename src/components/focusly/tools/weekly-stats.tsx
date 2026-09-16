@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { Flame, Timer, TrendingUp } from "lucide-react";
+import { Flame, Timer, TrendingUp, Award } from "lucide-react";
 import { useFocusly } from "@/lib/focusly/store";
+import { computeStreaks } from "@/lib/focusly/streaks";
 import { todayKey, type DailyStat } from "@/lib/focusly/types";
 
 interface DayPoint {
@@ -14,6 +15,7 @@ interface DayPoint {
 
 export function WeeklyStats() {
   const daily = useFocusly((s) => s.daily);
+  const streaks = useMemo(() => computeStreaks(daily), [daily]);
 
   const week = useMemo<DayPoint[]>(() => {
     const out: DayPoint[] = [];
@@ -111,6 +113,20 @@ export function WeeklyStats() {
             Meilleur jour
           </small>
         </div>
+      </div>
+
+      <div
+        className="flex items-center justify-center gap-2 rounded-xl border bg-secondary px-3 py-2 text-[13px]"
+        aria-label={`Série actuelle : ${streaks.current} jour${streaks.current > 1 ? "s" : ""}. Record : ${streaks.best} jour${streaks.best > 1 ? "s" : ""}.`}
+      >
+        <Award className="size-4 text-brand" aria-hidden />
+        <span className="text-soft">
+          Série en cours : <strong className="font-semibold text-foreground">{streaks.current} jour{streaks.current > 1 ? "s" : ""}</strong>
+        </span>
+        <span className="text-faint" aria-hidden>·</span>
+        <span className="text-soft">
+          Record : <strong className="font-semibold text-foreground">{streaks.best} jour{streaks.best > 1 ? "s" : ""}</strong>
+        </span>
       </div>
     </section>
   );

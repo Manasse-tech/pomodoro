@@ -200,6 +200,43 @@ kbd {
   filter: drop-shadow(0 0 9px var(--brand-glow));
 }
 
+/* Gentle pulse while the timer is running */
+@keyframes ringPulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 9px var(--brand-glow));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px var(--brand-glow));
+  }
+}
+.ring-pulse {
+  animation: ringPulse 2.2s ease-in-out infinite;
+  will-change: filter;
+}
+
+/* Header elevation once the page scrolls */
+.site-header-scrolled {
+  box-shadow: 0 12px 32px -20px rgba(0, 0, 0, 0.65);
+}
+[data-theme="light"] .site-header-scrolled {
+  box-shadow: 0 12px 32px -22px rgba(0, 0, 0, 0.28);
+}
+
+/* Soft brand glow behind the hero */
+.hero-glow {
+  position: absolute;
+  left: 50%;
+  top: -120px;
+  transform: translateX(-50%);
+  width: min(720px, 100%);
+  height: 380px;
+  pointer-events: none;
+  background: radial-gradient(closest-side, var(--brand-glow), transparent 72%);
+  opacity: 0.16;
+  filter: blur(48px);
+}
+
 /* Typewriter caret for hero */
 @keyframes pulse-dot {
   0%,

@@ -176,7 +176,8 @@ export const useFocusly = create<FocuslyState>()(
         if (s.mode === "focus" && elapsed > 0) {
           const key = todayKey();
           const day = s.daily[key] ?? { ...EMPTY_STAT };
-          day.focusSeconds += elapsed;
+          // Round to 0.1s to avoid float drift (e.g. 59.99999999 breaking floor())
+          day.focusSeconds = Math.round((day.focusSeconds + elapsed) * 10) / 10;
           set({ lastTick: now, daily: { ...s.daily, [key]: day } });
         } else {
           set({ lastTick: now });
@@ -270,7 +271,13 @@ export const useFocusly = create<FocuslyState>()(
       updateSettings: (patch) => {
         const s = get();
         const settings = { ...s.settings };
-        const numeric: Array<keyof TimerSettings> = ["focus", "short", "long", "longEvery"];
+        const numeric: Array<keyof TimerSettings> = [
+          "focus",
+          "short",
+          "long",
+          "longEvery",
+          "dailyGoal",
+        ];
         (Object.keys(patch) as Array<keyof TimerSettings>).forEach((k) => {
           const v = patch[k];
           if (v === undefined) return;
@@ -282,7 +289,9 @@ export const useFocusly = create<FocuslyState>()(
                   ? [1, 60]
                   : k === "long"
                     ? [1, 90]
-                    : [2, 12];
+                    : k === "longEvery"
+                      ? [2, 12]
+                      : [1, 20];
             settings[k] = clamp(Math.round(v as number), bounds[0], bounds[1]) as never;
           } else {
             settings[k] = v as never;

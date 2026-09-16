@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BLOG_POSTS } from "@/lib/focusly/blog";
 import { frDate } from "@/lib/focusly/types";
@@ -39,9 +40,17 @@ export function BlogArticleView({ slug }: { slug: string }) {
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           {post.title}
         </h1>
-        <p className="mt-3 text-[13px] text-faint">
-          Publié le {frDate(post.date)} · Lecture ~{post.readMinutes} minutes
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Badge
+            variant="secondary"
+            className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand"
+          >
+            {post.tag}
+          </Badge>
+          <p className="text-[13px] text-faint">
+            Publié le {frDate(post.date)} · Lecture ~{post.readMinutes} minutes
+          </p>
+        </div>
         <div className="mt-6">
           <ArticleBlocks blocks={post.content} />
         </div>
@@ -61,6 +70,9 @@ export function BlogArticleView({ slug }: { slug: string }) {
               <span className="mt-1 block text-[15px] font-semibold tracking-tight">
                 {prev.title}
               </span>
+              <span className="mt-1 block text-[12px] text-faint">
+                ~{prev.readMinutes} min
+              </span>
             </Link>
           ) : (
             <span className="hidden sm:block" aria-hidden />
@@ -73,6 +85,9 @@ export function BlogArticleView({ slug }: { slug: string }) {
               </span>
               <span className="mt-1 block text-[15px] font-semibold tracking-tight">
                 {next.title}
+              </span>
+              <span className="mt-1 block text-[12px] text-faint">
+                ~{next.readMinutes} min
               </span>
             </Link>
           ) : (

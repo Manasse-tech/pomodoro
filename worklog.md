@@ -119,3 +119,80 @@ Stage Summary:
 - Site 100 % fonctionnel, vérifié de bout en bout, propre au lint et à l'hydratation
 - Données de test supprimées de la DB (0 message en base)
 - Prochaines étapes possibles : service worker PWA, i18n, comptes utilisateurs, export CSV, sons multiples
+
+---
+Task ID: r2-5
+Agent: frontend-styling-expert
+Task: Blog — recherche, filtre par tag, badges de lecture
+
+Work Log:
+- Lu worklog.md + contrats (blog.ts/BLOG_POSTS, types.ts/frDate, breadcrumb.tsx, ui/badge + ui/input + ui/button, tokens globals.css text-brand/text-soft/text-faint, site-header sticky z-50 hauteur ~65px)
+- Réécrit blog-view.tsx : toolbar sticky-ish (sm+) avec input de recherche (icône Search lucide en absolute + pl-9, type="search", aria-label « Rechercher un article », placeholder « Rechercher un article… ») ; chips « Tous » + 5 tags uniques (Set sur BLOG_POSTS), boutons pill rounded-full px-3.5 py-1.5 text-[13px] font-semibold avec aria-pressed, actif bg-brand text-[#14161a], inactif border bg-card text-soft hover:text-foreground ; compteur de résultats aria-live polite text-[13px] text-faint (« 6 articles » hors filtre, « N article(s) trouvé(s) » sinon, singulier géré)
+- Filtrage : fold() = normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase() ; recherche sur title + excerpt + tag, insensible casse ET accents (« etudiant » trouve « Étudiants ») ; combinée en ET avec le filtre tag exact ; états useState (query, activeTag: string|null) + useMemo ; changement de tag réinitialise la requête (spec « RESET filters state when switching tag ») ; « Réinitialiser les filtres » (Button ghost) remet query + tag à zéro
+- Empty state : rounded-xl border border-dashed p-8 text-center, « Aucun article ne correspond à votre recherche. » + bouton reset
+- Cartes : group flex h-full flex-col rounded-2xl border bg-card p-5 + hover conservés ; meta row mt-auto (Badge variant="secondary" « ~N min de lecture » + date frDate en text-[12px] text-faint + ArrowRight déplacé en ml-auto de cette row) ; grille grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ; liens #blog/{slug} inchangés
+- Toolbar « sticky-ish » : position sticky uniquement en sm+ (top-[65px] calé sous le header sticky 65px, z-20 < z-50 du header, bg-background/95 + backdrop-blur-sm, pb-4/-mb-4 pour couvrir le défilement) ; statique sur mobile (page courte, ne pas consommer le viewport) ; textes/h1/sous-titre/breadcrumb d'origine conservés à l'identique
+- blog-article-view.tsx (édition légère uniquement) : + import Badge ; meta = Badge secondary tag en style uppercase des cartes index (text-[11px] font-bold uppercase tracking-[0.08em] text-brand) devant « Publié le … · Lecture … » (texte inchangé), wrapper flex flex-wrap ; cartes précédent/suivant : ligne supplémentaire « ~N min » en text-[12px] text-faint ; rien d'autre restructuré
+- Vérifié : bunx tsc --noEmit → 0 erreur dans src/ (seules erreurs = examples/ et skills/ préexistantes, hors périmètre) ; bunx eslint sur les 2 fichiers → 0 erreur, 0 warning ; pas de dev server ni build (consigne)
+
+Stage Summary:
+- 2 fichiers modifiés : src/components/focusly/content/blog-view.tsx (réécrit : recherche accent-tolérante + chips de filtre par tag + compteur aria-live + empty state + badge « ~N min de lecture » par carte) et src/components/focusly/content/blog-article-view.tsx (badge tag dans la meta line + « ~N min » dans les cartes de navigation précédent/suivant)
+- Contrats respectés sans modification : BLOG_POSTS/BlogPost, frDate, Breadcrumb, Badge (variant secondary vérifié), design tokens (bg-brand via --color-brand) ; aucun autre fichier touché ; aucun `any`, aucun emoji, pas de bleu
+- Interprétations à noter : « RESET filters state when switching tag » implémenté = changer de chip efface la requête (recherche + tag restent combinables en tapant après avoir choisi un tag) ; ArrowRight des cartes déplacé dans la meta row pour équilibrer le pied de carte ; sticky de la toolbar limitée à sm+ (header déjà sticky, hauteur dynamique sur mobile)
+
+---
+Task ID: r2-4
+Agent: frontend-styling-expert
+Task: Palette de commandes Ctrl+K
+
+Work Log:
+- Lu worklog.md, contrats confirmés : `@/components/ui/command` exporte bien CommandDialog/CommandInput/CommandList/CommandEmpty/CommandGroup/CommandItem/CommandSeparator (+ Command, CommandShortcut) ; `navigate()` et actions store (startTimer/pauseTimer/resetTimer/skipMode/toggleTheme/setSettingsOpen/setHelpOpen) conformes
+- Vérifié versions : cmdk 1.1.1 (le Separator du cmdk se masque automatiquement dès qu'une recherche est active → pas de traits orphelins), lucide-react 0.525.0 (toutes les icônes + type LucideIcon existent)
+- Vérifié focusly-app.tsx : le handler global de raccourcis ignore déjà ctrl/meta/alt → aucun conflit avec Ctrl+K/Cmd+K
+- Créé `src/components/focusly/tools/command-palette.tsx` (seul fichier touché) : export function CommandPalette() sans props ; "use client" ; open en useState ; useEffect unique avec keydown global (Ctrl+K ou Meta+K → preventDefault + toggle, Échap laissé à CommandDialog/onOpenChange) + écoute CustomEvent window "focusly:open-command" → ouvre
+- Groupes : Navigation (7 routes via navigate()), Minuteur (start/pause via getState() avec icône Play/Pause selon running lu au rendu, reset, skip), Application (toggleTheme, setSettingsOpen(true), setHelpOpen(true)) — chaque action ferme la palette
+- Dialog FR : title "Palette de commandes" + description sr-only (remplace les défauts anglais du composant shadcn) ; CommandEmpty "Aucun résultat." ; placeholders/libellés FR avec apostrophes typographiques ; pas de style custom au-delà des icônes
+- SSR-safe : tout accès window dans useEffect/handlers ; contenu du dialog uniquement rendu côté client à l'ouverture (portal) → aucun risque d'hydratation
+- Self-check : `bunx tsc --noEmit` → 0 erreur dans src/ (seul bruit préexistant examples/skills) ; `bunx eslint src/components/focusly/tools/command-palette.tsx` → 0 erreur 0 warning
+
+Stage Summary:
+- `src/components/focusly/tools/command-palette.tsx` créé : `export function CommandPalette()` (aucune prop) — prêt à être monté par le main dans focusly-app (ex. <CommandPalette /> au niveau du shell) ; le bouton header doit dispatcher `window.dispatchEvent(new CustomEvent("focusly:open-command"))` pour l'ouvrir
+- Raccourcis : Ctrl+K / Cmd+K bascule l'ouverture, Échap ferme (via onOpenChange de CommandDialog)
+
+---
+Task ID: R2 (cron webDevReview — tour 2)
+Agent: main (Z.ai Code) + sous-agents frontend-styling-expert (r2-4, r2-5)
+Task: Nouvelles fonctionnalités + polish styling + QA complète
+
+## État du projet au départ
+Stable : 0 erreur lint/tsc, hydratation propre, tous les parcours vérifiés au tour 1.
+
+## Work Log
+- QA smoke : dev.log 200, overlay Next.js clean, titre OK
+- **Objectif quotidien** (nouveau) : `settings.dailyGoal` (1–20, défaut 8), stepper dans les réglages, barre de progression sous les stats du jour (« OBJECTIF 1 / 2 »), toast de célébration + carillon à l'atteinte (garde anti-doublon par ref)
+- **Séries** (nouveau) : `src/lib/focusly/streaks.ts` (computeStreaks : série courante + record), bandeau « Série en cours : N jours · Record : N » dans le panneau hebdo
+- **Palette de commandes** (nouveau, r2-4) : Ctrl+K / Cmd+K + bouton loupe header (CustomEvent), navigation 7 pages, actions minuteur, thème, réglages, aide — via shadcn CommandDialog (cmdk)
+- **Blog recherche + filtres** (nouveau, r2-5) : recherche insensible casse/accents (title+excerpt+tag), chips de tags (Tous + 5 tags, aria-pressed), compteur aria-live, état vide + reset, badges « ~N min de lecture » + dates, badge tag sur les articles, prev/next enrichis
+- **Styling (obligatoire)** : transitions de vues framer-motion (fade+slide 0.25s, respecte prefers-reduced-motion), pulsation de l'anneau pendant la course (.ring-pulse), ombre du header au scroll (.site-header-scrolled), halo de marque derrière le héros (.hero-glow), bouton loupe header
+- Intégration : <CommandPalette /> dans focusly-app, aide enrichie (Ctrl K), SettingsDialog dédoublonné
+
+## Bugs trouvés et corrigés ce tour
+1. **SettingsDialog monté 2×** (focusly-app + outils-view) → ids dupliqués, fills Radiogroup incohérents → retiré de outils-view
+2. **focusSeconds 59.9999…** (dérive flottante) → « 0 minutes » affiché malgré 60 s → arrondi 0,1 s à l'accumulation
+3. Raccourci « , » ignoré si un bouton a le focus (comportement attendu, documenté dans l'aide)
+
+## Vérifications agent-browser
+- Ctrl+K ouvre la palette → clic « Guide » → #guide + titre OK
+- Blog : « cerveau » → 1 article ; tag Neurosciences → 1 ; Tous → 6 ; compteur et badges OK
+- Session 1 min (objectif 1) : pomodoros=1, barre 1/1 pleine, toast « Objectif du jour atteint, bravo ! », série 1 jour, bascule auto pause courte
+- Retest (objectif 2) : minutes affichées = 1 (fix flottant OK), pas de double célébration
+- tsc : 0 erreur src/ ; eslint : 0/0 ; overlay hydratation : clean
+
+## Stage Summary
+- 4 nouvelles fonctionnalités livrées et vérifiées, 2 bugs corrigés, styling enrichi
+- Risques : aucun connu ; dev.log propre (200)
+
+## Recommandations tour suivant
+- Service worker PWA (cache offline) — à tester prudemment en sandbox
+- Sons multiples + tick des 5 dernières secondes ; estimation pomodoros par tâche
+- Page statistiques dédiée (heatmap mensuelle) ; export CSV en plus du JSON

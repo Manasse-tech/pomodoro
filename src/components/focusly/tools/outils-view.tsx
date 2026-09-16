@@ -2,7 +2,6 @@
 
 import { HistoryPanel } from "./history-panel";
 import { NotesPanel } from "./notes-panel";
-import { SettingsDialog } from "./settings-dialog";
 import { TasksPanel } from "./tasks-panel";
 import { TimerCard } from "./timer-card";
 import { WeeklyStats } from "./weekly-stats";
@@ -30,8 +29,6 @@ export function OutilsView() {
           <HistoryPanel />
         </div>
       </div>
-
-      <SettingsDialog />
     </div>
   );
 }

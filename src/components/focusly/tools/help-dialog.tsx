@@ -13,6 +13,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ["Démarrer / pause", "Espace"],
   ["Réinitialiser", "R"],
   ["Mode suivant", "S"],
+  ["Palette de commandes", "Ctrl K"],
   ["Réglages", ","],
   ["Thème clair / sombre", "T"],
   ["Fermer une fenêtre", "Échap"],

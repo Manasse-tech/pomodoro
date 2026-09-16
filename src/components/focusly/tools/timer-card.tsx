@@ -1,7 +1,8 @@
 "use client";
 
-import { Play, Pause, RotateCcw, SkipForward, Settings2, X } from "lucide-react";
+import { Play, Pause, RotateCcw, SkipForward, Settings2, Target, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { useFocusly } from "@/lib/focusly/store";
 import {
   formatTime,
@@ -32,6 +33,10 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
   const progress = total > 0 ? Math.min(1, Math.max(0, (total - timeLeft) / total)) : 0;
   const isPartial = timeLeft > 0 && timeLeft < total;
   const activeTask = tasks.find((t) => t.active);
+
+  const pomos = today?.pomodoros ?? 0;
+  const goalPct = Math.min(100, Math.round((pomos / Math.max(1, settings.dailyGoal)) * 100));
+  const goalReached = pomos >= settings.dailyGoal;
 
   const dots = Array.from({ length: settings.longEvery });
   const filledRaw = cycle % settings.longEvery;
@@ -92,7 +97,7 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
             strokeWidth="8"
           />
           <circle
-            className="ring-fg stroke-brand"
+            className={`ring-fg stroke-brand ${running ? "ring-pulse" : ""}`}
             cx="130"
             cy="130"
             r="118"
@@ -214,6 +219,25 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
           </small>
         </div>
       </section>
+
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+          <Target className="size-3.5 text-brand" aria-hidden />
+          Objectif
+        </div>
+        <Progress
+          value={goalPct}
+          aria-label={`Objectif du jour : ${pomos} sur ${settings.dailyGoal} pomodoros`}
+          className="h-1.5 flex-1 bg-secondary"
+        />
+        <span
+          className={`time-display text-xs font-semibold ${
+            goalReached ? "text-brand" : "text-muted-foreground"
+          }`}
+        >
+          {pomos} / {settings.dailyGoal}
+        </span>
+      </div>
     </div>
   );
 }

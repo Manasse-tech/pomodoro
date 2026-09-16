@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { HelpCircle, Menu, Moon, Settings2, Sun, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { HelpCircle, Menu, Moon, Search, Settings2, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isNavActive } from "@/lib/focusly/router";
 import { useFocusly } from "@/lib/focusly/store";
@@ -26,9 +27,21 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
   const toggleTheme = useFocusly((s) => s.toggleTheme);
   const open = useFocusly((s) => s.navOpen);
   const setNavOpen = useFocusly((s) => s.setNavOpen);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-[var(--header-bg)] backdrop-blur-md">
+    <header
+      className={`sticky top-0 z-50 border-b bg-[var(--header-bg)] backdrop-blur-md transition-shadow duration-300 ${
+        scrolled ? "site-header-scrolled" : ""
+      }`}
+    >
       <div className="mx-auto flex w-full max-w-[920px] flex-wrap items-center justify-between gap-3 px-5 py-3">
         <Link
           href="#accueil"
@@ -87,6 +100,16 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
             onClick={onOpenSettings}
           >
             <Settings2 className="size-[18px]" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Ouvrir la palette de commandes"
+            title="Recherche (Ctrl+K)"
+            className="size-10 rounded-xl"
+            onClick={() => window.dispatchEvent(new CustomEvent("focusly:open-command"))}
+          >
+            <Search className="size-[18px]" />
           </Button>
           <Button
             variant="outline"

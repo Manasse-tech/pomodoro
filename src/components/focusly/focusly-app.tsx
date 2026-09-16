@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
 import { HelpDialog } from "./tools/help-dialog";
+import { CommandPalette } from "./tools/command-palette";
 import { SettingsDialog } from "./tools/settings-dialog";
 import { OutilsView } from "./tools/outils-view";
 import { AccueilView } from "./content/accueil-view";
@@ -23,7 +25,7 @@ import { NotFoundView } from "./content/not-found-view";
 import { playChime, notify } from "@/lib/focusly/chime";
 import { useFocusly } from "@/lib/focusly/store";
 import { useHashRoute } from "@/lib/focusly/router";
-import { MODE_LABELS } from "@/lib/focusly/types";
+import { todayKey, MODE_LABELS } from "@/lib/focusly/types";
 
 const JSON_LD = {
   "@context": "https://schema.org",
@@ -54,6 +56,8 @@ function CurrentView({ route }: { route: string }) {
 
 export function FocuslyApp() {
   const { route } = useHashRoute();
+  const reduceMotion = useReducedMotion();
+  const goalCelebrated = useRef(false);
   const theme = useFocusly((s) => s.theme);
   const mode = useFocusly((s) => s.mode);
   const running = useFocusly((s) => s.running);
@@ -98,6 +102,19 @@ export function FocuslyApp() {
               MODE_LABELS[nextMode] + " · " + Math.round(s.settings[nextMode]) + " min",
           },
         );
+        if (
+          finishedWasFocus &&
+          !goalCelebrated.current &&
+          (s.daily[todayKey()]?.pomodoros ?? 0) >= s.settings.dailyGoal
+        ) {
+          goalCelebrated.current = true;
+          if (s.settings.sound) playChime(s.settings.volume);
+          toast.success("Objectif du jour atteint, bravo !", {
+            description:
+              s.settings.dailyGoal + " pomodoros accomplis. Chaque jour compte, à demain.",
+            duration: 8000,
+          });
+        }
         if (s.settings.autoStart) {
           useFocusly.getState().startTimer();
         }
@@ -190,11 +207,19 @@ export function FocuslyApp() {
         onOpenHelp={() => setHelpOpen(true)}
       />
       <main id="main" className="flex-1">
-        <CurrentView route={route} />
+        <motion.div
+          key={route}
+          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+        >
+          <CurrentView route={route} />
+        </motion.div>
       </main>
       <SiteFooter />
       <SettingsDialog />
       <HelpDialog />
+      <CommandPalette />
       {route === "accueil" && (
         <script
           type="application/ld+json"

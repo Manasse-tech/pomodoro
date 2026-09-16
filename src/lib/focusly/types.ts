@@ -12,6 +12,8 @@ export interface TimerSettings {
   long: number;
   /** Long break every N pomodoros (2–12) */
   longEvery: number;
+  /** Daily pomodoro goal (1–20) */
+  dailyGoal: number;
   /** Play a chime when a session ends */
   sound: boolean;
   /** Chime volume 0–1 */
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: TimerSettings = {
   short: 5,
   long: 15,
   longEvery: 4,
+  dailyGoal: 8,
   sound: true,
   volume: 0.6,
   notifications: false,
@@ -77,7 +80,7 @@ export const MODE_HINTS: Record<Mode, string> = {
 };
 
 export const SETTINGS_FIELDS: Array<{
-  key: "focus" | "short" | "long" | "longEvery";
+  key: "focus" | "short" | "long" | "longEvery" | "dailyGoal";
   label: string;
   min: number;
   max: number;
@@ -86,6 +89,7 @@ export const SETTINGS_FIELDS: Array<{
   { key: "short", label: "Pause courte", min: 1, max: 60 },
   { key: "long", label: "Pause longue", min: 1, max: 90 },
   { key: "longEvery", label: "Pause longue après", min: 2, max: 12 },
+  { key: "dailyGoal", label: "Objectif quotidien", min: 1, max: 20 },
 ];
 
 /** Utility: clamp a number between bounds */
