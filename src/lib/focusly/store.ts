@@ -76,12 +76,19 @@ interface FocuslyState extends PersistShape {
   setActiveTask: (id: string | null) => void;
   /** Set the pomodoro estimate of a task (clamped 1–12) */
   setTaskEstimate: (id: string, estimate: number) => void;
+  /** Edit a task's text and/or due date (null clears the due date) */
+  updateTask: (
+    id: string,
+    patch: Partial<Pick<TaskItem, "text" | "dueDate" | "estimate">>,
+  ) => void;
   /** Move a task up (-1) or down (+1) by one position */
   moveTask: (id: string, direction: -1 | 1) => void;
   /** Reorder: drop task `fromId` at the position of task `toId` */
   moveTaskTo: (fromId: string, toId: string) => void;
 
   addNote: (title: string, body: string) => void;
+  /** Edit an existing note's title and/or body */
+  updateNote: (id: string, patch: Partial<Pick<NoteItem, "title" | "body">>) => void;
   removeNote: (id: string) => void;
 
   clearHistory: () => void;
@@ -276,6 +283,25 @@ export const useFocusly = create<FocuslyState>()(
           ),
         }),
 
+      updateTask: (id, patch) =>
+        set({
+          tasks: get().tasks.map((t) => {
+            if (t.id !== id) return t;
+            const next = { ...t };
+            if (patch.text !== undefined) {
+              const v = patch.text.trim();
+              if (v) next.text = v;
+            }
+            if (patch.estimate !== undefined) {
+              next.estimate = clamp(Math.round(patch.estimate), 1, 12);
+            }
+            if (patch.dueDate !== undefined) {
+              next.dueDate = patch.dueDate === null || patch.dueDate === "" ? undefined : patch.dueDate;
+            }
+            return next;
+          }),
+        }),
+
       moveTask: (id, direction) => {
         const tasks = [...get().tasks];
         const i = tasks.findIndex((t) => t.id === id);
@@ -309,6 +335,20 @@ export const useFocusly = create<FocuslyState>()(
       },
 
       removeNote: (id) => set({ notes: get().notes.filter((n) => n.id !== id) }),
+
+      updateNote: (id, patch) =>
+        set({
+          notes: get().notes.map((n) => {
+            if (n.id !== id) return n;
+            const next = { ...n };
+            if (patch.title !== undefined) {
+              const v = patch.title.trim();
+              if (v) next.title = v;
+            }
+            if (patch.body !== undefined) next.body = patch.body.trim();
+            return next;
+          }),
+        }),
 
       clearHistory: () => set({ history: [] }),
 

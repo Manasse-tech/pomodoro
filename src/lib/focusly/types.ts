@@ -65,6 +65,8 @@ export interface TaskItem {
   estimate?: number;
   /** Pomodoros completed while this task was linked (default 0) */
   spent?: number;
+  /** Optional due date, as a local YYYY-MM-DD key (same format as todayKey) */
+  dueDate?: string;
 }
 
 export interface NoteItem {
@@ -152,6 +154,29 @@ export function frDate(iso: string | number): string {
     month: "long",
     year: "numeric",
   });
+}
+
+/** French short date from a local YYYY-MM-DD key, e.g. « 12 mars » (year if not current) */
+export function frDateShort(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) return key;
+  const date = new Date(y, m - 1, d);
+  const sameYear = y === new Date().getFullYear();
+  return date.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
+/** Days from today (local) to a YYYY-MM-DD key — negative = overdue */
+export function daysUntil(key: string): number {
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) return 0;
+  const due = new Date(y, m - 1, d);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((due.getTime() - today.getTime()) / 86_400_000);
 }
 
 /** French human date + time for lists */

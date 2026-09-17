@@ -1,23 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import {
+  ArrowDownWideNarrow,
+  Calendar,
+  CalendarClock,
+  Check,
   ChevronDown,
   ChevronUp,
   Crosshair,
   GripVertical,
   Minus,
+  Pencil,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFocusly } from "@/lib/focusly/store";
+import { daysUntil, frDate, frDateShort, type TaskItem } from "@/lib/focusly/types";
+
+/** Full French date from a local YYYY-MM-DD key — built from local parts, never UTC */
+function dueDateLabel(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) return key;
+  return frDate(new Date(y, m - 1, d).getTime());
+}
 
 export function TasksPanel() {
   const tasks = useFocusly((s) => s.tasks);
   const addTask = useFocusly((s) => s.addTask);
+  const updateTask = useFocusly((s) => s.updateTask);
   const toggleTask = useFocusly((s) => s.toggleTask);
   const removeTask = useFocusly((s) => s.removeTask);
   const clearDoneTasks = useFocusly((s) => s.clearDoneTasks);
@@ -27,6 +43,11 @@ export function TasksPanel() {
   const moveTaskTo = useFocusly((s) => s.moveTaskTo);
   const [value, setValue] = useState("");
   const [estimate, setEstimate] = useState(1);
+  const [dueDate, setDueDate] = useState("");
+  /* inline edit — only one task at a time */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editDue, setEditDue] = useState("");
   /* drag-and-drop reorder state (id of the dragged task / hovered target) */
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -41,16 +62,66 @@ export function TasksPanel() {
     setOverId(null);
   };
 
+  const startTaskEdit = (t: TaskItem) => {
+    setEditingId(t.id);
+    setEditText(t.text);
+    setEditDue(t.dueDate ?? "");
+  };
+
+  const cancelTaskEdit = () => setEditingId(null);
+
+  const saveTaskEdit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingId || !editText.trim()) return;
+    // dueDate "" clears the due date (store contract)
+    updateTask(editingId, { text: editText, dueDate: editDue });
+    setEditingId(null);
+    toast.success("Tâche mise à jour.");
+  };
+
+  /** One-shot sort: due dates first (ascending, YYYY-MM-DD keys sort chronologically), stable otherwise */
+  const sortByDueDate = () => {
+    if (!tasks.some((t) => t.dueDate)) {
+      toast.info("Aucune échéance définie.");
+      return;
+    }
+    useFocusly.setState((s) => {
+      const withDue = s.tasks.filter((t) => t.dueDate);
+      const without = s.tasks.filter((t) => !t.dueDate);
+      withDue.sort((a, b) => {
+        const ka = a.dueDate ?? "";
+        const kb = b.dueDate ?? "";
+        if (ka === kb) return 0;
+        return ka < kb ? -1 : 1;
+      });
+      return { tasks: [...withDue, ...without] };
+    });
+    toast.success("Tâches triées par échéance.");
+  };
+
   return (
     <section
       aria-label="Tâches"
       className="flex flex-col gap-4 rounded-3xl border bg-card p-6"
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="m-0 text-base font-bold tracking-tight">Tâches</h2>
-        <span className="text-xs font-semibold text-muted-foreground">
-          {remaining} / {tasks.length}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {tasks.length >= 2 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={sortByDueDate}
+              className="text-muted-foreground"
+            >
+              <ArrowDownWideNarrow className="size-4" />
+              Trier par échéance
+            </Button>
+          )}
+          <span className="text-xs font-semibold text-muted-foreground">
+            {remaining} / {tasks.length}
+          </span>
+        </div>
       </div>
 
       {tasks.length > 0 && remaining > 0 && (
@@ -67,8 +138,12 @@ export function TasksPanel() {
           e.preventDefault();
           if (!value.trim()) return;
           addTask(value, estimate);
+          const stored = useFocusly.getState().tasks;
+          const added = stored[stored.length - 1];
+          if (dueDate && added) updateTask(added.id, { dueDate });
           setValue("");
           setEstimate(1);
+          setDueDate("");
         }}
       >
         <label htmlFor="task-input" className="sr-only">
@@ -113,147 +188,260 @@ export function TasksPanel() {
             <Plus className="size-3.5" />
           </button>
         </div>
+        <Input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          aria-label="Échéance (optionnelle)"
+          className="h-9 w-[122px] rounded-xl border bg-secondary/60 px-2 text-xs [color-scheme:light] dark:bg-secondary/60 dark:[color-scheme:dark]"
+        />
         <Button type="submit" className="min-h-11 rounded-xl active:scale-[0.98]">
           <Plus className="size-4" /> Ajouter
         </Button>
       </form>
 
       <ul className="slim-scroll flex max-h-96 list-none flex-col gap-2 overflow-y-auto p-0 m-0">
-        {tasks.map((t, index) => (
-          <li
-            key={t.id}
-            draggable
-            onDragStart={(e) => {
-              setDragId(t.id);
-              e.dataTransfer.effectAllowed = "move";
-              try {
-                e.dataTransfer.setData("text/plain", t.id);
-              } catch {
-                /* some engines forbid setData — the local state is enough */
-              }
-            }}
-            onDragEnd={clearDrag}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "move";
-              setOverId((v) => (dragId && dragId !== t.id ? t.id : v));
-            }}
-            onDragLeave={() => setOverId((v) => (v === t.id ? null : v))}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (dragId && dragId !== t.id) moveTaskTo(dragId, t.id);
-              clearDrag();
-            }}
-            className={`flex flex-wrap items-start gap-x-2 gap-y-2 rounded-xl border bg-secondary px-3 py-3 transition-[opacity,box-shadow,border-color,transform] duration-150 ${
-              t.done ? "opacity-55" : ""
-            } ${t.active ? "border-brand/60 ring-1 ring-brand/40" : ""} ${
-              dragId === t.id ? "scale-[0.99] opacity-40" : ""
-            } ${
-              overId === t.id && dragId !== t.id
-                ? "border-brand/70 ring-2 ring-brand/35"
-                : ""
-            }`}
-          >
-            <GripVertical
-              aria-hidden
-              className="mt-0.5 size-4 shrink-0 cursor-grab text-faint/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-            />
-            <Checkbox
-              checked={t.done}
-              onCheckedChange={(v) => toggleTask(t.id, v === true)}
-              aria-label={t.done ? "Marquer comme à faire" : "Marquer comme terminée"}
-              className="mt-0.5 size-5"
-            />
-            <span
-              className={`min-w-[140px] flex-1 basis-[140px] break-words text-sm leading-relaxed ${
-                t.done ? "line-through" : ""
-              }`}
+        {tasks.map((t, index) => {
+          const editing = t.id === editingId;
+          const due = t.dueDate ?? null;
+          const dueDays = due ? daysUntil(due) : null;
+          return (
+            <li
+              key={t.id}
+              draggable={!editing}
+              onDragStart={(e) => {
+                setDragId(t.id);
+                e.dataTransfer.effectAllowed = "move";
+                try {
+                  e.dataTransfer.setData("text/plain", t.id);
+                } catch {
+                  /* some engines forbid setData — the local state is enough */
+                }
+              }}
+              onDragEnd={clearDrag}
+              onDragOver={(e) => {
+                if (t.done) {
+                  // Never drop onto a completed task (keeps to-do / done zones separate)
+                  e.dataTransfer.dropEffect = "none";
+                  return;
+                }
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                setOverId((v) => (dragId && dragId !== t.id ? t.id : v));
+              }}
+              onDragLeave={() => setOverId((v) => (v === t.id ? null : v))}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (t.done || !dragId || dragId === t.id) {
+                  clearDrag();
+                  return;
+                }
+                moveTaskTo(dragId, t.id);
+                clearDrag();
+              }}
+              className={`flex flex-wrap items-start gap-x-2 gap-y-2 rounded-xl border px-3 py-3 transition-[opacity,box-shadow,border-color,transform] duration-150 ${
+                editing ? "bg-brand/5 ring-1 ring-brand" : "bg-secondary"
+              } ${t.done ? "opacity-55" : ""} ${
+                !editing && t.active ? "border-brand/60 ring-1 ring-brand/40" : ""
+              } ${dragId === t.id ? "scale-[0.99] opacity-40" : ""} ${
+                overId === t.id && dragId !== t.id
+                  ? "border-brand/70 ring-2 ring-brand/35"
+                  : ""
+              } ${dragId && t.done ? "cursor-not-allowed" : ""}`}
             >
-              {t.text}
-            </span>
-            {!t.done && (
-              <div
-                role="group"
-                aria-label={`Estimation de la tâche : ${t.text}`}
-                className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-background/60"
-              >
-                <button
-                  type="button"
-                  aria-label="Diminuer l’estimation"
-                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) - 1)}
-                  disabled={(t.estimate ?? 1) <= 1}
-                  className="grid size-6 place-items-center rounded-l-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+              {editing ? (
+                <form
+                  className="flex w-full flex-col gap-2"
+                  autoComplete="off"
+                  onSubmit={saveTaskEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelTaskEdit();
+                    }
+                  }}
                 >
-                  <Minus className="size-3" />
-                </button>
-                <span
-                  title={`Estimation : ${t.estimate ?? 1} pomodoro${(t.estimate ?? 1) > 1 ? "s" : ""} · Effectués : ${t.spent ?? 0}`}
-                  className={`w-9 text-center text-[11px] font-semibold tabular-nums ${
-                    (t.spent ?? 0) >= (t.estimate ?? 1)
-                      ? "text-brand"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {t.spent ?? 0}/{t.estimate ?? 1}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Augmenter l’estimation"
-                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) + 1)}
-                  disabled={(t.estimate ?? 1) >= 12}
-                  className="grid size-6 place-items-center rounded-r-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
-                >
-                  <Plus className="size-3" />
-                </button>
-              </div>
-            )}
-            {!t.done && (
-              <button
-                onClick={() => setActiveTask(t.id)}
-                aria-label="Lier au minuteur"
-                title="Lier au minuteur"
-                className={`transition-colors ${
-                  t.active ? "text-brand" : "text-faint hover:text-foreground"
-                }`}
-              >
-                <Crosshair className="size-4" />
-              </button>
-            )}
-            <button
-              onClick={() => removeTask(t.id)}
-              aria-label={`Supprimer la tâche : ${t.text}`}
-              className="text-faint transition-colors hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-            </button>
-            {tasks.length > 1 && (
-              <div
-                role="group"
-                aria-label={`Déplacer la tâche : ${t.text}`}
-                className="flex shrink-0 flex-col gap-0.5"
-              >
-                <button
-                  type="button"
-                  onClick={() => moveTask(t.id, -1)}
-                  disabled={index === 0}
-                  aria-label={`Monter la tâche : ${t.text}`}
-                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
-                >
-                  <ChevronUp className="size-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveTask(t.id, 1)}
-                  disabled={index === tasks.length - 1}
-                  aria-label={`Descendre la tâche : ${t.text}`}
-                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
-                >
-                  <ChevronDown className="size-3.5" />
-                </button>
-              </div>
-            )}
-          </li>
-        ))}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label htmlFor={`task-edit-text-${t.id}`} className="sr-only">
+                      Texte de la tâche
+                    </label>
+                    <Input
+                      id={`task-edit-text-${t.id}`}
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      maxLength={200}
+                      className="min-h-11 min-w-[140px] flex-1 rounded-xl"
+                    />
+                    <Input
+                      type="date"
+                      value={editDue}
+                      onChange={(e) => setEditDue(e.target.value)}
+                      aria-label="Échéance de la tâche"
+                      className="h-11 w-[122px] rounded-xl border bg-secondary/60 px-2 text-xs [color-scheme:light] dark:bg-secondary/60 dark:[color-scheme:dark] sm:h-9"
+                    />
+                    {editDue && (
+                      <button
+                        type="button"
+                        onClick={() => setEditDue("")}
+                        aria-label="Retirer l’échéance"
+                        title="Retirer l’échéance"
+                        className="grid size-8 place-items-center rounded-md text-faint transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      disabled={!editText.trim()}
+                      className="min-h-11 flex-1 rounded-xl active:scale-[0.98]"
+                    >
+                      <Check className="size-4" /> Enregistrer
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={cancelTaskEdit}
+                      className="min-h-11 rounded-xl"
+                    >
+                      <X className="size-4" /> Annuler
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <GripVertical
+                    aria-hidden
+                    className="mt-0.5 size-4 shrink-0 cursor-grab text-faint/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+                  />
+                  <Checkbox
+                    checked={t.done}
+                    onCheckedChange={(v) => toggleTask(t.id, v === true)}
+                    aria-label={t.done ? "Marquer comme à faire" : "Marquer comme terminée"}
+                    className="mt-0.5 size-5"
+                  />
+                  <span
+                    className={`min-w-[140px] flex-1 basis-[140px] break-words text-sm leading-relaxed ${
+                      t.done ? "line-through" : ""
+                    }`}
+                  >
+                    {t.text}
+                  </span>
+                  {due && dueDays !== null && (
+                    <span
+                      title={`Échéance : ${dueDateLabel(due)}`}
+                      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                        dueDays < 0
+                          ? "border-destructive/30 bg-destructive/15 text-destructive"
+                          : dueDays === 0
+                            ? "border-brand/30 bg-brand/15 text-brand"
+                            : "bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      {dueDays === 0 ? (
+                        <CalendarClock className="size-[11px]" />
+                      ) : (
+                        <Calendar className="size-[11px]" />
+                      )}
+                      {frDateShort(due)}
+                    </span>
+                  )}
+                  {!t.done && (
+                    <div
+                      role="group"
+                      aria-label={`Estimation de la tâche : ${t.text}`}
+                      className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-background/60"
+                    >
+                      <button
+                        type="button"
+                        aria-label="Diminuer l’estimation"
+                        onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) - 1)}
+                        disabled={(t.estimate ?? 1) <= 1}
+                        className="grid size-6 place-items-center rounded-l-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                      >
+                        <Minus className="size-3" />
+                      </button>
+                      <span
+                        title={`Estimation : ${t.estimate ?? 1} pomodoro${(t.estimate ?? 1) > 1 ? "s" : ""} · Effectués : ${t.spent ?? 0}`}
+                        className={`w-9 text-center text-[11px] font-semibold tabular-nums ${
+                          (t.spent ?? 0) >= (t.estimate ?? 1)
+                            ? "text-brand"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {t.spent ?? 0}/{t.estimate ?? 1}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Augmenter l’estimation"
+                        onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) + 1)}
+                        disabled={(t.estimate ?? 1) >= 12}
+                        className="grid size-6 place-items-center rounded-r-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                      >
+                        <Plus className="size-3" />
+                      </button>
+                    </div>
+                  )}
+                  {!t.done && (
+                    <button
+                      onClick={() => setActiveTask(t.id)}
+                      aria-label="Lier au minuteur"
+                      title="Lier au minuteur"
+                      className={`transition-colors ${
+                        t.active ? "text-brand" : "text-faint hover:text-foreground"
+                      }`}
+                    >
+                      <Crosshair className="size-4" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => startTaskEdit(t)}
+                    aria-label={`Modifier la tâche : ${t.text}`}
+                    title="Modifier la tâche"
+                    className="text-faint transition-colors hover:text-foreground"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => removeTask(t.id)}
+                    aria-label={`Supprimer la tâche : ${t.text}`}
+                    className="text-faint transition-colors hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                  {tasks.length > 1 && (
+                    <div
+                      role="group"
+                      aria-label={`Déplacer la tâche : ${t.text}`}
+                      className="flex shrink-0 flex-col gap-0.5"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => moveTask(t.id, -1)}
+                        disabled={index === 0}
+                        aria-label={`Monter la tâche : ${t.text}`}
+                        className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+                      >
+                        <ChevronUp className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveTask(t.id, 1)}
+                        disabled={index === tasks.length - 1}
+                        aria-label={`Descendre la tâche : ${t.text}`}
+                        className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {tasks.length === 0 && (

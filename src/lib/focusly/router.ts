@@ -16,6 +16,7 @@ export const ROUTES = [
   "conditions",
   "mentions-legales",
   "plan-du-site",
+  "admin",
 ] as const;
 
 export type TopRoute = (typeof ROUTES)[number];
@@ -32,6 +33,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   conditions: "Conditions d'utilisation — Focusly",
   "mentions-legales": "Mentions légales — Focusly",
   "plan-du-site": "Plan du site — Focusly",
+  admin: "Administration — Focusly",
 };
 
 export function getHashRoute(): string {

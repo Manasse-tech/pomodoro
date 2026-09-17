@@ -52,6 +52,14 @@ const LEVELS = [
 /** Smaller cells for the year heatmap (no glow — too dense for shadows). */
 const LEVELS_SM = ["bg-secondary", "bg-brand/25", "bg-brand/45", "bg-brand/70", "bg-brand"];
 
+/** KPI period filter (null = whole history). */
+const PERIOD_OPTIONS: Array<{ value: 7 | 30 | 90 | null; label: string }> = [
+  { value: 7, label: "7 jours" },
+  { value: 30, label: "30 jours" },
+  { value: 90, label: "90 jours" },
+  { value: null, label: "Tout" },
+];
+
 function levelIndex(pomodoros: number): number {
   if (pomodoros <= 0) return 0;
   if (pomodoros <= 2) return 1;
@@ -110,6 +118,8 @@ export function StatistiquesView() {
     return { y: n.getFullYear(), m: n.getMonth() };
   });
   const [viewYear, setViewYear] = useState<number>(() => new Date().getFullYear());
+  /** Selected KPI period in days — null = all time (default, preserves old behavior). */
+  const [period, setPeriod] = useState<7 | 30 | 90 | null>(null);
 
   /* ----- Grand totals across all recorded days ----- */
   const totals = useMemo(() => {
@@ -132,6 +142,39 @@ export function StatistiquesView() {
         hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
     };
   }, [daily]);
+
+  /* ----- Totals within the selected period (null when no filter) ----- */
+  const periodTotals = useMemo(() => {
+    if (period === null) return null;
+    const n = new Date();
+    // Cutoff = today minus (N-1) days → today is always included
+    const cutoff = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    cutoff.setDate(cutoff.getDate() - (period - 1));
+    const cutoffKey = todayKey(cutoff); // zero-padded YYYY-MM-DD (local)
+    let pomodoros = 0;
+    let seconds = 0;
+    let activeDays = 0;
+    let recorded = 0;
+    Object.keys(daily).forEach((k) => {
+      // Zero-padded keys → lexicographic comparison is date comparison
+      if (k >= cutoffKey) {
+        const s = daily[k];
+        recorded += 1;
+        pomodoros += s.pomodoros;
+        seconds += s.focusSeconds;
+        if (s.pomodoros > 0) activeDays += 1;
+      }
+    });
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return {
+      pomodoros,
+      activeDays,
+      recorded,
+      focusLabel:
+        hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
+    };
+  }, [daily, period]);
 
   const streaks = useMemo(() => computeStreaks(daily), [daily]);
 
@@ -297,31 +340,45 @@ export function StatistiquesView() {
     toast.success("Export CSV téléchargé.");
   };
 
-  /* ----- KPI cards ----- */
-  const kpis: Array<{ icon: LucideIcon; value: string; label: string; hint?: string }> = [
+  /* ----- KPI cards (scoped to the selected period) ----- */
+  const shown = periodTotals ?? totals;
+  const periodLabel =
+    period === null
+      ? "Sur l’ensemble de votre historique."
+      : `${period} derniers jours, aujourd’hui inclus.`;
+
+  const kpis: Array<{
+    icon: LucideIcon;
+    value: string;
+    label: string;
+    hint?: string;
+    hint2?: string;
+  }> = [
     {
       icon: Flame,
-      value: String(totals.pomodoros),
-      label: "Pomodoros au total",
+      value: String(shown.pomodoros),
+      label: "Pomodoros",
     },
     {
       icon: Timer,
-      value: totals.focusLabel,
+      value: shown.focusLabel,
       label: "Temps de concentration",
     },
     {
       icon: CalendarCheck,
-      value: String(totals.activeDays),
+      value: String(shown.activeDays),
       label: "Jours actifs",
-      hint: `/ ${totals.recorded} jour${totals.recorded > 1 ? "s" : ""} enregistré${
-        totals.recorded > 1 ? "s" : ""
+      hint: `/ ${shown.recorded} jour${shown.recorded > 1 ? "s" : ""} enregistré${
+        shown.recorded > 1 ? "s" : ""
       }`,
     },
     {
+      // Streaks are date-independent: always computed on the whole history
       icon: Award,
       value: String(streaks.best),
       label: "Série record",
       hint: `actuelle : ${streaks.current} j`,
+      hint2: period !== null ? "indépendante de la période" : undefined,
     },
   ];
 
@@ -348,6 +405,35 @@ export function StatistiquesView() {
 
       <div className="mt-8 flex flex-col gap-5">
         {/* ----- KPI row ----- */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="m-0 text-base font-bold tracking-tight">Vue d’ensemble</h2>
+            <p className="mt-0.5 text-[13px] text-faint" aria-live="polite">
+              {periodLabel}
+            </p>
+          </div>
+          <div
+            role="group"
+            aria-label="Période des statistiques"
+            className="flex rounded-xl border bg-secondary/60 p-1"
+          >
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                aria-pressed={period === opt.value}
+                onClick={() => setPeriod(opt.value)}
+                className={`min-h-8 whitespace-nowrap rounded-lg px-3 text-[12.5px] font-semibold transition-colors ${
+                  period === opt.value
+                    ? "bg-brand text-[#14161a] shadow-[0_2px_10px_-3px_var(--brand)]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {kpis.map((k) => (
             <div key={k.label} className="flex flex-col gap-2 rounded-3xl border bg-card p-5">
@@ -357,6 +443,7 @@ export function StatistiquesView() {
                 {k.label}
               </small>
               {k.hint ? <span className="text-[11px] text-faint">{k.hint}</span> : null}
+              {k.hint2 ? <span className="text-[11px] text-faint">{k.hint2}</span> : null}
             </div>
           ))}
         </div>

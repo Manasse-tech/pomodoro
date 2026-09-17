@@ -9,6 +9,7 @@ import { HelpDialog } from "./tools/help-dialog";
 import { CommandPalette } from "./tools/command-palette";
 import { SettingsDialog } from "./tools/settings-dialog";
 import { OutilsView } from "./tools/outils-view";
+import { AdminView } from "./admin-view";
 import { AccueilView } from "./content/accueil-view";
 import { GuideView } from "./content/guide-view";
 import { StatistiquesView } from "./content/statistiques-view";
@@ -53,6 +54,7 @@ function CurrentView({ route }: { route: string }) {
   if (route === "conditions") return <ConditionsView />;
   if (route === "mentions-legales") return <MentionsLegalesView />;
   if (route === "plan-du-site") return <PlanDuSiteView />;
+  if (route === "admin") return <AdminView />;
   return <NotFoundView />;
 }
 
