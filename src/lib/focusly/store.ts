@@ -555,11 +555,15 @@ export const useFocusly = create<FocuslyState>()(
     }),
     {
       name: STORAGE_KEY,
+      /** Bumped from the implicit 0 so future schema changes get a real migration path. */
+      version: 4,
+      /** Permissive: shape repair is handled by sanitizeDaily + the settings deep-merge. */
+      migrate: (persisted) => persisted ?? {},
       storage: createJSONStorage(() => localStorage),
       /** Deep-merge settings so newly added fields keep their defaults after an update */
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<FocuslyState>;
-        return {
+        const merged = {
           ...current,
           ...p,
           // Repair stats corrupted by pre-fix versions (e.g. focusSeconds
@@ -568,6 +572,34 @@ export const useFocusly = create<FocuslyState>()(
           daily: p.daily ? sanitizeDaily(p.daily) : current.daily,
           settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
         } as FocuslyState;
+
+        // Normalize mid-session timer leftovers HERE rather than in the
+        // post-rehydrate callback: with a synchronous storage the callback
+        // runs while this module is still initializing, so referencing
+        // `useFocusly` there throws a TDZ ReferenceError that zustand's
+        // persist middleware silently swallows — the normalization was
+        // never applied (audit 2026-09-17: a paused mid-session timer came
+        // back as "01:00" with a 96%-elapsed ring, and the lastTick
+        // corruption guard below was inert).
+        const safeMode: Mode =
+          merged.mode === "short" || merged.mode === "long" ? merged.mode : "focus";
+        merged.mode = safeMode;
+        const now = Date.now();
+        if (merged.running && merged.endTime > now) {
+          // A running timer that survived the reload keeps counting down
+          merged.timeLeft = Math.max(0, Math.round((merged.endTime - now) / 1000));
+          // Guard against a missing or incoherent ticker timestamp: without
+          // this, the first tick() would accrue (now − lastTick) ≈ epoch.
+          if (!merged.lastTick || merged.lastTick > merged.endTime) {
+            merged.lastTick = now;
+          }
+        } else {
+          merged.running = false;
+          merged.endTime = 0;
+          merged.timeLeft = durationOf(merged.settings, safeMode);
+        }
+        merged.hydrated = true;
+        return merged;
       },
       partialize: (s): PersistShape => ({
         settings: s.settings,
@@ -583,29 +615,14 @@ export const useFocusly = create<FocuslyState>()(
         lastTick: s.lastTick,
         theme: s.theme,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (!state) return;
-        const key = todayKey();
-        const patch: Partial<FocuslyState> = { hydrated: true };
-        // A running timer that survived reload keeps counting down
-        if (state.running && state.endTime > Date.now()) {
-          patch.timeLeft = Math.max(0, Math.round((state.endTime - Date.now()) / 1000));
-          // Guard against a missing or incoherent ticker timestamp: without
-          // this, the first tick() would accrue (now − lastTick) ≈ epoch.
-          if (!state.lastTick || state.lastTick > state.endTime) {
-            patch.lastTick = Date.now();
-          }
-        } else {
-          patch.running = false;
-          patch.endTime = 0;
-          patch.timeLeft = durationOf(state.settings, state.mode);
+      onRehydrateStorage: () => (_state, error) => {
+        // zustand's persist delivers hydration failures ONLY through this
+        // callback — log them instead of letting them vanish silently.
+        // All state normalization lives in `merge` (see the comment there:
+        // calling setState from here would throw a TDZ ReferenceError).
+        if (error) {
+          console.error("[focusly] Échec de la rehydration du store :", error);
         }
-        // Sessions may span midnight: fold stale stats into their own day
-        if (state.daily[key]) {
-          patch.timeLeft =
-            patch.running === false ? durationOf(state.settings, state.mode) : patch.timeLeft;
-        }
-        useFocusly.setState(patch);
       },
     },
   ),
