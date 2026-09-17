@@ -1,0 +1,875 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→import {
+     5→  Archive,
+     6→  ArchiveRestore,
+     7→  Check,
+     8→  ChevronLeft,
+     9→  ChevronRight,
+    10→  Download,
+    11→  Inbox,
+    12→  Loader2,
+    13→  Lock,
+    14→  Mail,
+    15→  MailOpen,
+    16→  RefreshCw,
+    17→  Reply,
+    18→  Search,
+    19→  Send,
+    20→  ShieldCheck,
+    21→  Trash2,
+    22→  X,
+    23→} from "lucide-react";
+    24→import { toast } from "sonner";
+    25→
+    26→import {
+    27→  AlertDialog,
+    28→  AlertDialogAction,
+    29→  AlertDialogCancel,
+    30→  AlertDialogContent,
+    31→  AlertDialogDescription,
+    32→  AlertDialogFooter,
+    33→  AlertDialogHeader,
+    34→  AlertDialogTitle,
+    35→  AlertDialogTrigger,
+    36→} from "@/components/ui/alert-dialog";
+    37→import { Badge } from "@/components/ui/badge";
+    38→import { Button } from "@/components/ui/button";
+    39→import {
+    40→  Dialog,
+    41→  DialogContent,
+    42→  DialogDescription,
+    43→  DialogFooter,
+    44→  DialogHeader,
+    45→  DialogTitle,
+    46→} from "@/components/ui/dialog";
+    47→import { Input } from "@/components/ui/input";
+    48→import { Skeleton } from "@/components/ui/skeleton";
+    49→import { Textarea } from "@/components/ui/textarea";
+    50→import { downloadTextFile, messagesToCsv } from "@/lib/focusly/csv";
+    51→import { frDateTime, todayKey } from "@/lib/focusly/types";
+    52→
+    53→import { Breadcrumb } from "./content/breadcrumb";
+    54→
+    55→/* ------------------------------------------------------------------ */
+    56→/* Types & constants                                                   */
+    57→/* ------------------------------------------------------------------ */
+    58→
+    59→interface ContactMsg {
+    60→  id: string;
+    61→  name: string;
+    62→  email: string;
+    63→  subject: string | null;
+    64→  message: string;
+    65→  reply: string | null;
+    66→  repliedAt: string | null;
+    67→  read: boolean;
+    68→  archived: boolean;
+    69→  createdAt: string;
+    70→}
+    71→
+    72→/** sessionStorage key — holds the admin key for the current tab only. */
+    73→const STORAGE_KEY = "focusly.adminKey";
+    74→
+    75→type AdminFilter = "actifs" | "non-lus" | "archives";
+    76→
+    77→const FILTERS: Array<{ value: AdminFilter; label: string }> = [
+    78→  { value: "actifs", label: "Actifs" },
+    79→  { value: "non-lus", label: "Non lus" },
+    80→  { value: "archives", label: "Archivés" },
+    81→];
+    82→
+    83→/** Nombre de messages par page (pagination serveur via ?page=&pageSize=). */
+    84→const PAGE_SIZE = 25;
+    85→
+    86→/** Longueur maximale d'une réponse, alignée sur la limite d'un message. */
+    87→const REPLY_MAX_LENGTH = 5000;
+    88→
+    89→/** Case-insensitive + accent-insensitive fold (same pattern as blog-view). */
+    90→function fold(text: string): string {
+    91→  return text
+    92→    .normalize("NFD")
+    93→    .replace(/\p{Diacritic}/gu, "")
+    94→    .toLowerCase();
+    95→}
+    96→
+    97→/** Normalise un message renvoyé par l'API (champs optionnels → valeurs sûres). */
+    98→function normalizeMsg(m: ContactMsg): ContactMsg {
+    99→  return {
+   100→    ...m,
+   101→    read: m.read ?? false,
+   102→    archived: m.archived ?? false,
+   103→    reply: m.reply ?? null,
+   104→    repliedAt: m.repliedAt ?? null,
+   105→  };
+   106→}
+   107→
+   108→/** Brouillon de réponse pré-rempli (français) — le « … » est à personnaliser. */
+   109→function buildReplyTemplate(msg: ContactMsg): string {
+   110→  return [
+   111→    `Bonjour ${msg.name},`,
+   112→    "",
+   113→    "Merci pour votre message. …",
+   114→    "",
+   115→    "Cordialement,",
+   116→    "L’équipe Focusly",
+   117→  ].join("\n");
+   118→}
+   119→
+   120→/** Lien mailto pré-rempli avec la réponse éditée — le client de messagerie prend le relais. */
+   121→function buildMailtoHref(msg: ContactMsg, body: string): string {
+   122→  const subject = `RE: ${msg.subject ?? "Votre message Focusly"}`;
+   123→  return `mailto:${msg.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+   124→}
+   125→
+   126→/* ------------------------------------------------------------------ */
+   127→/* View                                                                */
+   128→/* ------------------------------------------------------------------ */
+   129→
+   130→export function AdminView() {
+   131→  const [adminKey, setAdminKey] = useState<string | null>(null);
+   132→  const [entered, setEntered] = useState("");
+   133→  const [gateError, setGateError] = useState<string | null>(null);
+   134→  const [unlocking, setUnlocking] = useState(false);
+   135→  const [messages, setMessages] = useState<ContactMsg[]>([]);
+   136→  const [loading, setLoading] = useState(false);
+   137→  const [filter, setFilter] = useState<AdminFilter>("actifs");
+   138→  const [query, setQuery] = useState("");
+   139→  /* Pagination serveur */
+   140→  const [page, setPage] = useState(1);
+   141→  const [total, setTotal] = useState(0);
+   142→  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+   143→  const [unreadCount, setUnreadCount] = useState(0);
+   144→  /* Réponse aux messages */
+   145→  const [replyTarget, setReplyTarget] = useState<ContactMsg | null>(null);
+   146→  const [replyDraft, setReplyDraft] = useState("");
+   147→  const [sendingReply, setSendingReply] = useState(false);
+   148→  const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+   149→
+   150→  /* Visible list = filter chip (archived first) then accent-insensitive search */
+   151→  const visible = useMemo(() => {
+   152→    const base =
+   153→      filter === "archives"
+   154→        ? messages.filter((m) => m.archived)
+   155→        : filter === "non-lus"
+   156→          ? messages.filter((m) => !m.archived && !m.read)
+   157→          : messages.filter((m) => !m.archived);
+   158→    const needle = fold(query.trim());
+   159→    if (!needle) return base;
+   160→    return base.filter(
+   161→      (m) =>
+   162→        fold(m.name).includes(needle) ||
+   163→        fold(m.email).includes(needle) ||
+   164→        fold(m.subject ?? "").includes(needle) ||
+   165→        fold(m.message).includes(needle),
+   166→    );
+   167→  }, [messages, filter, query]);
+   168→
+   169→  /* Restore a previously unlocked key (same tab only) */
+   170→  useEffect(() => {
+   171→    const stored = window.sessionStorage.getItem(STORAGE_KEY);
+   172→    if (stored) setAdminKey(stored);
+   173→  }, []);
+   174→
+   175→  const loadMessages = useCallback(async (key: string, targetPage: number) => {
+   176→    setLoading(true);
+   177→    try {
+   178→      const res = await fetch(`/api/contact?page=${targetPage}&pageSize=${PAGE_SIZE}`, {
+   179→        headers: { "x-admin-key": key },
+   180→        cache: "no-store",
+   181→      });
+   182→      if (!res.ok) {
+   183→        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+   184→        if (res.status === 401) {
+   185→          // The stored key is no longer valid → back to the gate
+   186→          window.sessionStorage.removeItem(STORAGE_KEY);
+   187→          setAdminKey(null);
+   188→          setGateError("Clé incorrecte.");
+   189→          return;
+   190→        }
+   191→        toast.error(data?.error ?? "Erreur réseau.");
+   192→        return;
+   193→      }
+   194→      const data = (await res.json()) as {
+   195→        items?: ContactMsg[];
+   196→        total?: number;
+   197→        page?: number;
+   198→        pageSize?: number;
+   199→        unread?: number;
+   200→      };
+   201→      const items = (data.items ?? []).map(normalizeMsg);
+   202→      setMessages(items);
+   203→      setTotal(typeof data.total === "number" ? data.total : items.length);
+   204→      setPageSize(typeof data.pageSize === "number" ? data.pageSize : PAGE_SIZE);
+   205→      setUnreadCount(typeof data.unread === "number" ? data.unread : 0);
+   206→      // Le serveur ramène la page demandée dans les bornes valides.
+   207→      if (typeof data.page === "number" && data.page !== targetPage) {
+   208→        setPage(data.page);
+   209→      }
+   210→    } catch {
+   211→      toast.error("Erreur réseau.");
+   212→    } finally {
+   213→      setLoading(false);
+   214→    }
+   215→  }, []);
+   216→
+   217→  /* Load (or reload) the messages whenever the key or the page changes */
+   218→  useEffect(() => {
+   219→    if (adminKey) void loadMessages(adminKey, page);
+   220→  }, [adminKey, page, loadMessages]);
+   221→
+   222→  /* ----- Gate: validate the key then remember it for the tab ----- */
+   223→  const handleUnlock = async (e: React.FormEvent<HTMLFormElement>) => {
+   224→    e.preventDefault();
+   225→    const k = entered.trim();
+   226→    if (k.length === 0) {
+   227→      setGateError("Veuillez saisir la clé d’administration.");
+   228→      return;
+   229→    }
+   230→    setUnlocking(true);
+   231→    setGateError(null);
+   232→    try {
+   233→      const res = await fetch(`/api/contact?page=1&pageSize=${PAGE_SIZE}`, {
+   234→        headers: { "x-admin-key": k },
+   235→        cache: "no-store",
+   236→      });
+   237→      if (res.ok) {
+   238→        window.sessionStorage.setItem(STORAGE_KEY, k);
+   239→        setAdminKey(k);
+   240→        setPage(1);
+   241→        setEntered(""); // never keep the key in the DOM
+   242→      } else if (res.status === 401) {
+   243→        setGateError("Clé incorrecte.");
+   244→      } else if (res.status === 429) {
+   245→        setGateError("Trop de tentatives, réessayez plus tard.");
+   246→      } else {
+   247→        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+   248→        setGateError(data?.error ?? "Erreur réseau.");
+   249→      }
+   250→    } catch {
+   251→      setGateError("Erreur réseau.");
+   252→    } finally {
+   253→      setUnlocking(false);
+   254→    }
+   255→  };
+   256→
+   257→  /* ----- Sign out: clear the key from storage and state ----- */
+   258→  const handleSignOut = () => {
+   259→    window.sessionStorage.removeItem(STORAGE_KEY);
+   260→    setAdminKey(null);
+   261→    setMessages([]);
+   262→    setEntered("");
+   263→    setGateError(null);
+   264→    setFilter("actifs");
+   265→    setQuery("");
+   266→    setPage(1);
+   267→    setTotal(0);
+   268→    setUnreadCount(0);
+   269→    setReplyTarget(null);
+   270→    setReplyDraft("");
+   271→  };
+   272→
+   273→  /* ----- Toggle read state (optimistic, reverted on failure) ----- */
+   274→  const toggleRead = async (msg: ContactMsg) => {
+   275→    const next = !msg.read;
+   276→    setMessages((ms) => ms.map((m) => (m.id === msg.id ? { ...m, read: next } : m)));
+   277→    // Le compteur « non lus » ne compte que les messages actifs (non archivés).
+   278→    if (!msg.archived) setUnreadCount((c) => Math.max(0, c + (next ? -1 : 1)));
+   279→    try {
+   280→      const res = await fetch("/api/contact", {
+   281→        method: "PATCH",
+   282→        headers: {
+   283→          "Content-Type": "application/json",
+   284→          "x-admin-key": adminKey ?? "",
+   285→        },
+   286→        body: JSON.stringify({ id: msg.id, read: next }),
+   287→      });
+   288→      if (!res.ok) {
+   289→        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+   290→        throw new Error(data?.error ?? "Erreur réseau.");
+   291→      }
+   292→      toast.success("Message mis à jour.");
+   293→    } catch (err) {
+   294→      setMessages((ms) =>
+   295→        ms.map((m) => (m.id === msg.id ? { ...m, read: msg.read } : m)),
+   296→      );
+   297→      if (!msg.archived) setUnreadCount((c) => Math.max(0, c + (msg.read ? -1 : 1)));
+   298→      toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+   299→    }
+   300→  };
+   301→
+   302→  /* ----- Archive / restore (optimistic, reverted on failure) ----- */
+   303→  const toggleArchived = async (msg: ContactMsg) => {
+   304→    const next = !msg.archived;
+   305→    setMessages((ms) =>
+   306→      ms.map((m) => (m.id === msg.id ? { ...m, archived: next } : m)),
+   307→    );
+   308→    // Archiver un message non lu le retire du compteur « non lus » (et inversement).
+   309→    if (!msg.read) setUnreadCount((c) => Math.max(0, c + (next ? -1 : 1)));
+   310→    try {
+   311→      const res = await fetch("/api/contact", {
+   312→        method: "PATCH",
+   313→        headers: {
+   314→          "Content-Type": "application/json",
+   315→          "x-admin-key": adminKey ?? "",
+   316→        },
+   317→        body: JSON.stringify({ id: msg.id, archived: next }),
+   318→      });
+   319→      if (!res.ok) {
+   320→        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+   321→        throw new Error(data?.error ?? "Erreur réseau.");
+   322→      }
+   323→      toast.success(next ? "Message archivé." : "Message restauré.");
+   324→    } catch (err) {
+   325→      setMessages((ms) =>
+   326→        ms.map((m) => (m.id === msg.id ? { ...m, archived: msg.archived } : m)),
+   327→      );
+   328→      if (!msg.read) setUnreadCount((c) => Math.max(0, c + (msg.archived ? -1 : 1)));
+   329→      toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+   330→    }
+   331→  };
+   332→
+   333→  /* ----- Delete a message (optimistic, re-inserted on failure) ----- */
+   334→  const handleDelete = async (msg: ContactMsg) => {
+   335→    const index = messages.findIndex((m) => m.id === msg.id);
+   336→    setMessages((ms) => ms.filter((m) => m.id !== msg.id));
+   337→    setTotal((t) => Math.max(0, t - 1));
+   338→    if (!msg.read && !msg.archived) setUnreadCount((c) => Math.max(0, c - 1));
+   339→    try {
+   340→      const res = await fetch(`/api/contact?id=${encodeURIComponent(msg.id)}`, {
+   341→        method: "DELETE",
+   342→        headers: { "x-admin-key": adminKey ?? "" },
+   343→      });
+   344→      if (!res.ok) {
+   345→        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+   346→        throw new Error(data?.error ?? "Erreur réseau.");
+   347→      }
+   348→      toast.success("Message supprimé.");
+   349→      // Dernier message de la page (hors page 1) → revenir à la page précédente.
+   350→      if (messages.length <= 1 && page > 1) setPage((p) => Math.max(1, p - 1));
+   351→    } catch (err) {
+   352→      setMessages((ms) => {
+   353→        const copy = [...ms];
+   354→        copy.splice(Math.max(0, index < 0 ? copy.length : index), 0, msg);
+   355→        return copy;
+   356→      });
+   357→      setTotal((t) => t + 1);
+   358→      if (!msg.read && !msg.archived) setUnreadCount((c) => c + 1);
+   359→      toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+   360→    }
+   361→  };
+   362→
+   363→  /* ----- Reply dialog: save the answer, then hand over to the mail client ----- */
+   364→  const openReplyDialog = (msg: ContactMsg) => {
+   365→    setReplyTarget(msg);
+   366→    // Déjà répondu → on repart de la réponse existante, sinon brouillon type.
+   367→    setReplyDraft(msg.reply ?? buildReplyTemplate(msg));
+   368→  };
+   369→
+   370→  const handleReplyOpenChange = (open: boolean) => {
+   371→    if (!open && !sendingReply) {
+   372→      setReplyTarget(null);
+   373→      setReplyDraft("");
+   374→    }
+   375→  };
+   376→
+   377→  const handleSendReply = async () => {
+   378→    const target = replyTarget;
+   379→    if (!target) return;
+   380→    const trimmed = replyDraft.trim();
+   381→    if (trimmed.length === 0 || trimmed.length > REPLY_MAX_LENGTH) return;
+   382→    setSendingReply(true);
+   383→    try {
+   384→      const res = await fetch("/api/contact", {
+   385→        method: "PATCH",
+   386→        headers: {
+   387→          "Content-Type": "application/json",
+   388→          "x-admin-key": adminKey ?? "",
+   389→        },
+   390→        body: JSON.stringify({ id: target.id, reply: trimmed }),
+   391→      });
+   392→      if (!res.ok) {
+   393→        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+   394→        throw new Error(data?.error ?? "Erreur réseau.");
+   395→      }
+   396→      // (1) + (2) la réponse est enregistrée et le message marqué comme répondu.
+   397→      setMessages((ms) =>
+   398→        ms.map((m) =>
+   399→          m.id === target.id
+   400→            ? { ...m, reply: trimmed, repliedAt: new Date().toISOString(), read: true }
+   401→            : m,
+   402→        ),
+   403→      );
+   404→      if (!target.read) setUnreadCount((c) => Math.max(0, c - 1));
+   405→      // (3) le client de messagerie prend le relais avec le brouillon édité.
+   406→      window.location.href = buildMailtoHref(target, trimmed);
+   407→      // (4) confirmation
+   408→      toast.success("Réponse enregistrée.");
+   409→      setReplyDraft("");
+   410→      setReplyTarget((current) => (current?.id === target.id ? null : current));
+   411→    } catch (err) {
+   412→      toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+   413→    } finally {
+   414→      setSendingReply(false);
+   415→    }
+   416→  };
+   417→
+   418→  /* ----- Export the currently visible messages as a client-side CSV download ----- */
+   419→  const handleExportCsv = () => {
+   420→    if (visible.length === 0) {
+   421→      toast.info("Aucun message à exporter.");
+   422→      return;
+   423→    }
+   424→    downloadTextFile(messagesToCsv(visible), `focusly-messages-${todayKey()}.csv`);
+   425→    toast.success("Export CSV téléchargé.");
+   426→  };
+   427→
+   428→  /* ---------------------------------------------------------------- */
+   429→  /* Gate (no valid key in this tab)                                   */
+   430→  /* ---------------------------------------------------------------- */
+   431→
+   432→  if (!adminKey) {
+   433→    return (
+   434→      <section className="mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
+   435→        <Breadcrumb
+   436→          items={[{ label: "Accueil", href: "accueil" }, { label: "Administration" }]}
+   437→        />
+   438→        <div className="mx-auto mt-6 w-full max-w-md rounded-3xl border bg-card p-8">
+   439→          <div
+   440→            className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand/15"
+   441→            aria-hidden
+   442→          >
+   443→            <Lock className="size-6 text-brand" />
+   444→          </div>
+   445→          <h1 className="mt-4 text-center text-2xl font-bold tracking-tight">
+   446→            Administration
+   447→          </h1>
+   448→          <p className="mt-2 text-center text-[15px] text-muted-foreground">
+   449→            Espace réservé à l’équipe Focusly.
+   450→          </p>
+   451→
+   452→          <form onSubmit={handleUnlock} className="mt-6 flex flex-col gap-3">
+   453→            <label htmlFor="admin-key" className="text-sm font-medium text-soft">
+   454→              Clé d’administration
+   455→            </label>
+   456→            <Input
+   457→              id="admin-key"
+   458→              type="password"
+   459→              autoComplete="off"
+   460→              value={entered}
+   461→              onChange={(e) => setEntered(e.target.value)}
+   462→              aria-label="Clé d’administration"
+   463→              aria-invalid={gateError ? true : undefined}
+   464→              placeholder="••••••••••••"
+   465→            />
+   466→            {gateError ? (
+   467→              <p className="m-0 text-sm text-destructive" role="alert">
+   468→                {gateError}
+   469→              </p>
+   470→            ) : null}
+   471→            <Button type="submit" disabled={unlocking} className="rounded-xl">
+   472→              <Lock aria-hidden />
+   473→              Déverrouiller
+   474→            </Button>
+   475→          </form>
+   476→
+   477→          <p className="mt-4 text-center text-xs text-faint">
+   478→            Clé de développement par défaut : focusly-admin-2026
+   479→          </p>
+   480→
+   481→          <div className="mt-6 flex justify-center">
+   482→            <Button variant="ghost" asChild className="rounded-xl">
+   483→              <a href="#accueil">Retour à l’accueil</a>
+   484→            </Button>
+   485→          </div>
+   486→        </div>
+   487→      </section>
+   488→    );
+   489→  }
+   490→
+   491→  /* ---------------------------------------------------------------- */
+   492→  /* Authenticated                                                     */
+   493→  /* ---------------------------------------------------------------- */
+   494→
+   495→  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+   496→  const paginationVisible = total > pageSize;
+   497→  const replyLength = replyDraft.trim().length;
+   498→
+   499→  return (
+   500→    <section className="mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
+   501→      <Breadcrumb
+   502→        items={[{ label: "Accueil", href: "accueil" }, { label: "Administration" }]}
+   503→      />
+   504→
+   505→      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Administration</h1>
+   506→      <p className="mt-3 max-w-[680px] text-[17px] text-muted-foreground">
+   507→        Consultez et gérez les messages reçus via le formulaire de contact.
+   508→      </p>
+   509→
+   510→      <div className="mt-8 flex flex-col gap-4">
+   511→        {/* ----- Header row ----- */}
+   512→        <div className="flex flex-wrap items-center justify-between gap-3">
+   513→          <div className="flex flex-wrap items-center gap-2">
+   514→            <ShieldCheck className="size-5 text-brand" aria-hidden />
+   515→            <h2 className="m-0 text-base font-bold tracking-tight">
+   516→              Messages de contact
+   517→            </h2>
+   518→            {unreadCount > 0 ? (
+   519→              <Badge className="border-transparent bg-brand/15 text-brand">
+   520→                {unreadCount} non lu{unreadCount > 1 ? "s" : ""}
+   521→              </Badge>
+   522→            ) : null}
+   523→          </div>
+   524→          <div className="flex items-center gap-2">
+   525→            <Button
+   526→              variant="outline"
+   527→              size="icon"
+   528→              className="rounded-lg"
+   529→              aria-label="Rafraîchir les messages"
+   530→              disabled={loading}
+   531→              onClick={() => void loadMessages(adminKey, page)}
+   532→            >
+   533→              <RefreshCw className={loading ? "animate-spin" : undefined} aria-hidden />
+   534→            </Button>
+   535→            <Button
+   536→              variant="outline"
+   537→              size="sm"
+   538→              className="rounded-lg"
+   539→              aria-label="Exporter les messages visibles en CSV"
+   540→              onClick={handleExportCsv}
+   541→            >
+   542→              <Download aria-hidden />
+   543→              Exporter en CSV
+   544→            </Button>
+   545→            <Button variant="ghost" className="rounded-xl" onClick={handleSignOut}>
+   546→              Se déconnecter
+   547→            </Button>
+   548→          </div>
+   549→        </div>
+   550→
+   551→        {/* ----- Search + filters ----- */}
+   552→        <div className="flex flex-wrap items-center gap-2">
+   553→          <div className="relative w-full sm:w-64">
+   554→            <Search
+   555→              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint"
+   556→              aria-hidden
+   557→            />
+   558→            <Input
+   559→              type="search"
+   560→              value={query}
+   561→              onChange={(event) => setQuery(event.target.value)}
+   562→              placeholder="Rechercher un nom, email, sujet…"
+   563→              aria-label="Rechercher dans les messages"
+   564→              className="pl-9 pr-8"
+   565→            />
+   566→            {query !== "" ? (
+   567→              <button
+   568→                type="button"
+   569→                onClick={() => setQuery("")}
+   570→                aria-label="Effacer la recherche"
+   571→                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-faint transition-colors hover:text-foreground"
+   572→              >
+   573→                <X className="size-4" aria-hidden />
+   574→              </button>
+   575→            ) : null}
+   576→          </div>
+   577→          <div
+   578→            role="group"
+   579→            aria-label="Filtrer les messages"
+   580→            className="flex flex-wrap items-center gap-2"
+   581→          >
+   582→            {FILTERS.map((f) => (
+   583→              <button
+   584→                key={f.value}
+   585→                type="button"
+   586→                aria-pressed={filter === f.value}
+   587→                onClick={() => setFilter(f.value)}
+   588→                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+   589→                  filter === f.value
+   590→                    ? "border-transparent bg-brand text-[#14161a]"
+   591→                    : "text-muted-foreground hover:text-foreground"
+   592→                }`}
+   593→              >
+   594→                {f.label}
+   595→              </button>
+   596→            ))}
+   597→          </div>
+   598→        </div>
+   599→
+   600→        {/* ----- Messages ----- */}
+   601→        {loading && messages.length === 0 ? (
+   602→          <div className="flex flex-col gap-3" aria-label="Chargement des messages">
+   603→            {[0, 1, 2].map((i) => (
+   604→              <div key={i} className="rounded-2xl border bg-card p-4">
+   605→                <Skeleton className="h-4 w-40" />
+   606→                <Skeleton className="mt-2 h-3 w-56" />
+   607→                <Skeleton className="mt-4 h-3 w-full" />
+   608→                <Skeleton className="mt-1.5 h-3 w-2/3" />
+   609→              </div>
+   610→            ))}
+   611→          </div>
+   612→        ) : visible.length === 0 ? (
+   613→          <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
+   614→            <Inbox className="size-6 text-faint" aria-hidden />
+   615→            <p className="m-0 text-[15px] text-soft">
+   616→              {messages.length === 0
+   617→                ? "Aucun message pour le moment."
+   618→                : query.trim() !== ""
+   619→                  ? `Aucun résultat pour « ${query.trim()} ».`
+   620→                  : filter === "archives"
+   621→                    ? "Aucun message archivé."
+   622→                    : filter === "non-lus"
+   623→                      ? "Aucun message non lu."
+   624→                      : "Aucun message actif."}
+   625→            </p>
+   626→          </div>
+   627→        ) : (
+   628→          <div className="slim-scroll max-h-[70vh] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border">
+   629→            <ul className="m-0 flex list-none flex-col gap-3 p-0">
+   630→              {visible.map((m) => (
+   631→                <li key={m.id}>
+   632→                  <article
+   633→                    className={`rounded-2xl border bg-card p-4 ${
+   634→                      m.archived
+   635→                        ? "opacity-60"
+   636→                        : m.read
+   637→                          ? "opacity-75"
+   638→                          : "border-l-2 border-l-brand"
+   639→                    }`}
+   640→                  >
+   641→                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+   642→                      {!m.read && (
+   643→                        <span
+   644→                          className="size-2 shrink-0 rounded-full bg-brand"
+   645→                          aria-hidden
+   646→                        />
+   647→                      )}
+   648→                      <span className="font-semibold">{m.name}</span>
+   649→                      <a
+   650→                        href={`mailto:${m.email}`}
+   651→                        className="text-xs text-faint transition-colors hover:text-brand"
+   652→                      >
+   653→                        {m.email}
+   654→                      </a>
+   655→                      {m.repliedAt ? (
+   656→                        <Badge className="border-transparent bg-brand/15 text-brand">
+   657→                          <Check className="size-3" aria-hidden />
+   658→                          Répondu
+   659→                        </Badge>
+   660→                      ) : null}
+   661→                      {m.archived ? (
+   662→                        <Badge variant="secondary">
+   663→                          <Archive className="size-3" aria-hidden />
+   664→                          Archivé
+   665→                        </Badge>
+   666→                      ) : null}
+   667→                    </div>
+   668→
+   669→                    {m.subject ? (
+   670→                      <p className="mb-0 mt-1.5 text-sm font-medium text-soft">
+   671→                        {m.subject}
+   672→                      </p>
+   673→                    ) : null}
+   674→
+   675→                    <p className="mb-0 mt-2 text-sm leading-relaxed whitespace-pre-wrap">
+   676→                      {m.message}
+   677→                    </p>
+   678→
+   679→                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+   680→                      <time dateTime={m.createdAt} className="text-xs text-faint">
+   681→                        {frDateTime(m.createdAt)}
+   682→                      </time>
+   683→                      <div className="flex items-center gap-1">
+   684→                        <Button
+   685→                          variant="ghost"
+   686→                          size="sm"
+   687→                          onClick={() => void toggleRead(m)}
+   688→                        >
+   689→                          {m.read ? <Mail aria-hidden /> : <MailOpen aria-hidden />}
+   690→                          {m.read ? "Marquer comme non lu" : "Marquer comme lu"}
+   691→                        </Button>
+   692→                        <Button
+   693→                          variant="ghost"
+   694→                          size="sm"
+   695→                          aria-label={`Répondre à ${m.name}`}
+   696→                          onClick={() => openReplyDialog(m)}
+   697→                        >
+   698→                          <Reply aria-hidden />
+   699→                          Répondre
+   700→                        </Button>
+   701→                        <Button
+   702→                          variant="ghost"
+   703→                          size="sm"
+   704→                          aria-label={
+   705→                            m.archived
+   706→                              ? `Restaurer le message de ${m.name}`
+   707→                              : `Archiver le message de ${m.name}`
+   708→                          }
+   709→                          onClick={() => void toggleArchived(m)}
+   710→                        >
+   711→                          {m.archived ? (
+   712→                            <ArchiveRestore aria-hidden />
+   713→                          ) : (
+   714→                            <Archive aria-hidden />
+   715→                          )}
+   716→                          {m.archived ? "Restaurer" : "Archiver"}
+   717→                        </Button>
+   718→                        <AlertDialog>
+   719→                          <AlertDialogTrigger asChild>
+   720→                            <Button
+   721→                              variant="ghost"
+   722→                              size="sm"
+   723→                              aria-label={`Supprimer le message de ${m.name}`}
+   724→                            >
+   725→                              <Trash2 aria-hidden />
+   726→                              Supprimer
+   727→                            </Button>
+   728→                          </AlertDialogTrigger>
+   729→                          <AlertDialogContent>
+   730→                            <AlertDialogHeader>
+   731→                              <AlertDialogTitle>Supprimer ce message ?</AlertDialogTitle>
+   732→                              <AlertDialogDescription>
+   733→                                Cette action est définitive.
+   734→                              </AlertDialogDescription>
+   735→                            </AlertDialogHeader>
+   736→                            <AlertDialogFooter>
+   737→                              <AlertDialogCancel>Annuler</AlertDialogCancel>
+   738→                              <AlertDialogAction
+   739→                                className="bg-destructive text-white hover:bg-destructive/90"
+   740→                                onClick={() => void handleDelete(m)}
+   741→                              >
+   742→                                Supprimer
+   743→                              </AlertDialogAction>
+   744→                            </AlertDialogFooter>
+   745→                          </AlertDialogContent>
+   746→                        </AlertDialog>
+   747→                      </div>
+   748→                    </div>
+   749→                  </article>
+   750→                </li>
+   751→              ))}
+   752→            </ul>
+   753→          </div>
+   754→        )}
+   755→
+   756→        {/* ----- Pagination (uniquement au-delà d'une page) ----- */}
+   757→        {paginationVisible ? (
+   758→          <nav
+   759→            aria-label="Pagination des messages"
+   760→            className="flex flex-wrap items-center justify-between gap-2"
+   761→          >
+   762→            <Button
+   763→              variant="outline"
+   764→              size="sm"
+   765→              className="rounded-lg"
+   766→              onClick={() => setPage((p) => Math.max(1, p - 1))}
+   767→              disabled={page <= 1 || loading}
+   768→            >
+   769→              <ChevronLeft aria-hidden />
+   770→              Précédent
+   771→            </Button>
+   772→            <p className="m-0 text-sm text-soft" aria-live="polite">
+   773→              Page {page} sur {pageCount}
+   774→              <span className="text-faint">
+   775→                {" "}
+   776→                · {total} message{total > 1 ? "s" : ""}
+   777→              </span>
+   778→            </p>
+   779→            <Button
+   780→              variant="outline"
+   781→              size="sm"
+   782→              className="rounded-lg"
+   783→              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+   784→              disabled={page >= pageCount || loading}
+   785→            >
+   786→              Suivant
+   787→              <ChevronRight aria-hidden />
+   788→            </Button>
+   789→          </nav>
+   790→        ) : null}
+   791→      </div>
+   792→
+   793→      {/* ----- Reply dialog ----- */}
+   794→      <Dialog open={replyTarget !== null} onOpenChange={handleReplyOpenChange}>
+   795→        <DialogContent
+   796→          className="max-h-[85dvh] gap-4 overflow-y-auto sm:max-w-[560px]"
+   797→          onOpenAutoFocus={(event) => {
+   798→            event.preventDefault();
+   799→            replyTextareaRef.current?.focus();
+   800→          }}
+   801→        >
+   802→          <DialogHeader>
+   803→            <DialogTitle>Répondre à {replyTarget?.name}</DialogTitle>
+   804→            <DialogDescription>
+   805→              Votre réponse est enregistrée dans l’application, puis votre logiciel de
+   806→              messagerie s’ouvre avec le brouillon pré-rempli.
+   807→            </DialogDescription>
+   808→          </DialogHeader>
+   809→
+   810→          {replyTarget ? (
+   811→            <div className="flex flex-col gap-4">
+   812→              {/* Message original */}
+   813→              <div className="slim-scroll max-h-32 overflow-y-auto rounded-xl border bg-secondary/50 p-3">
+   814→                {replyTarget.subject ? (
+   815→                  <p className="mb-1 text-sm font-medium">{replyTarget.subject}</p>
+   816→                ) : null}
+   817→                <p className="m-0 text-sm leading-relaxed whitespace-pre-wrap text-soft">
+   818→                  {replyTarget.message}
+   819→                </p>
+   820→              </div>
+   821→
+   822→              {replyTarget.repliedAt ? (
+   823→                <p className="m-0 text-xs text-faint">
+   824→                  Réponse envoyée le {frDateTime(replyTarget.repliedAt)} — vous pouvez la
+   825→                  modifier et la renvoyer.
+   826→                </p>
+   827→              ) : null}
+   828→
+   829→              <div className="flex flex-col gap-2">
+   830→                <label htmlFor="admin-reply" className="text-sm font-medium text-soft">
+   831→                  Votre réponse
+   832→                </label>
+   833→                <Textarea
+   834→                  id="admin-reply"
+   835→                  ref={replyTextareaRef}
+   836→                  value={replyDraft}
+   837→                  onChange={(event) => setReplyDraft(event.target.value)}
+   838→                  className="min-h-[180px]"
+   839→                  disabled={sendingReply}
+   840→                />
+   841→                <p className="m-0 text-right text-xs text-faint" aria-live="off">
+   842→                  {replyLength} / {REPLY_MAX_LENGTH} caractères
+   843→                </p>
+   844→              </div>
+   845→            </div>
+   846→          ) : null}
+   847→
+   848→          <DialogFooter>
+   849→            <Button
+   850→              variant="ghost"
+   851→              className="rounded-xl"
+   852→              onClick={() => handleReplyOpenChange(false)}
+   853→              disabled={sendingReply}
+   854→            >
+   855→              Annuler
+   856→            </Button>
+   857→            <Button
+   858→              className="rounded-xl"
+   859→              onClick={() => void handleSendReply()}
+   860→              disabled={sendingReply || replyLength === 0 || replyLength > REPLY_MAX_LENGTH}
+   861→            >
+   862→              {sendingReply ? (
+   863→                <Loader2 className="animate-spin" aria-hidden />
+   864→              ) : (
+   865→                <Send aria-hidden />
+   866→              )}
+   867→              {sendingReply ? "Envoi…" : "Envoyer la réponse"}
+   868→            </Button>
+   869→          </DialogFooter>
+   870→        </DialogContent>
+   871→      </Dialog>
+   872→    </section>
+   873→  );
+   874→}
+   875→

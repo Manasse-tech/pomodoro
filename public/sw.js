@@ -4,8 +4,11 @@
  *  - static brand assets (icons, manifest, fonts): cache-first
  *  - framework bundles (/_next/*) and everything else: network-first with cache fallback
  *  - /api/* and non-GET: never cached, straight to network
+ * Update flow: a new worker installs and WAITS (no auto skipWaiting); the page
+ * decides when to take it over by posting { action: "SKIP_WAITING" }, then
+ * reloads on controllerchange so users never run a stale bundle silently.
  */
-const VERSION = "focusly-v3";
+const VERSION = "focusly-v4";
 const SHELL_CACHE = VERSION + "-shell";
 const RUNTIME_CACHE = VERSION + "-runtime";
 const IMMUTABLE_CACHE = VERSION + "-immutable";
@@ -19,12 +22,18 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", (event) => {
+  // Precache the shell, then WAIT. The old service worker keeps controlling
+  // the page until it posts { action: "SKIP_WAITING" } (see message below).
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
       .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
   );
+});
+
+// Handshake with the page: the update toast sends SKIP_WAITING on demand.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.action === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

@@ -485,3 +485,121 @@ kbd {
     transition: none !important;
   }
 }
+
+/* ---------- Polish round 10: TOC, lecture, pages légales (purely additive) ---------- */
+
+/* Anchor targets: when scrolled into view (scrollIntoView from the TOC or a
+   future deep link), headings must land BELOW the sticky header (z-50,
+   ≈64px tall) instead of hiding behind it. 88px = header + breathing room.
+   Scoped to the prose containers whose h2/h3 carry ids since round 10. */
+.prose-article :is(h2, h3)[id],
+.prose-guide :is(h2, h3)[id],
+.prose-legal :is(h2, h3)[id] {
+  scroll-margin-top: 88px;
+}
+
+/* Article table of contents ("Sommaire"), desktop rail: a 1px neutral rail
+   on the container; every entry carries a 2px transparent left border that
+   turns brand when active (aria-current="true", set by the scroll-spy) and
+   slightly overlaps the rail, reading as an active tick. Colors only —
+   the transform-free transitions keep the rail layout-stable. */
+.toc-rail {
+  border-left: 1px solid var(--border);
+}
+.toc-link {
+  display: block;
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  padding: 0.3rem 0 0.3rem 0.8rem;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--faint);
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.toc-link:hover {
+  color: var(--foreground);
+}
+/* Sub-section entries: deeper indent, one step smaller. */
+.toc-link-l3 {
+  padding-left: 1.5rem;
+  font-size: 12px;
+}
+.toc-link[aria-current="true"] {
+  color: var(--brand);
+  border-left-color: var(--brand);
+  font-weight: 500;
+}
+
+/* Mobile TOC (<details class="toc-details">): quiet surface card; the native
+   disclosure markers are replaced by the chevron icon the view renders. */
+.toc-details {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-2);
+}
+.toc-details summary {
+  list-style: none;
+  cursor: pointer;
+}
+.toc-details summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Reading progress bar (blog article only — the component mounts there and
+   nowhere else). Fixed at the very top of the viewport, ABOVE the sticky
+   header border (z-60 > header z-50). The track is inset-based (not 100vw)
+   so a visible page scrollbar can never push it into horizontal overflow.
+   The fill animates via transform: scaleX() with origin left ONLY — width
+   is never touched, zero layout shift. aria-hidden: decorative, the article
+   is not a task (noted in worklog r10-c). */
+.read-progress-track {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 60;
+  pointer-events: none;
+}
+.read-progress-bar {
+  height: 100%;
+  background: var(--brand);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  transition: transform 0.12s linear;
+}
+
+/* Legal/informational pages rhythm, scoped to the .prose-legal container
+   class (mirrors .prose-guide r8 / .prose-article r9, applied on the
+   LegalShell <article> — legal-views.tsx):
+   - brand-tinted list markers (brand dots; brand semibold tabular numbers
+     for the rare ordered list)
+   - balanced h2/h3 wraps to avoid orphaned last words
+   - slightly airier list rows: legal sections are scannable lists, a touch
+     more leading between items reads calmer than prose */
+.prose-legal :is(ul, ol) > li::marker {
+  color: var(--brand);
+}
+.prose-legal ol > li::marker {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.prose-legal :is(h2, h3) {
+  text-wrap: balance;
+}
+.prose-legal :is(ul, ol) > li + li {
+  margin-top: 0.35rem;
+}
+
+/* Explicit reduced-motion guard for the new round-10 classes (mirrors the
+   r7-d/r8-c/r9-c pattern; the global * guard already neutralizes all of
+   these — this named block also documents intent: the progress bar updates
+   instantly instead of easing, which is fine). */
+@media (prefers-reduced-motion: reduce) {
+  .read-progress-bar,
+  .toc-link {
+    transition: none !important;
+  }
+}
+
+/* r10-c: css recompile nudge */

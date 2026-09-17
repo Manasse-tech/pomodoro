@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { HelpCircle, Menu, Moon, Search, Settings2, Sun, X } from "lucide-react";
+import { Download, HelpCircle, Menu, Moon, Search, Settings2, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isNavActive } from "@/lib/focusly/router";
 import { useFocusly } from "@/lib/focusly/store";
@@ -21,14 +21,31 @@ interface SiteHeaderProps {
   route: string;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  /** Runs the deferred install prompt (owned by FocuslyApp). */
+  onInstallClick: () => void;
 }
 
-export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProps) {
+export function SiteHeader({ route, onOpenSettings, onOpenHelp, onInstallClick }: SiteHeaderProps) {
   const theme = useFocusly((s) => s.theme);
   const toggleTheme = useFocusly((s) => s.toggleTheme);
   const open = useFocusly((s) => s.navOpen);
   const setNavOpen = useFocusly((s) => s.setNavOpen);
   const [scrolled, setScrolled] = useState(false);
+  /** PWA install availability, signalled by FocuslyApp via window events
+   * ("focusly:install-available" / "focusly:install-hidden") — same lightweight
+   * channel as the existing "focusly:open-command" event, no store involved. */
+  const [installReady, setInstallReady] = useState(false);
+
+  useEffect(() => {
+    const showInstall = () => setInstallReady(true);
+    const hideInstall = () => setInstallReady(false);
+    window.addEventListener("focusly:install-available", showInstall);
+    window.addEventListener("focusly:install-hidden", hideInstall);
+    return () => {
+      window.removeEventListener("focusly:install-available", showInstall);
+      window.removeEventListener("focusly:install-hidden", hideInstall);
+    };
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -125,6 +142,18 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
           >
             <HelpCircle className="size-[18px]" />
           </Button>
+          {installReady && (
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Installer l’application"
+              title="Installer l’application"
+              className="relative size-10 rounded-xl before:absolute before:content-[''] before:-inset-y-1 before:-inset-x-0.5"
+              onClick={onInstallClick}
+            >
+              <Download className="size-[18px]" />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="icon"

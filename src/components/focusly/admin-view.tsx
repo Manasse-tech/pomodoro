@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -47,7 +47,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { downloadTextFile, messagesToCsv } from "@/lib/focusly/csv";
 import { frDateTime, todayKey } from "@/lib/focusly/types";
 
 import { Breadcrumb } from "./content/breadcrumb";
@@ -85,14 +84,6 @@ const PAGE_SIZE = 25;
 
 /** Longueur maximale d'une réponse, alignée sur la limite d'un message. */
 const REPLY_MAX_LENGTH = 5000;
-
-/** Case-insensitive + accent-insensitive fold (same pattern as blog-view). */
-function fold(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
-}
 
 /** Normalise un message renvoyé par l'API (champs optionnels → valeurs sûres). */
 function normalizeMsg(m: ContactMsg): ContactMsg {
@@ -136,6 +127,8 @@ export function AdminView() {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<AdminFilter>("actifs");
   const [query, setQuery] = useState("");
+  /* Recherche serveur (?q=) — valeur saisie débouncée (~300 ms) */
+  const [search, setSearch] = useState("");
   /* Pagination serveur */
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -146,25 +139,7 @@ export function AdminView() {
   const [replyDraft, setReplyDraft] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  /* Visible list = filter chip (archived first) then accent-insensitive search */
-  const visible = useMemo(() => {
-    const base =
-      filter === "archives"
-        ? messages.filter((m) => m.archived)
-        : filter === "non-lus"
-          ? messages.filter((m) => !m.archived && !m.read)
-          : messages.filter((m) => !m.archived);
-    const needle = fold(query.trim());
-    if (!needle) return base;
-    return base.filter(
-      (m) =>
-        fold(m.name).includes(needle) ||
-        fold(m.email).includes(needle) ||
-        fold(m.subject ?? "").includes(needle) ||
-        fold(m.message).includes(needle),
-    );
-  }, [messages, filter, query]);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   /* Restore a previously unlocked key (same tab only) */
   useEffect(() => {
@@ -172,52 +147,94 @@ export function AdminView() {
     if (stored) setAdminKey(stored);
   }, []);
 
-  const loadMessages = useCallback(async (key: string, targetPage: number) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/contact?page=${targetPage}&pageSize=${PAGE_SIZE}`, {
-        headers: { "x-admin-key": key },
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        if (res.status === 401) {
-          // The stored key is no longer valid → back to the gate
-          window.sessionStorage.removeItem(STORAGE_KEY);
-          setAdminKey(null);
-          setGateError("Clé incorrecte.");
+  /** Garde anti-course : seule la réponse de la dernière requête émise s'applique. */
+  const loadSeq = useRef(0);
+  const loadMessages = useCallback(
+    async (key: string, targetPage: number, q: string, f: AdminFilter) => {
+      const seq = ++loadSeq.current;
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(targetPage),
+          pageSize: String(PAGE_SIZE),
+          filter: f,
+        });
+        if (q !== "") params.set("q", q);
+        const res = await fetch(`/api/contact?${params.toString()}`, {
+          headers: { "x-admin-key": key },
+          cache: "no-store",
+        });
+        if (seq !== loadSeq.current) return; // requête plus récente en vol
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          if (res.status === 401) {
+            // The stored key is no longer valid → back to the gate
+            window.sessionStorage.removeItem(STORAGE_KEY);
+            setAdminKey(null);
+            setGateError("Clé incorrecte.");
+            return;
+          }
+          toast.error(data?.error ?? "Erreur réseau.");
           return;
         }
-        toast.error(data?.error ?? "Erreur réseau.");
-        return;
+        const data = (await res.json()) as {
+          items?: ContactMsg[];
+          total?: number;
+          page?: number;
+          pageSize?: number;
+          unread?: number;
+        };
+        if (seq !== loadSeq.current) return; // requête plus récente en vol
+        const items = (data.items ?? []).map(normalizeMsg);
+        setMessages(items);
+        setTotal(typeof data.total === "number" ? data.total : items.length);
+        setPageSize(typeof data.pageSize === "number" ? data.pageSize : PAGE_SIZE);
+        setUnreadCount(typeof data.unread === "number" ? data.unread : 0);
+        // Le serveur ramène la page demandée dans les bornes valides.
+        if (typeof data.page === "number" && data.page !== targetPage) {
+          setPage(data.page);
+        }
+      } catch {
+        if (seq !== loadSeq.current) return;
+        toast.error("Erreur réseau.");
+      } finally {
+        if (seq === loadSeq.current) setLoading(false);
       }
-      const data = (await res.json()) as {
-        items?: ContactMsg[];
-        total?: number;
-        page?: number;
-        pageSize?: number;
-        unread?: number;
-      };
-      const items = (data.items ?? []).map(normalizeMsg);
-      setMessages(items);
-      setTotal(typeof data.total === "number" ? data.total : items.length);
-      setPageSize(typeof data.pageSize === "number" ? data.pageSize : PAGE_SIZE);
-      setUnreadCount(typeof data.unread === "number" ? data.unread : 0);
-      // Le serveur ramène la page demandée dans les bornes valides.
-      if (typeof data.page === "number" && data.page !== targetPage) {
-        setPage(data.page);
-      }
-    } catch {
-      toast.error("Erreur réseau.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
-  /* Load (or reload) the messages whenever the key or the page changes */
+  /* Debounce the raw search input (~300 ms) before it reaches the server as ?q= */
   useEffect(() => {
-    if (adminKey) void loadMessages(adminKey, page);
-  }, [adminKey, page, loadMessages]);
+    const timer = window.setTimeout(() => setSearch(query.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  /* Load (or reload) on key/page/search/filter change. A search or filter change
+     resets the pagination to page 1 within the same commit (single fetch) — the
+     signature guard skips the redundant refetch caused by the page reset, while
+     the refresh button (direct loadMessages call) stays unaffected. */
+  const prevQueryRef = useRef({ search: "", filter: "actifs" as AdminFilter });
+  const lastFetchRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!adminKey) {
+      // Déverrouillage futur = première charge garantie (401 ou déconnexion).
+      lastFetchRef.current = null;
+      return;
+    }
+    let targetPage = page;
+    if (prevQueryRef.current.search !== search || prevQueryRef.current.filter !== filter) {
+      prevQueryRef.current = { search, filter };
+      if (page !== 1) {
+        targetPage = 1;
+        setPage(1);
+      }
+    }
+    const signature = `${adminKey}|${targetPage}|${search}|${filter}`;
+    if (lastFetchRef.current === signature) return;
+    lastFetchRef.current = signature;
+    void loadMessages(adminKey, targetPage, search, filter);
+  }, [adminKey, page, search, filter, loadMessages]);
 
   /* ----- Gate: validate the key then remember it for the tab ----- */
   const handleUnlock = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -263,11 +280,24 @@ export function AdminView() {
     setGateError(null);
     setFilter("actifs");
     setQuery("");
+    setSearch("");
+    prevQueryRef.current = { search: "", filter: "actifs" };
     setPage(1);
     setTotal(0);
     setUnreadCount(0);
     setReplyTarget(null);
     setReplyDraft("");
+  };
+
+  /* ----- Server-side filters: a message that no longer matches the active chip
+     leaves the list optimistically. Last item of a page > 1 → previous page (refetch). ----- */
+  const dropFromList = (id: string) => {
+    if (messages.length <= 1 && page > 1) {
+      setPage((p) => Math.max(1, p - 1));
+      return;
+    }
+    setMessages((ms) => ms.filter((m) => m.id !== id));
+    setTotal((t) => Math.max(0, t - 1));
   };
 
   /* ----- Toggle read state (optimistic, reverted on failure) ----- */
@@ -290,6 +320,8 @@ export function AdminView() {
         throw new Error(data?.error ?? "Erreur réseau.");
       }
       toast.success("Message mis à jour.");
+      // Filtre serveur « non-lus » : le message lu ne correspond plus → il sort de la liste.
+      if (next && filter === "non-lus") dropFromList(msg.id);
     } catch (err) {
       setMessages((ms) =>
         ms.map((m) => (m.id === msg.id ? { ...m, read: msg.read } : m)),
@@ -321,6 +353,9 @@ export function AdminView() {
         throw new Error(data?.error ?? "Erreur réseau.");
       }
       toast.success(next ? "Message archivé." : "Message restauré.");
+      // Filtres serveur : un message qui ne correspond plus au filtre actif sort de la liste.
+      if (filter === "actifs" && next) dropFromList(msg.id);
+      else if (filter === "archives" && !next) dropFromList(msg.id);
     } catch (err) {
       setMessages((ms) =>
         ms.map((m) => (m.id === msg.id ? { ...m, archived: msg.archived } : m)),
@@ -402,6 +437,8 @@ export function AdminView() {
         ),
       );
       if (!target.read) setUnreadCount((c) => Math.max(0, c - 1));
+      // Filtre serveur « non-lus » : le message répondu (donc lu) sort de la liste.
+      if (!target.read && filter === "non-lus") dropFromList(target.id);
       // (3) le client de messagerie prend le relais avec le brouillon édité.
       window.location.href = buildMailtoHref(target, trimmed);
       // (4) confirmation
@@ -415,14 +452,52 @@ export function AdminView() {
     }
   };
 
-  /* ----- Export the currently visible messages as a client-side CSV download ----- */
-  const handleExportCsv = () => {
-    if (visible.length === 0) {
+  /* ----- Export ALL messages matching the current search + filter as CSV
+     (server-side endpoint ?format=csv — no pagination limit) ----- */
+  const handleExportCsv = async () => {
+    if (exportingCsv) return;
+    if (total === 0) {
       toast.info("Aucun message à exporter.");
       return;
     }
-    downloadTextFile(messagesToCsv(visible), `focusly-messages-${todayKey()}.csv`);
-    toast.success("Export CSV téléchargé.");
+    setExportingCsv(true);
+    try {
+      const params = new URLSearchParams({ format: "csv", filter });
+      if (search !== "") params.set("q", search);
+      const res = await fetch(`/api/contact?${params.toString()}`, {
+        headers: { "x-admin-key": adminKey ?? "" },
+        cache: "no-store",
+      });
+      if (res.status === 401) {
+        // The stored key is no longer valid → back to the gate
+        window.sessionStorage.removeItem(STORAGE_KEY);
+        setAdminKey(null);
+        setGateError("Clé incorrecte.");
+        return;
+      }
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Erreur réseau.");
+      }
+      const blob = await res.blob();
+      // Nom de fichier proposé par le serveur (Content-Disposition), sinon repli local.
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const filename =
+        /filename="([^"]+)"/.exec(disposition)?.[1] ?? `focusly-messages-${todayKey()}.csv`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      toast.success("Export CSV téléchargé.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+    } finally {
+      setExportingCsv(false);
+    }
   };
 
   /* ---------------------------------------------------------------- */
@@ -528,7 +603,7 @@ export function AdminView() {
               className="rounded-lg"
               aria-label="Rafraîchir les messages"
               disabled={loading}
-              onClick={() => void loadMessages(adminKey, page)}
+              onClick={() => void loadMessages(adminKey, page, search, filter)}
             >
               <RefreshCw className={loading ? "animate-spin" : undefined} aria-hidden />
             </Button>
@@ -536,10 +611,15 @@ export function AdminView() {
               variant="outline"
               size="sm"
               className="rounded-lg"
-              aria-label="Exporter les messages visibles en CSV"
-              onClick={handleExportCsv}
+              aria-label="Exporter les messages filtrés en CSV"
+              disabled={exportingCsv}
+              onClick={() => void handleExportCsv()}
             >
-              <Download aria-hidden />
+              {exportingCsv ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <Download aria-hidden />
+              )}
               Exporter en CSV
             </Button>
             <Button variant="ghost" className="rounded-xl" onClick={handleSignOut}>
@@ -559,14 +639,17 @@ export function AdminView() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Rechercher un nom, email, sujet…"
+              placeholder="Rechercher nom, email, sujet, message…"
               aria-label="Rechercher dans les messages"
               className="pl-9 pr-8"
             />
             {query !== "" ? (
               <button
                 type="button"
-                onClick={() => setQuery("")}
+                onClick={() => {
+                  setQuery("");
+                  setSearch("");
+                }}
                 aria-label="Effacer la recherche"
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-faint transition-colors hover:text-foreground"
               >
@@ -609,25 +692,23 @@ export function AdminView() {
               </div>
             ))}
           </div>
-        ) : visible.length === 0 ? (
+        ) : messages.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
             <Inbox className="size-6 text-faint" aria-hidden />
             <p className="m-0 text-[15px] text-soft">
-              {messages.length === 0
-                ? "Aucun message pour le moment."
-                : query.trim() !== ""
-                  ? `Aucun résultat pour « ${query.trim()} ».`
-                  : filter === "archives"
-                    ? "Aucun message archivé."
-                    : filter === "non-lus"
-                      ? "Aucun message non lu."
-                      : "Aucun message actif."}
+              {search !== ""
+                ? "Aucun message ne correspond à votre recherche."
+                : filter === "archives"
+                  ? "Aucun message archivé."
+                  : filter === "non-lus"
+                    ? "Aucun message non lu."
+                    : "Aucun message pour le moment."}
             </p>
           </div>
         ) : (
           <div className="slim-scroll max-h-[70vh] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border">
             <ul className="m-0 flex list-none flex-col gap-3 p-0">
-              {visible.map((m) => (
+              {messages.map((m) => (
                 <li key={m.id}>
                   <article
                     className={`rounded-2xl border bg-card p-4 ${

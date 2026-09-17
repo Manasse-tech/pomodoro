@@ -65,6 +65,12 @@ export function computeStreaks(daily: Record<string, DailyStat>): Streaks {
   return { current, best };
 }
 
+/** Local Date (00:00) from a YYYY-MM-DD key — inverse of dayKey(). */
+function parseDayKey(k: string): Date {
+  const [y, m, d] = k.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function isNextDay(a: string, b: string): boolean {
   const [y, m, d] = a.split("-").map(Number);
   const next = new Date(y, m - 1, d + 1);
@@ -176,4 +182,104 @@ export function monthGoalStreak(
     current += 1;
   }
   return { current, currentTotal, periodGoal, currentMet: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Records (longest-ever goal streaks) & year helpers                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Longest run of consecutive weeks whose pomodoro total reaches
+ * dailyGoal × 7, scanned across the whole daily record (Monday-first,
+ * exact 7-day steps so year boundaries are handled naturally). The
+ * in-progress week counts toward the record only when its goal is already
+ * met; returns 0 when dailyGoal ≤ 0 or no week was ever met.
+ */
+export function bestWeekGoalStreak(
+  daily: Record<string, DailyStat>,
+  dailyGoal: number,
+  today: Date = new Date(),
+): number {
+  if (dailyGoal <= 0) return 0;
+  const keys = Object.keys(daily).sort();
+  if (keys.length === 0) return 0;
+  const periodGoal = dailyGoal * 7;
+  const last = mondayOf(today);
+  let best = 0;
+  let run = 0;
+  // Walk forward from the Monday of the earliest recorded day: any met week
+  // must contain at least one recorded day, so nothing earlier can qualify.
+  for (let cur = mondayOf(parseDayKey(keys[0])); cur <= last; cur.setDate(cur.getDate() + 7)) {
+    if (weekPomodoros(daily, cur) >= periodGoal) {
+      run += 1;
+      if (run > best) best = run;
+    } else {
+      run = 0;
+    }
+  }
+  return best;
+}
+
+/**
+ * Longest run of consecutive months whose pomodoro total reaches
+ * dailyGoal × (days in month), scanned across the whole daily record with
+ * each month's real length (leap-aware). The in-progress month counts
+ * toward the record only when its goal is already met; returns 0 when
+ * dailyGoal ≤ 0 or no month was ever met.
+ */
+export function bestMonthGoalStreak(
+  daily: Record<string, DailyStat>,
+  dailyGoal: number,
+  today: Date = new Date(),
+): number {
+  if (dailyGoal <= 0) return 0;
+  const keys = Object.keys(daily).sort();
+  if (keys.length === 0) return 0;
+  const [firstY, firstM] = keys[0].split("-").map(Number);
+  let cy = firstY;
+  let cm = firstM - 1; // 0-based month index
+  let best = 0;
+  let run = 0;
+  while (cy < today.getFullYear() || (cy === today.getFullYear() && cm <= today.getMonth())) {
+    const days = new Date(cy, cm + 1, 0).getDate();
+    if (monthPomodoros(daily, cy, cm) >= dailyGoal * days) {
+      run += 1;
+      if (run > best) best = run;
+    } else {
+      run = 0;
+    }
+    cm += 1;
+    if (cm > 11) {
+      cm = 0;
+      cy += 1;
+    }
+  }
+  return best;
+}
+
+/** Number of days in a year (sum of month lengths — leap years included). */
+export function daysInYear(y: number): number {
+  let days = 0;
+  for (let m = 0; m < 12; m++) days += new Date(y, m + 1, 0).getDate();
+  return days;
+}
+
+/**
+ * Years offered by the annual goal selector: the current year plus every
+ * year present in the daily record — deduped, sorted descending, capped at
+ * `max` options. Malformed keys are ignored.
+ */
+export function availableGoalYears(
+  daily: Record<string, DailyStat>,
+  currentYear: number,
+  max = 5,
+): number[] {
+  const years = new Set<number>([currentYear]);
+  for (const key of Object.keys(daily)) {
+    const y = Number(key.slice(0, 4));
+    if (y >= 1000 && y <= 9999) years.add(y);
+  }
+  return Array.from(years)
+    .sort((a, b) => b - a)
+    .slice(0, max);
 }

@@ -3,6 +3,10 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+// Format CSV établi côté client (Date;Nom;Email;Sujet;Message;Lu;Archivé, séparateur « ; »,
+// champs quotés) — réutilisé à l'identique pour l'export serveur.
+import { messagesToCsv } from "@/lib/focusly/csv";
+import { todayKey } from "@/lib/focusly/types";
 
 export const runtime = "nodejs";
 
@@ -261,14 +265,84 @@ function positiveIntParam(
   return Math.min(Math.max(parsed, min), max);
 }
 
-/** Page de messages (les plus récents d'abord). */
-async function selectContactPage(page: number, pageSize: number) {
+/** Longueur maximale de la recherche serveur (?q=). */
+const MAX_QUERY_LENGTH = 100;
+
+/** Filtres de la liste admin (?filter=) — toute valeur inconnue retombe sur « actifs ». */
+type ContactFilter = "actifs" | "non-lus" | "archives";
+
+function parseFilterParam(value: string | null): ContactFilter {
+  if (value === "non-lus" || value === "archives") return value;
+  return "actifs";
+}
+
+/** Échappe les jokers LIKE (%, _) et l'échappement \ → recherche littérale (clause ESCAPE '\'). */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Clause WHERE partagée par la liste paginée, le compteur « total » et l'export CSV :
+ * filtre (actifs / non-lus / archives) + recherche plein texte ?q= sur
+ * name / email / subject / message / reply.
+ *
+ * Recherche : LIKE avec LOWER() des deux côtés — insensible à la casse ASCII
+ * (SQLite LOWER() ne foldant que l'ASCII). Les jokers LIKE du user (%, _) sont
+ * neutralisés (ESCAPE '\') pour une recherche littérale.
+ * ⚠️ Limitation assumée, documentée honnêtement : SQLite n'a pas de collation
+ * insensible aux accents, LIKE est donc ACCENT-SENSIBLE — taper « reponse »
+ * ne trouvera pas « réponse ».
+ */
+function buildWhereClause(filter: ContactFilter, query: string): Prisma.Sql {
+  const chunks: Prisma.Sql[] = [];
+  if (filter === "non-lus") {
+    chunks.push(Prisma.sql`"archived" = 0 AND "read" = 0`);
+  } else if (filter === "archives") {
+    chunks.push(Prisma.sql`"archived" = 1`);
+  } else {
+    chunks.push(Prisma.sql`"archived" = 0`);
+  }
+  const needle = query.trim().toLowerCase();
+  if (needle.length > 0) {
+    const pattern = `%${escapeLikePattern(needle)}%`;
+    chunks.push(
+      Prisma.sql`(LOWER("name") LIKE ${pattern} ESCAPE '\\'
+        OR LOWER("email") LIKE ${pattern} ESCAPE '\\'
+        OR LOWER(COALESCE("subject", '')) LIKE ${pattern} ESCAPE '\\'
+        OR LOWER("message") LIKE ${pattern} ESCAPE '\\'
+        OR LOWER(COALESCE("reply", '')) LIKE ${pattern} ESCAPE '\\')`,
+    );
+  }
+  return Prisma.sql` WHERE ${Prisma.join(chunks, " AND ")}`;
+}
+
+/** Page de messages filtrée (les plus récents d'abord). */
+async function selectContactPage(page: number, pageSize: number, where: Prisma.Sql) {
   const rows = await db.$queryRaw<RawContactRow[]>`
     ${Prisma.raw(CONTACT_SELECT)}
+    ${where}
     ORDER BY "createdAt" DESC
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
   `;
   return rows.map(mapContactRow);
+}
+
+/** Tous les messages filtrés, sans limite de pagination (export CSV). */
+async function selectAllContacts(where: Prisma.Sql) {
+  const rows = await db.$queryRaw<RawContactRow[]>`
+    ${Prisma.raw(CONTACT_SELECT)}
+    ${where}
+    ORDER BY "createdAt" DESC
+  `;
+  return rows.map(mapContactRow);
+}
+
+/** Comptage filtré en SQL brut (même WHERE que la liste et l'export). */
+async function countContacts(where: Prisma.Sql): Promise<number> {
+  const rows = await db.$queryRaw<Array<{ n: number | bigint }>>`
+    SELECT COUNT(*) AS "n" FROM "ContactMessage" ${where}
+  `;
+  return Number(rows[0]?.n ?? 0);
 }
 
 /** Relit un message par son id (null si introuvable). */
@@ -283,8 +357,9 @@ async function selectContactById(id: string) {
 }
 
 /* ------------------------------------------------------------------ */
-/* GET /api/contact — liste paginée des messages (back-office, protégé) */
-/* ?page=1&pageSize=25 → { items, total, page, pageSize, unread }       */
+/* GET /api/contact — liste paginée + recherche + filtre (back-office, protégé)      */
+/* ?page=1&pageSize=25&filter=actifs&q=… → { items, total, page, pageSize, unread }   */
+/* ?format=csv → export CSV de TOUTES les lignes correspondant à q + filter           */
 /* ------------------------------------------------------------------ */
 
 export async function GET(request: Request) {
@@ -302,20 +377,44 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const requestedPage = positiveIntParam(params.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
   const pageSize = positiveIntParam(params.get("pageSize"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+  // Recherche ?q= : trim + plafonnée à 100 caractères (accent-sensitive — voir buildWhereClause).
+  const query = (params.get("q") ?? "").trim().slice(0, MAX_QUERY_LENGTH);
+  const filter = parseFilterParam(params.get("filter"));
 
   try {
-    const [total, unread] = await Promise.all([
-      db.contactMessage.count(),
-      // Compteur « non lus » = messages actifs (non archivés) non lus.
+    const where = buildWhereClause(filter, query);
+    const [filteredTotal, unread] = await Promise.all([
+      // `total` = messages correspondant au filtre + à la recherche (la pagination
+      // et l'export portent sur l'ensemble filtré, pas seulement la page courante).
+      countContacts(where),
+      // Compteur « non lus » = compteur GLOBAL des messages actifs non lus,
+      // indépendant de ?q= et ?filter= (sémantique conservée pour le badge d'en-tête).
       db.contactMessage.count({ where: { read: false, archived: false } }),
     ]);
+
+    // Export CSV : TOUTES les lignes correspondant à q + filter, hors pagination.
+    if (params.get("format") === "csv") {
+      const allRows = await selectAllContacts(where);
+      // BOM UTF-8 : Excel reconnaît ainsi l'encodage et le séparateur « ; ».
+      const csv = `\uFEFF${messagesToCsv(allRows)}`;
+      const filename = `focusly-messages-${todayKey()}.csv`;
+      return new Response(csv, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
     // La page demandée est ramenée dans les bornes valides.
-    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const pageCount = Math.max(1, Math.ceil(filteredTotal / pageSize));
     const page = Math.min(requestedPage, pageCount);
-    const items = await selectContactPage(page, pageSize);
+    const items = await selectContactPage(page, pageSize, where);
     // `messages` : alias rétrocompatible de `items`.
     return NextResponse.json(
-      { ok: true, items, total, page, pageSize, unread, messages: items },
+      { ok: true, items, total: filteredTotal, page, pageSize, unread, messages: items },
       { status: 200 },
     );
   } catch (error) {

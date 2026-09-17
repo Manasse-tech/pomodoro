@@ -41,6 +41,39 @@ const JSON_LD = {
   inLanguage: "fr-FR",
 };
 
+/* ------------------------------------------------------------------ *
+ * PWA — service worker update + install prompt (module scope = one
+ * lifetime per page load; the flags below reset naturally on reload).
+ * ------------------------------------------------------------------ */
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
+/** True when an old service worker already controlled the page when this
+ * bundle evaluated. The very first `controllerchange` after a cold start
+ * (no prior controller → first worker claims the page) must NEVER reload. */
+let swHadControllerAtLoad = false;
+/** Ensures the update reload happens at most once per page load. */
+let swUpdateReloaded = false;
+/** One-shot captured install prompt (consumed by prompt()). */
+let deferredInstall: BeforeInstallPromptEvent | null = null;
+/** Dedupes the “Focusly a été installée.” toast (userChoice + appinstalled). */
+let installAnnounced = false;
+
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  swHadControllerAtLoad = Boolean(navigator.serviceWorker.controller);
+}
+
+function isStandaloneDisplay(): boolean {
+  if (typeof window === "undefined") return false;
+  const nav = navigator as Navigator & { standalone?: boolean };
+  return (
+    window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true
+  );
+}
+
 function CurrentView({ route }: { route: string }) {
   if (route === "accueil") return <AccueilView />;
   if (route === "outils") return <OutilsView />;
@@ -182,7 +215,12 @@ export function FocuslyApp() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  /* Register the service worker for offline support (PWA) */
+  /* Register the service worker for offline support (PWA) + update flow.
+   * Registration stays delayed (1.5 s) and never blocks first paint. A new
+   * worker installs and WAITS (no auto skipWaiting in sw.js); when it reaches
+   * “installed” while a controller already exists, it IS an update for this
+   * page → French toast with a “Recharger” action → SKIP_WAITING → reload once
+   * on controllerchange (cold-start first claim is guarded by swHadControllerAtLoad). */
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     const secure =
@@ -190,13 +228,109 @@ export function FocuslyApp() {
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
     if (!secure) return;
-    const id = window.setTimeout(() => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        /* offline support unavailable — ignore */
+
+    const onControllerChange = () => {
+      if (swHadControllerAtLoad && !swUpdateReloaded) {
+        swUpdateReloaded = true;
+        window.location.reload();
+      }
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    const announceWaitingUpdate = (reg: ServiceWorkerRegistration) => {
+      if (swUpdateReloaded) return;
+      const waiting = reg.waiting;
+      // A waiting worker + an existing controller = a real update for this page
+      // (not a first install — on a cold start the controller is still null).
+      if (!waiting || !navigator.serviceWorker.controller) return;
+      toast("Nouvelle version disponible.", {
+        id: "focusly-sw-update",
+        duration: 12000,
+        action: {
+          label: "Recharger",
+          onClick: () => {
+            reg.waiting?.postMessage({ action: "SKIP_WAITING" });
+          },
+        },
       });
+    };
+
+    const id = window.setTimeout(() => {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => {
+          // Update already waiting from a previous visit → announce right away.
+          announceWaitingUpdate(reg);
+          reg.addEventListener("updatefound", () => {
+            const installing = reg.installing;
+            if (!installing) return;
+            installing.addEventListener("statechange", () => {
+              if (installing.state === "installed") announceWaitingUpdate(reg);
+            });
+          });
+        })
+        .catch(() => {
+          /* offline support unavailable — ignore */
+        });
     }, 1500);
-    return () => window.clearTimeout(id);
+
+    return () => {
+      window.clearTimeout(id);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
   }, []);
+
+  /* PWA install: capture beforeinstallprompt (prevents Chrome's own banner) and
+   * mirror availability to the header through window events — the same
+   * lightweight channel as the existing "focusly:open-command" event (no store,
+   * no new file). The deferred prompt itself stays module-scoped here and is
+   * consumed via the onInstallClick prop handed to SiteHeader. */
+  useEffect(() => {
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      // Already installed / running standalone → never offer the install button.
+      if (isStandaloneDisplay()) return;
+      deferredInstall = e as BeforeInstallPromptEvent;
+      window.dispatchEvent(new CustomEvent("focusly:install-available"));
+    };
+    const onInstalled = () => {
+      deferredInstall = null;
+      window.dispatchEvent(new CustomEvent("focusly:install-hidden"));
+      if (!installAnnounced) {
+        installAnnounced = true;
+        toast.success("Focusly a été installée.", {
+          description: "Elle est disponible sur votre écran d'accueil.",
+        });
+      }
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    const ev = deferredInstall;
+    if (!ev) return;
+    deferredInstall = null; // the captured event is one-shot → hide the button
+    window.dispatchEvent(new CustomEvent("focusly:install-hidden"));
+    ev
+      .prompt()
+      .then(() => ev.userChoice)
+      .then((choice) => {
+        if (choice.outcome === "accepted" && !installAnnounced) {
+          installAnnounced = true;
+          toast.success("Focusly a été installée.", {
+            description: "Elle est disponible sur votre écran d'accueil.",
+          });
+        }
+      })
+      .catch(() => {
+        /* install prompt unavailable or dismissed — ignore */
+      });
+  };
 
   /* Keyboard shortcuts (disabled while typing or when a dialog is open) */
   useEffect(() => {
@@ -271,6 +405,7 @@ export function FocuslyApp() {
         route={route}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
+        onInstallClick={handleInstallClick}
       />
       <main id="main" className="flex-1">
         <motion.div

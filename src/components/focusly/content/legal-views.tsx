@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 
 import { BLOG_POSTS } from "@/lib/focusly/blog";
 import { ROUTES, type TopRoute } from "@/lib/focusly/router";
@@ -31,12 +32,25 @@ function LegalShell({
       <Breadcrumb
         items={[{ label: "Accueil", href: "accueil" }, { label: crumb }]}
       />
-      <article className="max-w-[720px]">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+      {/* .prose-legal (globals.css round 10) : même traitement éditorial que
+          .prose-guide/.prose-article — marqueurs de listes brand, titres
+          équilibrés. Entrée en cascade h1 → filet → méta → contenu, OK
+          prefers-reduced-motion (garde r7-d/r8-c). */}
+      <article className="prose-legal max-w-[720px]">
+        <h1 className="fade-up text-3xl font-bold tracking-tight text-balance sm:text-4xl">
           {title}
         </h1>
-        {meta ? <p className="mt-3 text-[13px] text-faint">{meta}</p> : null}
-        <div className="mt-2">{children}</div>
+        {/* Filet décoratif de marque, aligné sur le guide et l’article (aria-hidden) */}
+        <div
+          className="fade-up fade-up-1 mt-5 h-0.5 w-14 rounded-full bg-brand/40"
+          aria-hidden
+        />
+        {meta ? (
+          <p className="tnum fade-up fade-up-2 mt-3 text-[13px] text-faint">
+            {meta}
+          </p>
+        ) : null}
+        <div className="fade-up fade-up-3 mt-6">{children}</div>
       </article>
     </div>
   );
@@ -265,6 +279,25 @@ const SITEMAP_LABELS: Record<string, string> = {
   "mentions-legales": "Mentions légales",
 };
 
+/* Liens du plan du site : flèche glissante au survol (transform uniquement,
+   aucun reflow) ; la copie reste strictement identique. Pas de cartes .lift
+   ici : le plan du site est une liste de liens (pas une grille de cartes) —
+   on garde la structure sémantique et on anime seulement le survol. */
+const SITEMAP_LINK_CLASS =
+  "group inline-flex items-center gap-1 font-medium text-brand hover:underline";
+
+function SitemapLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className={SITEMAP_LINK_CLASS}>
+      {children}
+      <ArrowRight
+        className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none"
+        aria-hidden
+      />
+    </Link>
+  );
+}
+
 export function PlanDuSiteView() {
   return (
     <LegalShell crumb="Plan du site" title="Plan du site">
@@ -272,9 +305,7 @@ export function PlanDuSiteView() {
       <ul className={LIST_CLASS}>
         {MAIN_PAGES.filter((r) => ROUTES.includes(r)).map((route) => (
           <li key={route} className="leading-relaxed">
-            <Link href={`#${route}`} className={LINK_CLASS}>
-              {SITEMAP_LABELS[route]}
-            </Link>
+            <SitemapLink href={`#${route}`}>{SITEMAP_LABELS[route]}</SitemapLink>
           </li>
         ))}
       </ul>
@@ -283,9 +314,7 @@ export function PlanDuSiteView() {
       <ul className={LIST_CLASS}>
         {BLOG_POSTS.map((post) => (
           <li key={post.slug} className="leading-relaxed">
-            <Link href={`#blog/${post.slug}`} className={LINK_CLASS}>
-              {post.title}
-            </Link>
+            <SitemapLink href={`#blog/${post.slug}`}>{post.title}</SitemapLink>
           </li>
         ))}
       </ul>
@@ -294,9 +323,7 @@ export function PlanDuSiteView() {
       <ul className={LIST_CLASS}>
         {LEGAL_PAGES.filter((r) => ROUTES.includes(r)).map((route) => (
           <li key={route} className="leading-relaxed">
-            <Link href={`#${route}`} className={LINK_CLASS}>
-              {SITEMAP_LABELS[route]}
-            </Link>
+            <SitemapLink href={`#${route}`}>{SITEMAP_LABELS[route]}</SitemapLink>
           </li>
         ))}
       </ul>
