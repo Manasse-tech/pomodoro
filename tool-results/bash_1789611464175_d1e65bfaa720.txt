@@ -1,0 +1,225 @@
+- Chips : groupe `role="group"` + `aria-label="Filtrer les tâches"`, boutons natifs `aria-pressed`, classes spec (`rounded-full border px-2.5 py-1 text-xs transition-colors` ; actif `border-brand/40 bg-brand/15 font-medium text-brand`, inactif `text-muted-foreground hover:text-foreground`), ligne placée sous l’en-tête avec `-mt-2` (motif existant) et flex-wrap → 375 px propre ; libellés sa
+- Rendu de liste basculé sur `visibleTasks` ; bornes des chevrons clavier recalculées sur l’ordre du STORE (`storeIndex = tasks.findIndex(...)`) pour rester exactes sous filtre (identiques à `index` quand « Toutes ») ; DnD déjà id-based → inchangé
+- États vides par filtre (style dashed existant) : « Rien de prévu aujourd’hui. Profitez-en ou planifiez une échéance. » / « Aucune tâche en retard. Vous êtes à jour. » avec CheckCircle2 text-brand inline ; affichés seulement si des tâches existent mais qu’aucune ne matche ; pas d’auto-reset du filtre (l’état vide gère)
+- **Deep-link nouvelle tâche** : `newTaskInputRef` sur l’input #task-input + useEffect SSR-safe : si `?tache=nouvelle` → setTimeout 400 ms (transition de vue 0,25 s), focus, puis `history.replaceState(pathname + hash)` pour ne pas re-déclencher au reload ; garde anti double-fire par ref posée DANS le callback (compatible double-invocation StrictMode : cleanup annule le 1er timer, le 2e tire
+- **Export CSV admin** (`csv.ts`) : interface exportée `ContactCsvRow` (structuralement compatible ContactMsg de la vue), `csvField` (quote si `;`/`"`/`\r\n`, quotes intérieures doublées), `messagesToCsv` → en-tête `Date;Nom;Email;Sujet;Message;Lu`, date via frDateTime importé de types (aucun import circulaire), Lu = oui/non, sujet null → vide, même terminaison `\n` que dailyToCsv ; vér
+- `admin-view.tsx` : bouton « Exporter en CSV » (variant outline size sm rounded-lg, Download, aria-label « Exporter les messages en CSV ») entre le refresh et « Se déconnecter » ; handleExportCsv → toast.info si 0 message, sinon downloadTextFile(messagesToCsv(messages), `focusly-messages-${todayKey()}.csv`) + toast.success ; en-tête déjà flex-wrap → 375 px OK (groupe d’actions ≈
+- **Réponse mailto admin** : helper pur module-level `buildReplyHref(msg)` — normalise CRLF, tronque à 600 caractères (coupe le mot partiel via `/\s+\S*$/`) + « … » pour refermer proprement le bloc de citation, corps FR « Bonjour <name>, / Merci pour votre message : / > lignes quotées / Cordialement, / L’équipe Focusly » (testé bun -e : < 1500 chars, CRLF normalisé, message court 
+- Vérifications : `bunx tsc --noEmit` filtré → vide (0 erreur src/) ; `bunx eslint` sur les 3 fichiers → 0 erreur 0 warning ; dev.log → « ✓ Compiled » répétés sans erreur, GET / 200 ; pas de dev server ni build lancés, pas de QA navigateur (consigne — main en charge)
+
+Stage Summary:
+- 3 fichiers modifiés : `src/components/focusly/tools/tasks-panel.tsx` (chips de filtre vue Toutes/Aujourd’hui/En retard + compteur « N affichée(s) », états vides dédiés, deep-link PWA focus + nettoyage d’URL, chevrons bornés sur l’ordre store), `src/components/focusly/admin-view.tsx` (export CSV + réponse mailto), `src/lib/focusly/csv.ts` (ContactCsvRow + csvField + messagesToCsv, 
+- Décisions : filtre 100 % vue (jamais le store) ; bornes chevrons sur storeIndex pour rester justes sous filtre ; garde deep-link posée dans le callback du timer (StrictMode-safe) ; ContactCsvRow défini dans csv.ts (pas de type importé de la vue admin, zéro couplage) ; export = outline sm pour matcher le refresh outline
+- Risques : aucun connu côté code (tsc/eslint 0/0, CSV + mailto validés par scripts) ; le mailto dépend du client mail du poste (comportement standard) ; chips ~26 px de haut comme les chips admin existantes — cibles < 44 px à ne pas généraliser aux actions principales ; QA navigateur (filtres, deep-link réel PWA, export, mailto, 375 px) à faire par le main
+
+---
+Task ID: 6-a
+Agent: frontend-styling-expert
+Task: Stats — comparaison hebdomadaire + partage en image (canvas → PNG/Web Share)
+
+Work Log:
+- Lu worklog.md (sections r3, r4, 5-b, R5), `statistiques-view.tsx` complet, `types.ts` (todayKey/frDate), `streaks.ts`, `csv.ts` (motif download), `globals.css` (tokens : --brand #ff6b5b, --card #17191e, --muted-foreground #9ba0ab, halo héros) ; icônes lucide vérifiées présentes (CalendarRange, ImageDown, TrendingUp/Down, Minus)
+- **Feature 1 — carte « Comparaison hebdomadaire »** (statistiques-view.tsx, nouvelle `<section>` entre la grille KPI « Vue d’ensemble » et la carte Calendrier) : `weekCompare` useMemo — lundi de la semaine courante via `setDate(getDate() - ((getDay()+6)%7))` (même formule lundi-first que la heatmap), semaine précédente = lundi − 7 j ; `sumWeek(start)` additionne les 7 clés `dayKey
+- Affichage : 2 colonnes `grid grid-cols-1 sm:grid-cols-2` (empilent à 375 px) — « Cette semaine » / « Semaine dernière », valeur `time-display text-2xl font-bold` + sous-ligne « N pomodoro(s) · X h YY min » ; bloc barres `role="img"` + aria-label FR avec accords (« Cette semaine : 12 pomodoros. Semaine dernière : 9 pomodoros. ») — 2 pistes `rounded-full bg-secondary/50` + rempliss
+- Ligne d’évolution `aria-live="polite"` (même motif que l’insight hebdo) : TrendingUp text-brand « +N % par rapport à la semaine dernière » / TrendingDown « −N % … » (signe moins typographique U+2212) / Minus « Stable par rapport à la semaine dernière » ; gardes anti-division par zéro : semaine dernière = 0 et courante > 0 → « N pomodoro(s) cette semaine, aucun la semaine
+- **Feature 2 — partage en image** (nouveau `src/lib/focusly/share-image.ts`, lib pure client, aucune lecture window au niveau module) : `buildStatsImage(options)` dessine sur `document.createElement("canvas")` 1200×630 hors écran — fond `#0f1013` + halo radial de marque en haut à droite (dégradé brand→transparent, globalAlpha 0.18, couleur lue via getComputedStyle(documentElement) `--b
+- `formatFocusDuration(seconds)` exportée : heures plancher + minutes ARRONDIES (consigne), avec retenue 60 min → 1 h (3599 s → « 1 h 00 min ») et cas « 0 min » < 60 s ; `shareOrDownloadStatsImage(options)` → canvas.toBlob PNG → si `navigator.canShare?.({ files })` (feature-detect share + canShare) : `navigator.share({ files, title: "Mes statistiques Focusly" })` — AbortError → `"
+- Vue : bouton « Partager en image » (ImageDown, variant secondary rounded-xl active:scale-[0.98], disabled pendant la génération, aria-label « Partager les statistiques en image ») placé dans la rangée d’actions juste après « Exporter en CSV » ; `handleShareImage` appelle le helper avec les totaux FILTRÉS par la période (`shown.pomodoros` / `shown.focusSeconds` — champ `focusSeco
+- Vérifications : `bunx tsc --noEmit` filtré → vide ; `bunx eslint` sur les 2 fichiers → 0 erreur 0 warning ; dev.log → « ✓ Compiled » répétés sans erreur ; sanity-check `bun -e` : jeudi 2026-09-17 → lundi 2026-09-14 (getDay 4), dimanche 13/09 → lundi 07, lundi 21/09 → lui-même ; totaux semaine courante/dernière identiques par sommation 7 jours et par balayage lexicographiqu
+
+Stage Summary:
+- Fichiers : `src/components/focusly/content/statistiques-view.tsx` (carte Comparaison hebdomadaire + bouton Partager en image + focusSeconds dans les 2 memos de totaux) et `src/lib/focusly/share-image.ts` (nouveau : buildStatsImage, shareOrDownloadStatsImage, formatFocusDuration, types StatsImageOptions/StatsShareResult) — store/contrats inchangés
+- Décisions : bouton posé à côté d’« Exporter en CSV » dans la rangée d’actions (l’énoncé le plaçait « dans l’en-tête Vue d’ensemble à côté d’Exporter en CSV », mais l’export vit dans la rangée d’actions — l’adjacence réelle prime, et l’en-tête reste propre à 375 px) ; barres étiquetées « Cette semaine / Semaine dernière » en plus des colonnes (lisib
+- Risques : aucun connu côté code (tsc/eslint 0/0, maths de semaine validées par script) ; navigator.share avec fichier non testable headless (chemin feature-détecté, repli téléchargement systématique) ; rendu canvas (halo, fit des valeurs 64px, letterSpacing selon navigateur) à vérifier visuellement par le main ; « cancelled » (annulation du share OS) volontairement sans toast
+
+---
+Task ID: R6 (cron webDevReview — tour 6)
+Agent: main (Z.ai Code) + sous-agents frontend-styling-expert (6-a, 6-b)
+Task: Assessment + QA agent-browser, nouvelles fonctionnalités (comparaison hebdo, partage image stats, filtres tâches, export CSV + réponse admin, PWA badge + raccourci), polish
+
+## État du projet au départ
+Stable : 0 erreur lint/tsc, dev.log 200, routes titrées OK. Suivi des recommandations du tour 5.
+
+## Work Log (main)
+- QA initiale : tsc/eslint 0/0, 5 routes smoke OK, 0 erreur console
+- **Contrats (main)** : `focusly-app.tsx` (+ effet badge PWA : `navigator.setAppBadge(pomodorosDuJour)` / `clearAppBadge`, feature-détecté, silencieux) ; `public/manifest.webmanifest` (+ raccourci « Nouvelle tâche » → `/?tache=nouvelle#outils`)
+- Bugs trouvés et corrigés ce tour :
+  1. **Image stats : libellés qui se chevauchaient** (« TEMPS DE CONCENTRATION » empiétait sur « SÉRIE RECORD » ») → même mécanique de rétrécissement que les valeurs (boucle measureText 20→13 px) appliquée aux libellés + resserré vertical (valeurs y 388, libellés y 430) — vérifié visuellement sur l'image regénérée
+  2. Fausse alerte test : paramètres écrits dans localStorage pendant qu'une session tournait écrasés par le persist de la page vive (artefact de test connu, pas un bug app) — protocole de test corrigé (écrire → recharger → vérifier l'affichage 01:00 avant Démarrer)
+
+## Fonctionnalités livrées (détails dans les sections 6-a / 6-b)
+1. **Comparaison hebdomadaire** (stats) : carte entre KPI et calendrier — cette semaine vs semaine dernière (pomodoros + temps), barres de progression animées (bg-brand vs gris, transition 500 ms, role=img + aria FR), ligne d'évolution TrendingUp/Down/Minus (« +N % » / « −N % » / « Stable »), gardes division par zéro, hint « semaine en cours (N jours sur 7) » — vérifié : 12 vs 
+2. **Partage en image** (stats) : bouton « Partager en image » → canvas 1200×630 hors écran (halo de marque lu depuis --brand, carte arrondie, wordmark + point, 3 KPI 64 px, libellés rétrécis, pied signature + date) → Web Share API si fichiers supportés (AbortError silencieux) sinon téléchargement PNG + toast — vérifié : PNG téléchargé et inspecté (corrections appliquées), t
+3. **Filtres de tâches** : chips « Toutes / Aujourd'hui / En retard » (aria-pressed, rôle group), compteur « · N affichée(s) » si filtre actif, états vides dédiés (« Rien de prévu aujourd'hui… » / « Aucune tâche en retard. Vous êtes à jour. ») — vérifié : 4/2/1 tâches selon filtre, suppression en filtre En retard → état vide
+4. **Deep-link « Nouvelle tâche »** : `/?tache=nouvelle#outils` → focus auto de l'input (+400 ms), nettoyage de l'URL (replaceState), garde anti-double-feu — vérifié : input focus:true, search vidé
+5. **Export CSV des messages** (admin) : `messagesToCsv` (échappement `;`/guillemets/newlines, Lu oui/non, frDateTime) + bouton « Exporter en CSV » (toast info si vide, sinon téléchargement focusly-messages-AAAA-MM-JJ.csv) — vérifié : fichier téléchargé, 2 lignes parsées proprement avec sujet contenant « ; » et message multiligne
+6. **Réponse par email** (admin) : bouton « Répondre à <nom> » → mailto prérempli (Re: sujet, corps FR avec citation « > » tronquée à 600 chars, signature L'équipe Focusly) — vérifié : bouton présent, clic sans erreur (délégation OS non testable en headless)
+7. **Badge PWA** : setAppBadge(nb pomodoros du jour) à chaque changement — vérifié avec stub : [['set', 1]] après une session 1 min réelle, mode bascule auto pause courte
+
+## QA Styling (obligatoire)
+- Screenshots : r6-week-compare.png (carte desktop dark), r6-mobile-compare2.png (light 375 px + garde zéro), r6-light-chips2.png, r6-mobile-compare.png, image partagée inspectée ×2 (avant/après fix libellés)
+- 375 px : 0 px d'overflow sur statistiques et outils ; carte comparaison empile proprement ; chips wrap OK
+- Light/dark vérifiés ; vert constaté = marque du mode pause courte (par design, --brand par mode)
+
+## Stage Summary
+- 7 fonctionnalités/livrables vérifiés agent-browser, 1 bug canvas corrigé (chevauchement libellés), artefacts de test documentés (race persist localStorage)
+- Fichiers : content/statistiques-view.tsx, lib/focusly/share-image.ts (nouveau), tools/tasks-panel.tsx, admin-view.tsx, lib/focusly/csv.ts, focusly-app.tsx, manifest.webmanifest
+- Données remises à zéro (DB 0 message, localStorage usine) ; téléchargements de test dans /home/z/Downloads (inoffensifs)
+- Risques : Web Share non testable en headless (chemin feature-détecté + repli téléchargement vérifié) ; mailto délégation OS ; chips < 44 px de haut (cohérent avec les chips existantes, actions principales ≥ 44 px)
+
+## Recommandations tour suivant
+- Back-office : marquer « traité/archivé », pagination ou recherche des messages
+- Stats : objectif hebdomadaire (somme des objectifs quotidiens) + jauge dans la carte comparaison
+- Tâches : récurrences (quotidien/hebdo) + vue « Aujourd'hui » regroupant échéances du jour et retards
+- PWA : test réel d'installation (Chrome desktop/Android) du badge et du raccourci « Nouvelle tâche »
+
+---
+Task ID: r7 (assessment)
+Agent: main (Z.ai Code)
+Task: Assessment initial du tour 7 — QA agent-browser + plan des fonctionnalités
+
+Work Log:
+- Lu worklog.md intégral (tours 1→6, 5-a/5-b, 6-a/6-b) : projet Focusly stable, 0 bug connu
+- QA smoke agent-browser : 9 routes (/, #outils, #statistiques, #guide, #blog, #contact, #plan-du-site, #admin, #a-propos) → titres FR tous corrects (lag initial = assertion du titre à 250 ms, comportement documenté tour 3), 0 erreur page/console
+- tsc --noEmit : 0 erreur src/ (bruit préexistant examples/ + skills/ uniquement) ; eslint src : 0 erreur 0 warning
+- Snapshots outils + statistiques : tous les composants rendent (minuteur, tâches + filtres, KPI, comparaison hebdo, calendrier, répartition)
+- Schéma Prisma relu (ContactMessage : read, pas d'archivage) ; api/contact relu (GET/PATCH/DELETE + garde admin) ; store/types/tâches relus pour préparer les extensions
+
+Stage Summary:
+- Décision : aucune correction bloquante nécessaire → tour 7 = nouvelles fonctionnalités recommandées au tour 6
+- Périmètre r7 : (a) admin — recherche + statut « archivé/traité » ; (b) stats — jauge d'objectif hebdomadaire dans la comparaison ; (c) tâches — récurrences quotidienne/hebdomadaire avec re-planification auto ; (d) polish styling global (mandatory)
+- Aucun fichier modifié par le main lors de cette évaluation
+
+---
+Task ID: r7-b
+Agent: frontend-styling-expert
+Task: Stats — jauge d'objectif hebdomadaire dans la comparaison hebdo
+
+Work Log:
+- Lu worklog.md (sections r3-1, r4, 6-a) + statistiques-view.tsx complet + store.ts/types.ts (settings.dailyGoal 1–20, défaut 8) ; touché UNIQUEMENT src/components/focusly/content/statistiques-view.tsx (79 insertions, 0 suppressions)
+- Abonnement réglages : `const settings = useFocusly((s) => s.settings)` (store déjà importé) ; imports lucide ajoutés en ordre alphabétique : Flag, Trophy
+- Calcul dans un petit useMemo dérivé `weekGoal` (deps [settings.dailyGoal, weekCompare], réutilise weekCompare.current.pomodoros et weekCompare.daysElapsed — aucune duplication de math) : goal = dailyGoal × 7, progress = goal > 0 ? min(1, done/goal) : 0, remaining = max(0, goal − done), onPace = done >= dailyGoal × daysElapsed (convention lundi-first existante : dayIndex = (getDay()+6)%7
+- Largeur jauge `goalPct` à côté de weekBarPct : plancher 2 % si done > 0 (convention des barres hebdo), 0 sinon
+- UI dans la carte « Comparaison hebdomadaire », après la ligne d’évolution, séparée par `mt-4 border-t pt-4` : ligne « Objectif hebdomadaire » (text-sm font-medium) + valeur droite `time-display tabular-nums` « X / Y pomodoros » ; barre role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={goal} aria-label FR « Objectif hebdomadaire : X sur Y pomodoros », piste h-
+- Ligne de statut aria-live="polite" text-sm, 3 branches : done >= goal → Trophy text-brand « Objectif hebdomadaire atteint, bravo ! » ; onPace → TrendingUp text-brand « En bonne voie — il reste N pomodoro(s) et J jour(s). » ; sinon Flag text-muted-foreground « N pomodoro(s) restant(s) pour atteindre l’objectif. » — pluriels FR, apostrophes typographiques ’, aucun bleu, aucun emo
+- Semaine vide (0 pomodoro) vérifiée : barre à 0 (aucun remplissage), statut « 56 pomodoros restants pour atteindre l’objectif. » (N = objectif hebdo), pas de division par zéro (garde goal > 0) ; dépassement : progress plafonné à 1 → 100 %, valuemax inchangé
+
+Stage Summary:
+- Jauge d’objectif hebdomadaire live dans la carte « Comparaison hebdomadaire » de statistiques-view.tsx (seul fichier modifié), réactive aux changements de settings.dailyGoal et de daily
+- Vérifié : `bunx tsc --noEmit` → 0 erreur dans src/ (seul le bruit préexistant examples/ + skills/ reste ; les erreurs transitoires admin-view.tsx vues pendant la session appartenaient à un agent concurrent et ont disparu à la re-vérification) ; `bunx eslint src/components/focusly/content/statistiques-view.tsx` → 0 erreur 0 avertissement ; math semaine validée via `bun -e` ((getDay()+6
+- Décisions : Flag plutôt que CircleDashed pour la branche « en retard » (rendu net en 16 px) ; sous-ligne simplifiée « Basé sur votre objectif quotidien… » comme proposé par la spec ; chiffres clés en font-semibold text-foreground pour rester cohérent avec la ligne d’évolution existante
+- Risques : aucun bloquant — aria-valuenow peut dépasser aria-valuemax en cas de dépassement de l’objectif (conforme à la spec) ; la carte ne subsample pas settings (re-render sur tout changement de réglages, négligeable)
+
+---
+Task ID: r7-a
+Agent: full-stack-developer
+Task: Admin back-office — recherche de messages + statut « archivé (traité) » (schéma, API PATCH, vue admin, CSV)
+
+Work Log:
+- Lu worklog.md (contexte + sections 2-b, R5, 6-b) et les 4 fichiers du périmètre ; repéré le motif fold()/Search de blog-view.tsx et le motif optimiste de toggleRead à réutiliser
+- `prisma/schema.prisma` : + `archived Boolean @default(false)` sur ContactMessage (après `read`) ; `bun run db:push` → OK (« database is now in sync », Prisma Client v6.19.2 régénéré)
+- `src/app/api/contact/route.ts` : GET `take: 200` → `take: 300` (archivés inclus, filtrage côté UI) ; PATCH étendu à `{ id, read?, archived? }` — au moins un booléen requis sinon 400 « Paramètres invalides (id requis, read ou archived booléen requis). », mise à jour des seuls champs fournis (`data` construit dynamiquement), corps `{ id, read }` seul 100 % rétrocompatible ; POST/DE
+- `src/lib/focusly/csv.ts` : `ContactCsvRow.archived?: boolean` (optionnel pour les appelants existants) ; en-tête `Date;Nom;Email;Sujet;Message;Lu;Archivé`, valeurs oui/non (vide si undefined) via le même csvField
+- `src/components/focusly/admin-view.tsx` : ContactMsg.archived (défaut `m.archived ?? false` dans loadMessages/handleUnlock) ; `fold()` module-level (NFD + suppression diacritiques + lowercase) ; `visible` en useMemo = chip (actifs = !archived, non-lus = !archived && !read, archives = archived) PUIS recherche pliée sur name+email+subject+message ; input type="search" (Search absolute left + pl-
+- Vérifications : `bun run db:push` OK ; `bunx tsc --noEmit` → 0 erreur src/ (bruit examples/skills ignoré) ; `bunx eslint` sur les 3 fichiers TS/TSX → 0 erreur 0 warning ; dev.log → « ✓ Compiled » sans erreur après les modifications
+- **Incident client Prisma périmé (même qu’au tour R5)** : le dev server en cours sert le client généré AVANT db:push (SELECT sans colonne `archived` visible dans dev.log ; instance cachée sur `globalThis.prisma` dans src/lib/db.ts → ni HMR ni recompile de la route ne peuvent la rafraîchir). Consigne « ne pas démarrer/redémarrer le serveur » respectée → le sanity test a été fa
+- Sanity test API (script jetable, supprimé après) : POST 200 {ok,id} → GET 200 avec archived:false → PATCH {id,archived:true} 200 → PATCH {id,read:true} 200 (read:true, archived conservé → rétrocompat OK) → PATCH {id} seul 400 avec le message FR exact → PATCH {id,archived:false} 200 (archived:false, read conservé) → DELETE 200 → GET final 0 message. DB laissée propre (0 mess
+- Nettoyage : le 1er essai du sanity test contre le serveur en cours (client périmé, archived:undefined) a laissé un message de test, supprimé immédiatement via DELETE admin ; script supprimé
+
+Stage Summary:
+- 4 fichiers modifiés : `prisma/schema.prisma` (+archived), `src/app/api/contact/route.ts` (GET take 300, PATCH read/archived), `src/components/focusly/admin-view.tsx` (recherche + chips actifs/non-lus/archivés + archiver/restaurer + états vides + export visible + reset sign-out), `src/lib/focusly/csv.ts` (colonne Archivé)
+- Contrat PATCH : `{ id, read?, archived? }` — au moins un booléen requis, champs absents inchangés, 400 « Paramètres invalides (id requis, read ou archived booléen requis). » ; réponses/erreurs et garde admin inchangées
+- Décisions : recherche appliquée aux 3 chips (le spec citait Actifs, comportement générique choisi) ; chip « Actifs » vide (tout archivé, sans recherche) → « Aucun message actif. » (état non spécifié, complété dans le style) ; point brand d’unread conservé pour toute carte non lue (archivée comprise), seule la bordure suit la règle archived/read/unread
+- ⚠️ À faire par le main AVANT la QA navigateur : **redémarrer le dev server** (double-fork R5) pour que le process charge le Prisma Client régénéré — tant que ce n’est pas fait, GET n’expose pas `archived` et PATCH {archived} renverra 404 « Message introuvable. » (fallback du catch) côté serveur en cours, alors que le code et la DB sont corrects (prouvé par le script isolé)
+- Risques : mineur — l’état vide « Actifs » sans recherche n’était pas spécifié (libellé choisi) ; aucune autre limitation connue (tsc/eslint 0/0, séquence API complète validée, DB propre)
+
+---
+Task ID: r7-c
+Agent: full-stack-developer
+Task: Tâches — récurrences quotidienne/hebdomadaire avec re-planification auto
+
+Work Log:
+- Lu worklog.md (sections r4, 5-a, 6-b) puis les 3 fichiers du périmètre en entier ; horloge sandbox vérifiée : 2026-09-17 UTC (= todayKey() local) ; aucun autre appelant de addTask/updateTask/toggleTask hors tasks-panel (grep) → refactor sûr
+- **types.ts** : + `TaskRecurrence` (« daily » | « weekly »), + `RECURRENCE_LABELS` (Quotidienne/Hebdomadaire), + `RECURRENCE_SHORT` (Quotid./Hebdo), + `TaskItem.recurrence?: TaskRecurrence`, + helper pur `nextDueDate(fromKey, recurrence)` — base = clé parsée via new Date(y, m-1, d) (parties locales) si valide sinon aujourd’hui ; ancre = max(base, aujourd’hui) pour ne jamais replanifie
+- **store.ts** : `addTask(text, estimate?, dueDate?, recurrence?)` — dueDate vide ignorée, récurrence posée sur la nouvelle tâche (1–2 args inchangés → rétrocompatible) ; `toggleTask` : sur done=true d’une tâche récurrente, spawn de l’occurrence suivante DANS le même set() que la bascule (id uid(), même texte/estimation, spent 0, done false, dueDate = nextDueDate, même récurr
+- **tasks-panel.tsx** : + composant module `RecurrencePicker` (role=group + 3 pills Aucune/Quotid./Hebdo, aria-pressed, classes des chips de filtre, mini-libellé « Répétition » text-faint text-[11px], type=button, flex-wrap) réutilisé dans le formulaire d’ajout (entre l’input date et « Ajouter ») et l’édition inline (entre la ligne texte/date et Enregistrer/Annuler) ; états `recur
+- Formulaire d’ajout refactoré : un seul appel `addTask(value, estimate, dueDate, recurrence ?? undefined)` — suppression du contournement addTask + updateTask(added.id) via useFocusly.getState() ; ligne : badge récurrence (Repeat size-3 + RECURRENCE_SHORT, pill rounded-full border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground, title « Répétition quotidienne/hebdomadaire ») 
+- Vérifications dans l’ordre : bunx tsc --noEmit → 0 erreur src/ (bruit examples/+skills/ filtré) ; bunx eslint sur les 3 fichiers → 0 erreur 0 warning ; bun -e nextDueDate → 9/9 PASS ; smoke test store bun -e (spawn/anti-respawn/patch null/patch partiel/legacy 1-arg) → tout conforme ; dev.log → « ✓ Compiled » sans erreur ; pas de dev server/build/agent-browser lancés (consigne)
+
+Stage Summary:
+- 3 fichiers modifiés, périmètre respecté, changements strictement additifs (aucun export/champ renommé ou supprimé) : `src/lib/focusly/types.ts`, `src/lib/focusly/store.ts`, `src/components/focusly/tools/tasks-panel.tsx` ; dossier `/agent-ctx/r7-c-full-stack-developer.md` créé
+- Nouveaux contrats : `TaskItem.recurrence?: TaskRecurrence` ; `nextDueDate(fromKey: string | undefined, recurrence: TaskRecurrence): string` ; `addTask: (text: string, estimate?: number, dueDate?: string, recurrence?: TaskRecurrence) => void` ; `updateTask(id, patch & { recurrence?: TaskRecurrence | null })` ; constantes RECURRENCE_LABELS / RECURRENCE_SHORT
+- Sanity nextDueDate (horloge 2026-09-17) : 2026-09-17 daily → 2026-09-18 ; weekly → 2026-09-24 ; undefined daily → demain 2026-09-18 ; rollover fin de mois prouvé via base future (2027-01-31 weekly → 2027-02-07, 2027-01-31 daily → 2027-02-01, 2028-02-28 daily → 2028-02-29) — NOTE : la vérif spec « 2026-01-31 weekly → 2026-02-07 » contredit la règle max(base, aujourd’hui) im
+- Décisions : patch recurrence — null → efface, valeur → pose, clé absente → intacte (convention Partial cohérente avec dueDate/text, évite qu’un patch partiel efface la récurrence) ; spawn en append (fin de liste, ordre existant intact) ; active non transféré (spec) ; toast.info émis au cochage uniquement (décoche silencieuse)
+- Persistance/filtre : récurrence sérialisée via le JSON existant (partialize tasks inchangé), imports/exports compatibles ; l’occurrence suivante (demain/semaine prochaine, daysUntil > 0) n’apparaît pas dans « Aujourd’hui » — aucun changement requis (spec f)
+- Risques : re-compléter la même tâche récurrente (bascule done↔à faire) re-spawn une copie à chaque complétion (voulu, « une fois par complétion ») ; l’occurrence n’hérite pas de la position de l’originale ; DnD tactile toujours inopérant (pré-existant, chevrons clavier couvrent)
+
+---
+Task ID: r7-d
+Agent: frontend-styling-expert
+Task: Polish styling global — focus-visible, scrollbar, selection, micro-interactions, safe-area
+
+Work Log:
+- Lu worklog.md (tours 1→6 + assessment r7) et les 3 fichiers du périmètre en entier ; vérifié par relecture + grep que .ring-pulse, .site-header-scrolled, .hero-glow, .time-display, .slim-scroll, .pulse-dot, .ring-fg, .skip-link, kbd et tous les tokens restent intacts
+- globals.css — 3 raffinements demandés par la spec : ::selection en teinte de marque translucide `color-mix(in srgb, var(--brand) 28%, transparent)` + `color: var(--foreground)` (l’ancien fond brand plein avec texte #14161a était peu lisible en thème sombre) ; :focus-visible raffiné et scopé `:where(a, button, [role="button"], input, select, textarea, [tabindex])` avec outline 2px var(--
+- globals.css — ajouts (design-tokens uniquement) : scrollbar globale fine brandée — `@supports (scrollbar-width: thin)` → `* { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent }` + `::-webkit-scrollbar` 10px (width/height), track transparent, pouce `var(--surface-3)` rounded-full, hover `var(--input)` (plus marqué) ; .slim-scroll conserve sa variante 6px (spécificité
+- globals.css — garde prefers-reduced-motion explicite nommant .ring-pulse/.pulse-dot/.ring-fg/.lift/.press/.card-hover-glow (animation: none + transition: none !important), redondante avec la garde globale `*` existante conservée telle quelle (ceinture et bretelles si la garde globale est un jour assouplie)
+- site-header.tsx — indicateur de lien actif : pastille brand 4px (`sm:after:*` : absolute, -bottom-[6px], centrée, rounded-full, bg-brand, content) sous le lien actif, desktop uniquement (préfixes sm: → menu mobile strictement inchangé) ; rendue sur TOUS les liens avec états scale-0/opacity-0 (inactif) → scale-100/opacity-100 (actif) + `sm:after:transition sm:after:duration-200` — un 
+- site-header.tsx — hover des liens inactifs enrichi sans conflit : `hover:underline hover:underline-offset-4 hover:decoration-brand/50` en plus du `transition-colors hover:bg-secondary hover:text-foreground` existant ; `.site-header-scrolled` conservé tel quel
+- site-header.tsx — cibles tactiles : les 5 boutons icône sont size-10 = 40px (et non size-icon ≥ 44px comme le supposait la spec — vérifié dans ui/button.tsx : size-icon = size-9) → zone cliquable étendue à 44×48px SANS changer le visuel ni la hauteur du header : `relative before:absolute before:content-[''] before:-inset-y-1 before:-inset-x-0.5` (pseudo transparent, 2px par côté 
+- site-footer.tsx — pastille brand `size-2` + halo `shadow-[0_0_10px_var(--brand-glow)]` devant le wordmark (motif du header, sans pulse pour rester sobre) ; safe-area iOS : `py-10` → `pt-10` + `pb-[calc(var(--spacing)*10_+_env(safe-area-inset-bottom))]` (base 2,5rem = l’ancien py-10 exact, pas le --spacing(8)=2rem de l’exemple de spec ; mécanisme sticky mt-auto intact) ; liens : `transit
+- Vérifications : `bunx tsc --noEmit` → 0 erreur dans src/ (seul bruit préexistant examples/ + skills/) ; `bunx eslint` sur site-header.tsx + site-footer.tsx → 0 erreur 0 warning (globals.css hors config ESLint de ce projet, comme avant) ; relecture intégrale de globals.css de bout en bout (aucune typo de sélecteur, tout l’existant intact) ; pas de dev server ni build (consigne)
+
+Stage Summary:
+- 3 fichiers modifiés, aucun autre touché : `src/app/globals.css`, `src/components/focusly/site-header.tsx`, `src/components/focusly/site-footer.tsx`
+- Nouveaux utilitaires/sélecteurs disponibles pour les vues : `.tnum`, `.lift`, `.press`, `.card-hover-glow`, scrollbar globale brandée (`@supports` + `*` côté Firefox/Chromium 121+, `::-webkit-*` côté anciens moteurs), garde reduced-motion nommée ; raffinements : ::selection lisible dans les 2 thèmes, :focus-visible scopé :where (spécificité 0, suit les radius natifs, ne fight plus sha
+- Décisions : pastille active animée via états opacity/scale sur tous les liens desktop (transition réelle au changement de route) ; cibles tactiles étendues par pseudo before plutôt que size-11 (size-11 aurait porté le header de ≈64 à 68px et désynchronisé les offsets sticky top-[65px] du blog/admin en pleine édition parallèle) ; safe-area calquée sur le py-10 existant ; .lift déc
+- Risques : sur Chromium 121+/Safari 18.2+ la propriété standardisée scrollbar-color prend le pas sur tout style ::-webkit-scrollbar (y compris les classes arbitraires de la vue admin) → rendu légèrement différent mais cohérent (mêmes couleurs surface-3/transparent, scrollbar-width thin identique) ; les boutons du header restent 40px visuels (44×48 cliquables) — si un visuel size-11 (
+
+---
+Task ID: R7 (cron webDevReview — tour 7)
+Agent: main (Z.ai Code) + sous-agents full-stack-developer (r7-a, r7-c) et frontend-styling-expert (r7-b, r7-d)
+Task: Assessment + QA agent-browser, nouvelles fonctionnalités (admin recherche + archivage, objectif hebdomadaire, tâches récurrentes), polish styling global
+
+## 1. État du projet (évaluation initiale)
+- Stable : tsc 0 erreur src/, eslint 0/0, dev.log 200 propres, 9 routes smoke OK (titres FR corrects, 0 erreur console/page)
+- Aucun bug bloquant → décision : avancer les recommandations du tour 6 (4 agents en parallèle, périmètres de fichiers strictement disjoints)
+
+## 2. Work Log (main)
+- QA smoke initiale : routes, titres, snapshots outils/stats/admin, contrats relus (api/contact, store, types, tasks-panel)
+- **Redémarrage dev server requis et effectué** (kill + setsid double-fork) : le push Prisma (`archived`) rendait le client Prisma du serveur en cours périmé (instance cachée sur globalThis dans src/lib/db.ts — incident identique au tour R5) ; GET sans `archived` avant redémarrage, complet après
+- QA fonctionnelle complète détaillée ci-dessous + nettoyage (DB 0 message, localStorage usine, réglages focus=25/objectif=8 restaurés)
+- Bugs faussement suspectés puis élucidés (artefacts d'automatisation, code sain) :
+  1. « Titre en retard d'une route » → assertion du titre à 250 ms, boucle de test lisait trop tôt
+  2. « Échéance non enregistrée » → les inputs date contrôlés React refusent fill/keyboard en headless dans ce sandbox ; le chemin réel (setter natif + événement input → onChange React) fonctionne et la sauvegarde est correcte (vérifié : dueDate persistée, badge « 17 septembre » rendu)
+  3. « Chips d'édition non pré-remplies » → la requête de test visait les chips du formulaire d'ajout ; les 2 pickers sont indépendants et corrects (édition : Hebdo=true)
+  4. Erreurs d'hydratation console → artefacts de hot-reload pendant l'édition parallèle des fichiers (warning « Fast Refresh performing full reload » présent) ; rechargement propre → 0 erreur
+
+## Fonctionnalités livrées (détails dans les sections r7-a/b/c/d)
+1. **Admin — recherche + archivage** (r7-a) : Prisma `ContactMessage.archived` (db:push OK) ; GET renvoie tout (take 300) ; PATCH {id, read?, archived?} rétrocompatible ; UI : recherche insensible casse+accents avec bouton d'effacement, chips Actifs/Non lus/Archivés, Archiver/Restaurer optimistes avec toasts, Badge « Archivé » + opacité, badge non-lus hors archivés, export CSV sur la list
+2. **Stats — objectif hebdomadaire** (r7-b) : jauge dans la carte Comparaison hebdomadaire (objectif = objectif quotidien × 7), barre role=progressbar aria FR, ligne « Basé sur votre objectif quotidien… », statut aria-live (Trophy atteint / TrendingUp en bonne voie / Flag restant), gardes zéro — vérifié : 0/56 puis session réelle 1 min → 1/7, « 6 pomodoros restants »
+3. **Tâches — récurrences** (r7-c) : types TaskRecurrence + RECURRENCE_LABELS/SHORT + nextDueDate (ancrage max(base, aujourd'hui), daily +1 / weekly +7, arithmétique locale, 9/9 tests bun dont rollovers fin de mois/bissextile) ; store addTask(text, estimate?, dueDate?, recurrence?) en un seul appel, toggleTask re-planifie la prochaine occurrence à la complétion (jamais au décochage, cap 20
+4. **Polish styling global** (r7-d) : globals.css — scrollbar fine et légère (Firefox scrollbar-width + WebKit, .slim-scroll inchangé), ::selection brand translucide lisible, :focus-visible annulaire brand 2px à spécificité nulle (:where), utilitaires .tnum/.lift/.press/.card-hover-glow, garde prefers-reduced-motion explicite sur les animations, transition de thème 0,25 s ; header — poi
+
+## Vérifications agent-browser (récapitulatif)
+- Admin : déverrouillage, chips, recherche casse/accents, effacement, archiver/restaurer (toasts), suppression AlertDialog, export CSV visible, DB rendue à 0 message
+- Stats : jauge 0/56 → 1/7 après session réelle ; KPI réels ; comparaison hebdo intacte
+- Session réelle 1 min : titre « 00:57 · Concentration — Focusly » → restauration, stats +1 pomodoro/71,8 s, cycle 1, bascule auto pause courte, history 1
+- Tâches : récurrence hebdo complète (création → complétion → re-planification + toast), filtres, badges
+- Styling : toutes les règles CSS présentes (tnum/lift/press/glow/focus-visible/scrollbar/selection), point de nav actif (after: bg var(--brand) 4px), Tab réel → outline 2px solid brand, footer safe-area 40px+inset
+- Screenshots : r7-week-goal.png (jauge dark), r7-tasks-recurrence.png (récurrences), r7-light-stats.png (light)
+- Mobile 375 px : 0 px d'overflow sur outils/statistiques/blog/contact
+- Final : tsc 0 erreur src/, eslint 0/0 sur les fichiers modifiés, rechargement propre sans erreur console, 10 routes + 404 revérifiées, localStorage usine + DB vide
+
+## Stage Summary
+- 4 fonctionnalités livrées et vérifiées de bout en bout + polish styling global ; 1 incident d'infra résolu (redémarrage dev server après db:push) ; 4 fausses pistes d'automatisation élucidées (code sain)
+- Fichiers : prisma/schema.prisma, api/contact/route.ts, admin-view.tsx, csv.ts, statistiques-view.tsx, types.ts, store.ts, tasks-panel.tsx, globals.css, site-header.tsx, site-footer.tsx
+- Contrats étendus (additifs) : ContactMessage.archived, PATCH {read?, archived?}, TaskItem.recurrence, addTask 4 args, updateTask.recurrence, nextDueDate/RECURRENCE_* exportés
+- Risques : aucun connu côté code ; headless ne peut pas tester navigator.share/vibrate/audio (chemins feature-détectés) ; les inputs date headless exigent le protocole setter natif (documentation test) ; take 300 sur GET admin (pagination non nécessaire à ce volume)
+
+## 3. Non résolu / risques + priorités tour suivant
+- Vérifier le rendu réel des scrollbars/focus sur Chrome desktop + iOS (safe-area) — non testable headless
+- Admin : pagination/recherche serveur si > 300 messages ; réponse aux messages (brouillon) — le mailto existe déjà
+- Tâches : vue « Aujourd'hui » regroupant échéances + retards avec sections ; récurrence « jours ouvrés »
+- Stats : jauge similaire par mois (objectif mensuel = quotidien × jours du mois) ; filtre de période appliqué à la comparaison
+- PWA : test réel d'installation (badge + raccourcis) sur Android Chrome

@@ -27,7 +27,7 @@ import { dailyToCsv, downloadTextFile } from "@/lib/focusly/csv";
 import { shareOrDownloadStatsImage } from "@/lib/focusly/share-image";
 import { computeStreaks } from "@/lib/focusly/streaks";
 import { EMPTY_STAT, useFocusly } from "@/lib/focusly/store";
-import { todayKey } from "@/lib/focusly/types";
+import { todayKey, type DailyStat } from "@/lib/focusly/types";
 
 import { Breadcrumb } from "./breadcrumb";
 
@@ -79,6 +79,23 @@ function levelIndex(pomodoros: number): number {
 /** Local-date key — same decomposition as todayKey() in types.ts. */
 function dayKeyOf(y: number, m0: number, d: number): string {
   return `${y}-${String(m0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Number of days in a month (leap years handled by the Date constructor). */
+function daysInMonthOf(y: number, m0: number): number {
+  return new Date(y, m0 + 1, 0).getDate();
+}
+
+/** Sum of pomodoros over every day of a month — the same derivation as the
+ * monthly calendar (local dayKeyOf keys, EMPTY_STAT fallback); shared by the
+ * calendar and the monthly goal gauge so the math lives in one place. */
+function monthPomodorosOf(daily: Record<string, DailyStat>, y: number, m0: number): number {
+  const days = daysInMonthOf(y, m0);
+  let sum = 0;
+  for (let d = 1; d <= days; d++) {
+    sum += (daily[dayKeyOf(y, m0, d)] ?? EMPTY_STAT).pomodoros;
+  }
+  return sum;
 }
 
 function capitalize(v: string): string {
@@ -261,6 +278,30 @@ export function StatistiquesView() {
     };
   }, [settings.dailyGoal, weekCompare]);
 
+  /* ----- Jauge d’objectif mensuel (dérivée : réglages × mois courant) ----- */
+  const monthGoal = useMemo(() => {
+    const perDay = settings.dailyGoal;
+    const n = new Date();
+    const y = n.getFullYear();
+    const m = n.getMonth();
+    const daysInMonth = daysInMonthOf(y, m);
+    const goal = perDay * daysInMonth;
+    // Total du mois courant — même dérivation que le calendrier mensuel
+    const done = monthPomodorosOf(daily, y, m);
+    // Jour du mois en cours : 1 = 1er … daysInMonth
+    const daysElapsed = n.getDate();
+    return {
+      perDay,
+      daysInMonth,
+      goal,
+      done,
+      progress: goal > 0 ? Math.min(1, done / goal) : 0,
+      remaining: Math.max(0, goal - done),
+      daysLeft: daysInMonth - daysElapsed,
+      onPace: done >= perDay * daysElapsed,
+    };
+  }, [settings.dailyGoal, daily]);
+
   /* ----- Current month grid ----- */
   const monthLabel = useMemo(() => {
     return capitalize(
@@ -274,7 +315,7 @@ export function StatistiquesView() {
   const month = useMemo(() => {
     const now = new Date();
     const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+    const daysInMonth = daysInMonthOf(view.y, view.m);
     // French weeks start Monday: JS Sunday=0 → Monday-first index
     const leading = (new Date(view.y, view.m, 1).getDay() + 6) % 7;
 
@@ -301,7 +342,7 @@ export function StatistiquesView() {
       });
     }
 
-    const monthPomodoros = cells.reduce((a, c) => a + c.pomodoros, 0);
+    const monthPomodoros = monthPomodorosOf(daily, view.y, view.m);
     const trailing = (7 - ((leading + daysInMonth) % 7)) % 7;
     return { leading, trailing, cells, monthPomodoros };
   }, [daily, view]);
@@ -426,6 +467,8 @@ export function StatistiquesView() {
     weekMax > 0 ? Math.max((v / weekMax) * 100, 2) : 0;
   // Largeur de la jauge d’objectif (plancher 2 % si active, même convention)
   const goalPct = weekGoal.done > 0 ? Math.max(weekGoal.progress * 100, 2) : 0;
+  // Largeur de la jauge d’objectif mensuel (plancher 2 % si active, même convention)
+  const monthGoalPct = monthGoal.done > 0 ? Math.max(monthGoal.progress * 100, 2) : 0;
 
   const handleExport = () => {
     if (Object.keys(daily).length === 0) {
@@ -732,6 +775,62 @@ export function StatistiquesView() {
                   <span className="text-muted-foreground">
                     {weekGoal.remaining} pomodoro{weekGoal.remaining > 1 ? "s" : ""} restant
                     {weekGoal.remaining > 1 ? "s" : ""} pour atteindre l’objectif.
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+
+          {/* ----- Jauge d’objectif mensuel ----- */}
+          <div className="mt-4 flex flex-col gap-2.5 border-t pt-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm font-medium">Objectif mensuel</span>
+              <span className="time-display text-sm font-semibold tabular-nums text-foreground">
+                {monthGoal.done} / {monthGoal.goal} pomodoro{monthGoal.goal > 1 ? "s" : ""}
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuenow={monthGoal.done}
+              aria-valuemin={0}
+              aria-valuemax={monthGoal.goal}
+              aria-label={`Objectif mensuel : ${monthGoal.done} sur ${monthGoal.goal} pomodoro${
+                monthGoal.goal > 1 ? "s" : ""
+              }`}
+              className="h-2 overflow-hidden rounded-full bg-secondary/50"
+            >
+              <div
+                className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                style={{ width: `${monthGoalPct}%` }}
+              />
+            </div>
+            <p className="m-0 text-xs text-faint">
+              Basé sur votre objectif quotidien : {monthGoal.perDay} pomodoro
+              {monthGoal.perDay > 1 ? "s" : ""} par jour × {monthGoal.daysInMonth} jours.
+            </p>
+            <p className="m-0 flex items-center gap-2 text-sm" aria-live="polite">
+              {monthGoal.done >= monthGoal.goal ? (
+                <>
+                  <Trophy className="size-4 shrink-0 text-brand" aria-hidden />
+                  <span className="text-soft">Objectif mensuel atteint, bravo !</span>
+                </>
+              ) : monthGoal.onPace ? (
+                <>
+                  <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+                  <span className="text-soft">
+                    En bonne voie — il reste{" "}
+                    <strong className="font-semibold text-foreground">
+                      {monthGoal.remaining} pomodoro{monthGoal.remaining > 1 ? "s" : ""}
+                    </strong>{" "}
+                    et {monthGoal.daysLeft} jour{monthGoal.daysLeft > 1 ? "s" : ""}.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Flag className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="text-muted-foreground">
+                    {monthGoal.remaining} pomodoro{monthGoal.remaining > 1 ? "s" : ""} restant
+                    {monthGoal.remaining > 1 ? "s" : ""} pour atteindre l’objectif.
                   </span>
                 </>
               )}

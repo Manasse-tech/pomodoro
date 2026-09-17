@@ -89,14 +89,21 @@ export function GuideView() {
       <Breadcrumb
         items={[{ label: "Accueil", href: "accueil" }, { label: "Guide" }]}
       />
-      <article className="max-w-[720px]">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+      {/* .prose-guide : règles de rythme scopées (voir globals.css round 8) —
+          marqueurs de listes brand, numéros d’étapes semibold tabulaires,
+          titres équilibrés. Entrée en cascade .fade-up (reduced-motion OK). */}
+      <article className="prose-guide max-w-[720px]">
+        <h1 className="fade-up text-3xl font-bold tracking-tight text-balance sm:text-4xl">
           Le guide complet de la méthode Pomodoro
         </h1>
-        <p className="mt-3 text-[13px] text-faint">
+        <div
+          className="fade-up fade-up-1 mt-5 h-0.5 w-14 rounded-full bg-brand/40"
+          aria-hidden
+        />
+        <p className="tnum fade-up fade-up-2 mt-3 text-[13px] text-faint">
           Mis à jour en 2025 · Lecture ~10 minutes
         </p>
-        <div className="mt-6">
+        <div className="fade-up fade-up-3 mt-6">
           <ArticleBlocks blocks={GUIDE_BLOCKS} />
         </div>
       </article>

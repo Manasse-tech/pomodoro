@@ -41,8 +41,14 @@ const ACCUEIL_SLUGS = [
   "erreurs-pomodoro",
 ] as const;
 
-const CARD_CLASS =
-  "group block rounded-2xl border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-input hover:shadow-lg hover:shadow-black/10";
+/* Cartes cliquables : utilitaire .lift (r7-d) remplace l’ancien trio
+   transition-all + hover:-translate-y-0.5 + hover:shadow — même élévation
+   2px, mais transform/box-shadow uniquement (zéro décalage de mise en page). */
+const CARD_CLASS = "group block rounded-2xl border bg-card p-5 lift";
+/* Carte vedette pleine largeur : .card-hover-glow (bordure teintée brand +
+   halo) plutôt que .lift, pour la distinguer des cartes standard. */
+const HIGHLIGHT_CARD_CLASS =
+  "group block rounded-2xl border bg-card p-5 card-hover-glow sm:col-span-2";
 const CARD_TAG_CLASS =
   "mb-2 inline-block text-[11px] font-bold uppercase tracking-[0.08em] text-brand";
 const CARD_TITLE_CLASS = "text-[17px] font-semibold tracking-tight";
@@ -56,23 +62,23 @@ export function AccueilView() {
   return (
     <div className="relative mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
       <div className="hero-glow" aria-hidden />
-      {/* Héros */}
+      {/* Héros — entrée en cascade (.fade-up, gardée prefers-reduced-motion) */}
       <section>
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="fade-up text-3xl font-bold tracking-tight sm:text-4xl">
           Concentrez-vous.
           <br />
-          <em className="text-brand not-italic">Un Pomodoro à la fois.</em>
+          <em className="brand-gradient-text not-italic [text-shadow:0_2px_20px_var(--brand-glow)]">Un Pomodoro à la fois.</em>
         </h1>
-        <p className="mt-3 max-w-[680px] text-[17px] text-muted-foreground">
+        <p className="fade-up fade-up-1 mt-3 max-w-[680px] text-[17px] text-muted-foreground">
           Focusly réunit un minuteur Pomodoro, un gestionnaire de tâches et des
           guides pratiques. Gratuit, sans compte, respectueux de votre vie
           privée.
         </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button asChild>
+        <div className="fade-up fade-up-2 mt-6 flex flex-wrap gap-3">
+          <Button asChild className="press">
             <Link href="#outils">Ouvrir les outils</Link>
           </Button>
-          <Button variant="secondary" asChild>
+          <Button variant="secondary" asChild className="press">
             <Link href="#guide">Lire le guide</Link>
           </Button>
         </div>
@@ -112,10 +118,7 @@ export function AccueilView() {
               <p className={CARD_TEXT_CLASS}>{outil.desc}</p>
             </Link>
           ))}
-          <Link
-            href="#statistiques"
-            className={`${CARD_CLASS} sm:col-span-2`}
-          >
+          <Link href="#statistiques" className={HIGHLIGHT_CARD_CLASS}>
             <BarChart3 className="mb-3 size-5 text-brand" aria-hidden />
             <span className={CARD_TAG_CLASS}>Analyse</span>
             <h3 className={CARD_TITLE_CLASS}>Statistiques mensuelles</h3>
@@ -152,7 +155,7 @@ export function AccueilView() {
             </Link>
           ))}
         </div>
-        <Button variant="secondary" asChild className="mt-4 w-full">
+        <Button variant="secondary" asChild className="press mt-4 w-full">
           <Link href="#blog">Voir tous les articles →</Link>
         </Button>
       </section>

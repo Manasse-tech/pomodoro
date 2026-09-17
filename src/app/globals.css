@@ -307,12 +307,21 @@ kbd {
 }
 
 /* Micro-interaction utilities, adoptable by any view later (no retrofit):
-   - .press: tactile squeeze on activation
+   - .press: tactile squeeze on activation. The transition also carries the
+     color/background/border/box-shadow longhands: these rules are unlayered
+     so they win over the @layer utilities — on a shadcn button .press
+     REPLACES its transition-all, and without the extra longhands the hover
+     background fades would snap instantly.
    - .card-hover-glow: brand-tinted border + soft glow on hover
    - .lift: gentle hover raise with shadow (declared after .press so a
      combined .lift.press element keeps the transform+box-shadow transition) */
 .press {
-  transition: transform 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .press:active {
   transform: scale(0.98);
@@ -338,15 +347,94 @@ kbd {
 
 /* Explicit reduced-motion guard for the named animations and the utilities
    above (belt-and-suspenders next to the global guard above, which already
-   covers them via *) */
+   covers them via *). .fade-up and its delay steps are defined in the
+   round-8 block below; the shorthand `animation: none` also resets their
+   animation-delay, so content shows instantly with no invisible phase. */
 @media (prefers-reduced-motion: reduce) {
   .ring-pulse,
   .pulse-dot,
   .ring-fg,
   .lift,
   .press,
-  .card-hover-glow {
+  .card-hover-glow,
+  .fade-up,
+  .fade-up-1,
+  .fade-up-2,
+  .fade-up-3 {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---------- Polish round 8: accueil/guide refinements (purely additive) ---------- */
+
+/* Staggered entrance for hero/intro elements: opacity + transform only (no
+   layout properties, zero layout shift). `both` keeps an element hidden in
+   its `from` state during its delay. Compose per element:
+   className="fade-up fade-up-2". No will-change hint (short one-shot
+   animation, hint not worth the layer cost). */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fade-up 0.4s ease-out both;
+}
+.fade-up-1 {
+  animation-delay: 70ms;
+}
+.fade-up-2 {
+  animation-delay: 140ms;
+}
+.fade-up-3 {
+  animation-delay: 210ms;
+}
+
+/* Brand→foreground gradient for display-size headings. Solid-brand fallback
+   when background-clip: text is unavailable (text never renders invisible).
+   Contrast on the theme backgrounds: dark #ff6b5b ≈ 6.8:1 → #eef0f4 ≈
+   16.7:1 on --background #0f1013; light #ff6b5b ≈ 2.6:1 → #14161a ≈ 16.9:1
+   on #f7f7f9 — the brand end matches the pre-existing text-brand hero
+   treatment it replaces (strictly more readable on average, since most of
+   the sweep is foreground-leaning). Display text only (text-3xl/4xl bold,
+   AA-large threshold), never body copy. */
+.brand-gradient-text {
+  color: var(--brand);
+}
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .brand-gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      var(--brand) 15%,
+      var(--foreground) 92%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* Guide article rhythm, scoped to the guide container class (blog and other
+   ArticleBlocks consumers keep the neutral default markers):
+   - brand-tinted list markers (brand dots for unordered, brand step numbers
+     for ordered — the guide's steps are already numbered, so the numbers
+     themselves get the brand treatment instead of added badges)
+   - semibold tabular figures on ordered markers so multi-digit steps align
+   - balanced heading wraps to avoid orphaned last words on narrow screens */
+.prose-guide :is(ul, ol) > li::marker {
+  color: var(--brand);
+}
+.prose-guide ol > li::marker {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.prose-guide :is(h2, h3) {
+  text-wrap: balance;
 }

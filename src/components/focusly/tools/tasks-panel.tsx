@@ -50,7 +50,7 @@ const TASK_FILTERS: Array<{ value: TaskFilter; label: string }> = [
   { value: "retard", label: "En retard" },
 ];
 
-/** Compact recurrence selector — « Aucune / Quotid. / Hebdo » chips (add form + inline edit) */
+/** Compact recurrence selector — « Aucune / Quotid. / Ouvrés / Hebdo » chips (add form + inline edit) */
 function RecurrencePicker({
   value,
   onChange,
@@ -60,10 +60,12 @@ function RecurrencePicker({
   onChange: (next: TaskRecurrence | null) => void;
   label: string;
 }) {
+  /* Derived from RECURRENCE_SHORT so every recurrence kind gets its pill automatically */
   const options: Array<{ value: TaskRecurrence | null; label: string }> = [
     { value: null, label: "Aucune" },
-    { value: "daily", label: RECURRENCE_SHORT.daily },
-    { value: "weekly", label: RECURRENCE_SHORT.weekly },
+    ...(Object.entries(RECURRENCE_SHORT) as Array<[TaskRecurrence, string]>).map(
+      ([value, label]) => ({ value, label }),
+    ),
   ];
   return (
     <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1.5">
@@ -144,6 +146,15 @@ export function TasksPanel() {
           return filter === "aujourdhui" ? d <= 0 : d < 0;
         });
 
+  /* Sectioned « Aujourd’hui » view — the three groups partition visibleTasks exactly */
+  const overdueTasks = visibleTasks.filter(
+    (t) => !t.done && t.dueDate && daysUntil(t.dueDate) < 0,
+  );
+  const dueTodayTasks = visibleTasks.filter(
+    (t) => !t.done && t.dueDate && daysUntil(t.dueDate) === 0,
+  );
+  const doneInView = visibleTasks.filter((t) => t.done);
+
   const clearDrag = () => {
     setDragId(null);
     setOverId(null);
@@ -185,6 +196,278 @@ export function TasksPanel() {
       return { tasks: [...withDue, ...without] };
     });
     toast.success("Tâches triées par échéance.");
+  };
+
+  /** One task row — shared by the flat list and the sectioned « Aujourd’hui » view */
+  const renderTask = (t: TaskItem) => {
+    const editing = t.id === editingId;
+    const due = t.dueDate ?? null;
+    const dueDays = due ? daysUntil(due) : null;
+    /* chevron bounds follow the store order — the filter is view-level only */
+    const storeIndex = tasks.findIndex((x) => x.id === t.id);
+    return (
+      <li
+        key={t.id}
+        draggable={!editing}
+        onDragStart={(e) => {
+          setDragId(t.id);
+          e.dataTransfer.effectAllowed = "move";
+          try {
+            e.dataTransfer.setData("text/plain", t.id);
+          } catch {
+            /* some engines forbid setData — the local state is enough */
+          }
+        }}
+        onDragEnd={clearDrag}
+        onDragOver={(e) => {
+          if (t.done) {
+            // Never drop onto a completed task (keeps to-do / done zones separate)
+            e.dataTransfer.dropEffect = "none";
+            return;
+          }
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setOverId((v) => (dragId && dragId !== t.id ? t.id : v));
+        }}
+        onDragLeave={() => setOverId((v) => (v === t.id ? null : v))}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (t.done || !dragId || dragId === t.id) {
+            clearDrag();
+            return;
+          }
+          moveTaskTo(dragId, t.id);
+          clearDrag();
+        }}
+        className={`flex flex-wrap items-start gap-x-2 gap-y-2 rounded-xl border px-3 py-3 transition-[opacity,box-shadow,border-color,transform] duration-150 ${
+          editing ? "bg-brand/5 ring-1 ring-brand" : "bg-secondary"
+        } ${t.done ? "opacity-55" : ""} ${
+          !editing && t.active ? "border-brand/60 ring-1 ring-brand/40" : ""
+        } ${dragId === t.id ? "scale-[0.99] opacity-40" : ""} ${
+          overId === t.id && dragId !== t.id ? "border-brand/70 ring-2 ring-brand/35" : ""
+        } ${dragId && t.done ? "cursor-not-allowed" : ""}`}
+      >
+        {editing ? (
+          <form
+            className="flex w-full flex-col gap-2"
+            autoComplete="off"
+            onSubmit={saveTaskEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                cancelTaskEdit();
+              }
+            }}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor={`task-edit-text-${t.id}`} className="sr-only">
+                Texte de la tâche
+              </label>
+              <Input
+                id={`task-edit-text-${t.id}`}
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                maxLength={200}
+                className="min-h-11 min-w-[140px] flex-1 rounded-xl"
+              />
+              <Input
+                type="date"
+                value={editDue}
+                onChange={(e) => setEditDue(e.target.value)}
+                aria-label="Échéance de la tâche"
+                className="h-11 w-[122px] rounded-xl border bg-secondary/60 px-2 text-xs [color-scheme:light] dark:bg-secondary/60 dark:[color-scheme:dark] sm:h-9"
+              />
+              {editDue && (
+                <button
+                  type="button"
+                  onClick={() => setEditDue("")}
+                  aria-label="Retirer l’échéance"
+                  title="Retirer l’échéance"
+                  className="grid size-8 place-items-center rounded-md text-faint transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <RecurrencePicker
+              value={editRec}
+              onChange={setEditRec}
+              label="Répétition de la tâche"
+            />
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={!editText.trim()}
+                className="min-h-11 flex-1 rounded-xl active:scale-[0.98]"
+              >
+                <Check className="size-4" /> Enregistrer
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cancelTaskEdit}
+                className="min-h-11 rounded-xl"
+              >
+                <X className="size-4" /> Annuler
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <GripVertical
+              aria-hidden
+              className="mt-0.5 size-4 shrink-0 cursor-grab text-faint/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+            />
+            <Checkbox
+              checked={t.done}
+              onCheckedChange={(v) => {
+                const nextDone = v === true;
+                if (nextDone && !t.done && t.recurrence) {
+                  toggleTask(t.id, true);
+                  toast.info(
+                    `Prochaine occurrence planifiée : ${frDateShort(
+                      nextDueDate(t.dueDate, t.recurrence),
+                    )}`,
+                  );
+                } else {
+                  toggleTask(t.id, nextDone);
+                }
+              }}
+              aria-label={t.done ? "Marquer comme à faire" : "Marquer comme terminée"}
+              className="mt-0.5 size-5"
+            />
+            <span
+              className={`min-w-[140px] flex-1 basis-[140px] break-words text-sm leading-relaxed ${
+                t.done ? "line-through" : ""
+              }`}
+            >
+              {t.text}
+            </span>
+            {due && dueDays !== null && (
+              <span
+                title={`Échéance : ${dueDateLabel(due)}`}
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                  dueDays < 0
+                    ? "border-destructive/30 bg-destructive/15 text-destructive"
+                    : dueDays === 0
+                      ? "border-brand/30 bg-brand/15 text-brand"
+                      : "bg-secondary text-muted-foreground"
+                }`}
+              >
+                {dueDays === 0 ? (
+                  <CalendarClock className="size-[11px]" />
+                ) : (
+                  <Calendar className="size-[11px]" />
+                )}
+                {frDateShort(due)}
+              </span>
+            )}
+            {t.recurrence && (
+              <span
+                title={`Répétition ${RECURRENCE_LABELS[t.recurrence].toLowerCase()}`}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
+              >
+                <Repeat className="size-3" />
+                {RECURRENCE_SHORT[t.recurrence]}
+              </span>
+            )}
+            {!t.done && (
+              <div
+                role="group"
+                aria-label={`Estimation de la tâche : ${t.text}`}
+                className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-background/60"
+              >
+                <button
+                  type="button"
+                  aria-label="Diminuer l’estimation"
+                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) - 1)}
+                  disabled={(t.estimate ?? 1) <= 1}
+                  className="grid size-6 place-items-center rounded-l-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <Minus className="size-3" />
+                </button>
+                <span
+                  title={`Estimation : ${t.estimate ?? 1} pomodoro${(t.estimate ?? 1) > 1 ? "s" : ""} · Effectués : ${t.spent ?? 0}`}
+                  className={`w-9 text-center text-[11px] font-semibold tabular-nums ${
+                    (t.spent ?? 0) >= (t.estimate ?? 1) ? "text-brand" : "text-muted-foreground"
+                  }`}
+                >
+                  {t.spent ?? 0}/{t.estimate ?? 1}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Augmenter l’estimation"
+                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) + 1)}
+                  disabled={(t.estimate ?? 1) >= 12}
+                  className="grid size-6 place-items-center rounded-r-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <Plus className="size-3" />
+                </button>
+              </div>
+            )}
+            {!t.done && (
+              <button
+                onClick={() => setActiveTask(t.id)}
+                aria-label="Lier au minuteur"
+                title="Lier au minuteur"
+                className={`transition-colors ${
+                  t.active ? "text-brand" : "text-faint hover:text-foreground"
+                }`}
+              >
+                <Crosshair className="size-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => startTaskEdit(t)}
+              aria-label={`Modifier la tâche : ${t.text}`}
+              title="Modifier la tâche"
+              className="text-faint transition-colors hover:text-foreground"
+            >
+              <Pencil className="size-4" />
+            </button>
+            <button
+              onClick={() => removeTask(t.id)}
+              aria-label={`Supprimer la tâche : ${t.text}`}
+              className="text-faint transition-colors hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </button>
+            {tasks.length > 1 && (
+              <div
+                role="group"
+                aria-label={`Déplacer la tâche : ${t.text}`}
+                className="flex shrink-0 flex-col gap-0.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => moveTask(t.id, -1)}
+                  disabled={storeIndex === 0}
+                  aria-label={`Monter la tâche : ${t.text}`}
+                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+                >
+                  <ChevronUp className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveTask(t.id, 1)}
+                  disabled={storeIndex === tasks.length - 1}
+                  aria-label={`Descendre la tâche : ${t.text}`}
+                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+                >
+                  <ChevronDown className="size-3.5" />
+                </button>
+              </div>
+            )}
+            {t.done && t.recurrence && (
+              <p className="w-full text-xs text-faint">
+                Prochaine occurrence : {frDateShort(nextDueDate(t.dueDate, t.recurrence))}
+              </p>
+            )}
+          </>
+        )}
+      </li>
+    );
   };
 
   return (
@@ -319,282 +602,56 @@ export function TasksPanel() {
         </Button>
       </form>
 
-      <ul className="slim-scroll flex max-h-96 list-none flex-col gap-2 overflow-y-auto p-0 m-0">
-        {visibleTasks.map((t) => {
-          const editing = t.id === editingId;
-          const due = t.dueDate ?? null;
-          const dueDays = due ? daysUntil(due) : null;
-          /* chevron bounds follow the store order — the filter is view-level only */
-          const storeIndex = tasks.findIndex((x) => x.id === t.id);
-          return (
-            <li
-              key={t.id}
-              draggable={!editing}
-              onDragStart={(e) => {
-                setDragId(t.id);
-                e.dataTransfer.effectAllowed = "move";
-                try {
-                  e.dataTransfer.setData("text/plain", t.id);
-                } catch {
-                  /* some engines forbid setData — the local state is enough */
-                }
-              }}
-              onDragEnd={clearDrag}
-              onDragOver={(e) => {
-                if (t.done) {
-                  // Never drop onto a completed task (keeps to-do / done zones separate)
-                  e.dataTransfer.dropEffect = "none";
-                  return;
-                }
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                setOverId((v) => (dragId && dragId !== t.id ? t.id : v));
-              }}
-              onDragLeave={() => setOverId((v) => (v === t.id ? null : v))}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (t.done || !dragId || dragId === t.id) {
-                  clearDrag();
-                  return;
-                }
-                moveTaskTo(dragId, t.id);
-                clearDrag();
-              }}
-              className={`flex flex-wrap items-start gap-x-2 gap-y-2 rounded-xl border px-3 py-3 transition-[opacity,box-shadow,border-color,transform] duration-150 ${
-                editing ? "bg-brand/5 ring-1 ring-brand" : "bg-secondary"
-              } ${t.done ? "opacity-55" : ""} ${
-                !editing && t.active ? "border-brand/60 ring-1 ring-brand/40" : ""
-              } ${dragId === t.id ? "scale-[0.99] opacity-40" : ""} ${
-                overId === t.id && dragId !== t.id
-                  ? "border-brand/70 ring-2 ring-brand/35"
-                  : ""
-              } ${dragId && t.done ? "cursor-not-allowed" : ""}`}
-            >
-              {editing ? (
-                <form
-                  className="flex w-full flex-col gap-2"
-                  autoComplete="off"
-                  onSubmit={saveTaskEdit}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      e.preventDefault();
-                      cancelTaskEdit();
-                    }
-                  }}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label htmlFor={`task-edit-text-${t.id}`} className="sr-only">
-                      Texte de la tâche
-                    </label>
-                    <Input
-                      id={`task-edit-text-${t.id}`}
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      maxLength={200}
-                      className="min-h-11 min-w-[140px] flex-1 rounded-xl"
-                    />
-                    <Input
-                      type="date"
-                      value={editDue}
-                      onChange={(e) => setEditDue(e.target.value)}
-                      aria-label="Échéance de la tâche"
-                      className="h-11 w-[122px] rounded-xl border bg-secondary/60 px-2 text-xs [color-scheme:light] dark:bg-secondary/60 dark:[color-scheme:dark] sm:h-9"
-                    />
-                    {editDue && (
-                      <button
-                        type="button"
-                        onClick={() => setEditDue("")}
-                        aria-label="Retirer l’échéance"
-                        title="Retirer l’échéance"
-                        className="grid size-8 place-items-center rounded-md text-faint transition-colors hover:bg-accent hover:text-foreground"
-                      >
-                        <X className="size-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <RecurrencePicker
-                    value={editRec}
-                    onChange={setEditRec}
-                    label="Répétition de la tâche"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      type="submit"
-                      disabled={!editText.trim()}
-                      className="min-h-11 flex-1 rounded-xl active:scale-[0.98]"
-                    >
-                      <Check className="size-4" /> Enregistrer
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={cancelTaskEdit}
-                      className="min-h-11 rounded-xl"
-                    >
-                      <X className="size-4" /> Annuler
-                    </Button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  <GripVertical
-                    aria-hidden
-                    className="mt-0.5 size-4 shrink-0 cursor-grab text-faint/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-                  />
-                  <Checkbox
-                    checked={t.done}
-                    onCheckedChange={(v) => {
-                      const nextDone = v === true;
-                      if (nextDone && !t.done && t.recurrence) {
-                        toggleTask(t.id, true);
-                        toast.info(
-                          `Prochaine occurrence planifiée : ${frDateShort(
-                            nextDueDate(t.dueDate, t.recurrence),
-                          )}`,
-                        );
-                      } else {
-                        toggleTask(t.id, nextDone);
-                      }
-                    }}
-                    aria-label={t.done ? "Marquer comme à faire" : "Marquer comme terminée"}
-                    className="mt-0.5 size-5"
-                  />
-                  <span
-                    className={`min-w-[140px] flex-1 basis-[140px] break-words text-sm leading-relaxed ${
-                      t.done ? "line-through" : ""
-                    }`}
-                  >
-                    {t.text}
-                  </span>
-                  {due && dueDays !== null && (
-                    <span
-                      title={`Échéance : ${dueDateLabel(due)}`}
-                      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                        dueDays < 0
-                          ? "border-destructive/30 bg-destructive/15 text-destructive"
-                          : dueDays === 0
-                            ? "border-brand/30 bg-brand/15 text-brand"
-                            : "bg-secondary text-muted-foreground"
-                      }`}
-                    >
-                      {dueDays === 0 ? (
-                        <CalendarClock className="size-[11px]" />
-                      ) : (
-                        <Calendar className="size-[11px]" />
-                      )}
-                      {frDateShort(due)}
-                    </span>
-                  )}
-                  {t.recurrence && (
-                    <span
-                      title={`Répétition ${RECURRENCE_LABELS[t.recurrence].toLowerCase()}`}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
-                    >
-                      <Repeat className="size-3" />
-                      {RECURRENCE_SHORT[t.recurrence]}
-                    </span>
-                  )}
-                  {!t.done && (
-                    <div
-                      role="group"
-                      aria-label={`Estimation de la tâche : ${t.text}`}
-                      className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-background/60"
-                    >
-                      <button
-                        type="button"
-                        aria-label="Diminuer l’estimation"
-                        onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) - 1)}
-                        disabled={(t.estimate ?? 1) <= 1}
-                        className="grid size-6 place-items-center rounded-l-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
-                      >
-                        <Minus className="size-3" />
-                      </button>
-                      <span
-                        title={`Estimation : ${t.estimate ?? 1} pomodoro${(t.estimate ?? 1) > 1 ? "s" : ""} · Effectués : ${t.spent ?? 0}`}
-                        className={`w-9 text-center text-[11px] font-semibold tabular-nums ${
-                          (t.spent ?? 0) >= (t.estimate ?? 1)
-                            ? "text-brand"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {t.spent ?? 0}/{t.estimate ?? 1}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Augmenter l’estimation"
-                        onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) + 1)}
-                        disabled={(t.estimate ?? 1) >= 12}
-                        className="grid size-6 place-items-center rounded-r-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
-                      >
-                        <Plus className="size-3" />
-                      </button>
-                    </div>
-                  )}
-                  {!t.done && (
-                    <button
-                      onClick={() => setActiveTask(t.id)}
-                      aria-label="Lier au minuteur"
-                      title="Lier au minuteur"
-                      className={`transition-colors ${
-                        t.active ? "text-brand" : "text-faint hover:text-foreground"
-                      }`}
-                    >
-                      <Crosshair className="size-4" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => startTaskEdit(t)}
-                    aria-label={`Modifier la tâche : ${t.text}`}
-                    title="Modifier la tâche"
-                    className="text-faint transition-colors hover:text-foreground"
-                  >
-                    <Pencil className="size-4" />
-                  </button>
-                  <button
-                    onClick={() => removeTask(t.id)}
-                    aria-label={`Supprimer la tâche : ${t.text}`}
-                    className="text-faint transition-colors hover:text-destructive"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                  {tasks.length > 1 && (
-                    <div
-                      role="group"
-                      aria-label={`Déplacer la tâche : ${t.text}`}
-                      className="flex shrink-0 flex-col gap-0.5"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => moveTask(t.id, -1)}
-                        disabled={storeIndex === 0}
-                        aria-label={`Monter la tâche : ${t.text}`}
-                        className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
-                      >
-                        <ChevronUp className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveTask(t.id, 1)}
-                        disabled={storeIndex === tasks.length - 1}
-                        aria-label={`Descendre la tâche : ${t.text}`}
-                        className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
-                      >
-                        <ChevronDown className="size-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  {t.done && t.recurrence && (
-                    <p className="w-full text-xs text-faint">
-                      Prochaine occurrence : {frDateShort(nextDueDate(t.dueDate, t.recurrence))}
-                    </p>
-                  )}
-                </>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {filter === "aujourdhui" ? (
+        /* Sectioned « Aujourd’hui » — overdue first, then today's due dates, then done.
+           Empty sections are never rendered (no header without content). */
+        <div className="slim-scroll flex max-h-96 flex-col gap-4 overflow-y-auto">
+          {overdueTasks.length > 0 && (
+            <section aria-labelledby="tasks-overdue-heading" className="flex flex-col gap-2">
+              <h3
+                id="tasks-overdue-heading"
+                className="m-0 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint"
+              >
+                <span aria-hidden className="size-1.5 rounded-full bg-destructive/70" />
+                En retard · {overdueTasks.length}
+              </h3>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {overdueTasks.map(renderTask)}
+              </ul>
+            </section>
+          )}
+          {dueTodayTasks.length > 0 && (
+            <section aria-labelledby="tasks-today-heading" className="flex flex-col gap-2">
+              <h3
+                id="tasks-today-heading"
+                className="m-0 text-[11px] font-semibold uppercase tracking-wide text-faint"
+              >
+                Échéances du jour · {dueTodayTasks.length}
+              </h3>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {dueTodayTasks.map(renderTask)}
+              </ul>
+            </section>
+          )}
+          {doneInView.length > 0 && (
+            <section aria-labelledby="tasks-done-heading" className="flex flex-col gap-2">
+              <h3
+                id="tasks-done-heading"
+                className="m-0 text-[11px] font-semibold uppercase tracking-wide text-faint"
+              >
+                Terminées · {doneInView.length}
+              </h3>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {doneInView.map(renderTask)}
+              </ul>
+            </section>
+          )}
+        </div>
+      ) : (
+        <ul className="slim-scroll flex max-h-96 list-none flex-col gap-2 overflow-y-auto p-0 m-0">
+          {visibleTasks.map(renderTask)}
+        </ul>
+      )}
 
       {tasks.length === 0 && (
         <div className="rounded-xl border border-dashed px-4 py-6 text-center text-[13.5px] text-faint">

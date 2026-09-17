@@ -1,0 +1,1052 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useMemo, useState } from "react";
+     4→     4→import {
+     5→     5→  Award,
+     6→     6→  BarChart3,
+     7→     7→  CalendarCheck,
+     8→     8→  CalendarRange,
+     9→     9→  ChevronLeft,
+    10→    10→  ChevronRight,
+    11→    11→  Download,
+    12→    12→  Flag,
+    13→    13→  Flame,
+    14→    14→  ImageDown,
+    15→    15→  Minus,
+    16→    16→  Timer,
+    17→    17→  TrendingDown,
+    18→    18→  TrendingUp,
+    19→    19→  Trophy,
+    20→    20→  type LucideIcon,
+    21→    21→} from "lucide-react";
+    22→    22→import { toast } from "sonner";
+    23→    23→
+    24→    24→import { Button } from "@/components/ui/button";
+    25→    25→import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    26→    26→import { dailyToCsv, downloadTextFile } from "@/lib/focusly/csv";
+    27→    27→import { shareOrDownloadStatsImage } from "@/lib/focusly/share-image";
+    28→    28→import { computeStreaks } from "@/lib/focusly/streaks";
+    29→    29→import { EMPTY_STAT, useFocusly } from "@/lib/focusly/store";
+    30→    30→import { todayKey } from "@/lib/focusly/types";
+    31→    31→
+    32→    32→import { Breadcrumb } from "./breadcrumb";
+    33→    33→
+    34→    34→/* ------------------------------------------------------------------ */
+    35→    35→/* Helpers                                                             */
+    36→    36→/* ------------------------------------------------------------------ */
+    37→    37→
+    38→    38→/** Monday-first weekday labels (fr-FR). 2024-01-01 was a Monday, so
+    39→    39→ * the reference week is deterministic across server and client. */
+    40→    40→const WEEKDAY_LABELS: string[] = Array.from({ length: 7 }, (_, i) =>
+    41→    41→  new Date(2024, 0, 1 + i)
+    42→    42→    .toLocaleDateString("fr-FR", { weekday: "short" })
+    43→    43→    .replace(".", ""),
+    44→    44→);
+    45→    45→
+    46→    46→/** Full weekday names for insights (same deterministic reference week). */
+    47→    47→const WEEKDAY_LONG: string[] = Array.from({ length: 7 }, (_, i) =>
+    48→    48→  new Date(2024, 0, 1 + i).toLocaleDateString("fr-FR", { weekday: "long" }),
+    49→    49→);
+    50→    50→
+    51→    51→/** The 5 intensity levels of the heatmaps (empty → 7+ pomodoros). */
+    52→    52→const LEVELS = [
+    53→    53→  "bg-secondary",
+    54→    54→  "bg-brand/25",
+    55→    55→  "bg-brand/45",
+    56→    56→  "bg-brand/70",
+    57→    57→  "bg-brand shadow-[0_0_10px_-2px_var(--brand-glow)]",
+    58→    58→];
+    59→    59→
+    60→    60→/** Smaller cells for the year heatmap (no glow — too dense for shadows). */
+    61→    61→const LEVELS_SM = ["bg-secondary", "bg-brand/25", "bg-brand/45", "bg-brand/70", "bg-brand"];
+    62→    62→
+    63→    63→/** KPI period filter (null = whole history). */
+    64→    64→const PERIOD_OPTIONS: Array<{ value: 7 | 30 | 90 | null; label: string }> = [
+    65→    65→  { value: 7, label: "7 jours" },
+    66→    66→  { value: 30, label: "30 jours" },
+    67→    67→  { value: 90, label: "90 jours" },
+    68→    68→  { value: null, label: "Tout" },
+    69→    69→];
+    70→    70→
+    71→    71→function levelIndex(pomodoros: number): number {
+    72→    72→  if (pomodoros <= 0) return 0;
+    73→    73→  if (pomodoros <= 2) return 1;
+    74→    74→  if (pomodoros <= 4) return 2;
+    75→    75→  if (pomodoros <= 6) return 3;
+    76→    76→  return 4;
+    77→    77→}
+    78→    78→
+    79→    79→/** Local-date key — same decomposition as todayKey() in types.ts. */
+    80→    80→function dayKeyOf(y: number, m0: number, d: number): string {
+    81→    81→  return `${y}-${String(m0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    82→    82→}
+    83→    83→
+    84→    84→function capitalize(v: string): string {
+    85→    85→  return v.charAt(0).toUpperCase() + v.slice(1);
+    86→    86→}
+    87→    87→
+    88→    88→interface MonthCell {
+    89→    89→  key: string;
+    90→    90→  pomodoros: number;
+    91→    91→  isFuture: boolean;
+    92→    92→  isToday: boolean;
+    93→    93→  title: string;
+    94→    94→}
+    95→    95→
+    96→    96→interface ViewMonth {
+    97→    97→  y: number;
+    98→    98→  /** 0-based month index (Date constructor convention) */
+    99→    99→  m: number;
+   100→   100→}
+   101→   101→
+   102→   102→interface YearDayCell {
+   103→   103→  key: string;
+   104→   104→  pomodoros: number;
+   105→   105→  /** belongs to the displayed year (else invisible filler) */
+   106→   106→  inYear: boolean;
+   107→   107→  isFuture: boolean;
+   108→   108→  isToday: boolean;
+   109→   109→  title: string;
+   110→   110→}
+   111→   111→
+   112→   112→interface MonthMark {
+   113→   113→  label: string;
+   114→   114→  week: number;
+   115→   115→}
+   116→   116→
+   117→   117→/* ------------------------------------------------------------------ */
+   118→   118→/* View                                                                */
+   119→   119→/* ------------------------------------------------------------------ */
+   120→   120→
+   121→   121→export function StatistiquesView() {
+   122→   122→  const daily = useFocusly((s) => s.daily);
+   123→   123→  const settings = useFocusly((s) => s.settings);
+   124→   124→  const [calendarTab, setCalendarTab] = useState<"mensuel" | "annuel">("mensuel");
+   125→   125→  const [view, setView] = useState<ViewMonth>(() => {
+   126→   126→    const n = new Date();
+   127→   127→    return { y: n.getFullYear(), m: n.getMonth() };
+   128→   128→  });
+   129→   129→  const [viewYear, setViewYear] = useState<number>(() => new Date().getFullYear());
+   130→   130→  /** Selected KPI period in days — null = all time (default, preserves old behavior). */
+   131→   131→  const [period, setPeriod] = useState<7 | 30 | 90 | null>(null);
+   132→   132→  /** Partage en image en cours (évite les doubles clics pendant la génération). */
+   133→   133→  const [sharePending, setSharePending] = useState(false);
+   134→   134→
+   135→   135→  /* ----- Grand totals across all recorded days ----- */
+   136→   136→  const totals = useMemo(() => {
+   137→   137→    let pomodoros = 0;
+   138→   138→    let seconds = 0;
+   139→   139→    let activeDays = 0;
+   140→   140→    const recorded = Object.keys(daily).length;
+   141→   141→    Object.values(daily).forEach((s) => {
+   142→   142→      pomodoros += s.pomodoros;
+   143→   143→      seconds += s.focusSeconds;
+   144→   144→      if (s.pomodoros > 0) activeDays += 1;
+   145→   145→    });
+   146→   146→    const hours = Math.floor(seconds / 3600);
+   147→   147→    const minutes = Math.floor((seconds % 3600) / 60);
+   148→   148→    return {
+   149→   149→      pomodoros,
+   150→   150→      activeDays,
+   151→   151→      recorded,
+   152→   152→      focusSeconds: seconds,
+   153→   153→      focusLabel:
+   154→   154→        hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
+   155→   155→    };
+   156→   156→  }, [daily]);
+   157→   157→
+   158→   158→  /* ----- Totals within the selected period (null when no filter) ----- */
+   159→   159→  const periodTotals = useMemo(() => {
+   160→   160→    if (period === null) return null;
+   161→   161→    const n = new Date();
+   162→   162→    // Cutoff = today minus (N-1) days → today is always included
+   163→   163→    const cutoff = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+   164→   164→    cutoff.setDate(cutoff.getDate() - (period - 1));
+   165→   165→    const cutoffKey = todayKey(cutoff); // zero-padded YYYY-MM-DD (local)
+   166→   166→    let pomodoros = 0;
+   167→   167→    let seconds = 0;
+   168→   168→    let activeDays = 0;
+   169→   169→    let recorded = 0;
+   170→   170→    Object.keys(daily).forEach((k) => {
+   171→   171→      // Zero-padded keys → lexicographic comparison is date comparison
+   172→   172→      if (k >= cutoffKey) {
+   173→   173→        const s = daily[k];
+   174→   174→        recorded += 1;
+   175→   175→        pomodoros += s.pomodoros;
+   176→   176→        seconds += s.focusSeconds;
+   177→   177→        if (s.pomodoros > 0) activeDays += 1;
+   178→   178→      }
+   179→   179→    });
+   180→   180→    const hours = Math.floor(seconds / 3600);
+   181→   181→    const minutes = Math.floor((seconds % 3600) / 60);
+   182→   182→    return {
+   183→   183→      pomodoros,
+   184→   184→      activeDays,
+   185→   185→      recorded,
+   186→   186→      focusSeconds: seconds,
+   187→   187→      focusLabel:
+   188→   188→        hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
+   189→   189→    };
+   190→   190→  }, [daily, period]);
+   191→   191→
+   192→   192→  const streaks = useMemo(() => computeStreaks(daily), [daily]);
+   193→   193→
+   194→   194→  /* ----- Comparaison semaine vs semaine (lundi → dimanche, comme le reste de la page) ----- */
+   195→   195→  const weekCompare = useMemo(() => {
+   196→   196→    const n = new Date();
+   197→   197→    const todayMid = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+   198→   198→    // Lundi de la semaine courante (dimanche = 0 → index lundi-first)
+   199→   199→    const monday = new Date(todayMid);
+   200→   200→    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+   201→   201→    const prevMonday = new Date(monday);
+   202→   202→    prevMonday.setDate(prevMonday.getDate() - 7);
+   203→   203→
+   204→   204→    // Somme des 7 clés de la semaine ; les jours futurs n’existent pas dans daily
+   205→   205→    const sumWeek = (start: Date) => {
+   206→   206→      let pomodoros = 0;
+   207→   207→      let seconds = 0;
+   208→   208→      const cur = new Date(start);
+   209→   209→      for (let i = 0; i < 7; i++) {
+   210→   210→        const s = daily[dayKeyOf(cur.getFullYear(), cur.getMonth(), cur.getDate())];
+   211→   211→        if (s) {
+   212→   212→          pomodoros += s.pomodoros;
+   213→   213→          seconds += s.focusSeconds;
+   214→   214→        }
+   215→   215→        cur.setDate(cur.getDate() + 1);
+   216→   216→      }
+   217→   217→      const hours = Math.floor(seconds / 3600);
+   218→   218→      const minutes = Math.floor((seconds % 3600) / 60);
+   219→   219→      return {
+   220→   220→        pomodoros,
+   221→   221→        focusLabel:
+   222→   222→          hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
+   223→   223→      };
+   224→   224→    };
+   225→   225→
+   226→   226→    const current = sumWeek(monday);
+   227→   227→    const previous = sumWeek(prevMonday);
+   228→   228→
+   229→   229→    // Position dans la semaine : 0 = lundi … 6 = dimanche
+   230→   230→    const dayIndex = (todayMid.getDay() + 6) % 7;
+   231→   231→    const daysElapsed = dayIndex + 1;
+   232→   232→
+   233→   233→    // Évolution en % — garde anti-division par zéro
+   234→   234→    let trend: "up" | "down" | "flat" | "new" | "empty" = "empty";
+   235→   235→    let pct = 0;
+   236→   236→    if (previous.pomodoros === 0 && current.pomodoros > 0) {
+   237→   237→      trend = "new";
+   238→   238→    } else if (previous.pomodoros > 0) {
+   239→   239→      pct = Math.round(((current.pomodoros - previous.pomodoros) / previous.pomodoros) * 100);
+   240→   240→      trend = pct > 0 ? "up" : pct < 0 ? "down" : "flat";
+   241→   241→    }
+   242→   242→
+   243→   243→    return { current, previous, daysElapsed, weekComplete: dayIndex === 6, trend, pct };
+   244→   244→  }, [daily]);
+   245→   245→
+   246→   246→  /* ----- Jauge d’objectif hebdomadaire (dérivée : réglages × semaine courante) ----- */
+   247→   247→  const weekGoal = useMemo(() => {
+   248→   248→    const perDay = settings.dailyGoal;
+   249→   249→    const goal = perDay * 7;
+   250→   250→    const done = weekCompare.current.pomodoros;
+   251→   251→    // Lundi = jour 1 … dimanche = 7 (même convention lundi-first que weekCompare)
+   252→   252→    const daysElapsed = weekCompare.daysElapsed;
+   253→   253→    return {
+   254→   254→      perDay,
+   255→   255→      goal,
+   256→   256→      done,
+   257→   257→      progress: goal > 0 ? Math.min(1, done / goal) : 0,
+   258→   258→      remaining: Math.max(0, goal - done),
+   259→   259→      daysLeft: 7 - daysElapsed,
+   260→   260→      onPace: done >= perDay * daysElapsed,
+   261→   261→    };
+   262→   262→  }, [settings.dailyGoal, weekCompare]);
+   263→   263→
+   264→   264→  /* ----- Current month grid ----- */
+   265→   265→  const monthLabel = useMemo(() => {
+   266→   266→    return capitalize(
+   267→   267→      new Date(view.y, view.m, 1).toLocaleDateString("fr-FR", {
+   268→   268→        month: "long",
+   269→   269→        year: "numeric",
+   270→   270→      }),
+   271→   271→    );
+   272→   272→  }, [view]);
+   273→   273→
+   274→   274→  const month = useMemo(() => {
+   275→   275→    const now = new Date();
+   276→   276→    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+   277→   277→    const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+   278→   278→    // French weeks start Monday: JS Sunday=0 → Monday-first index
+   279→   279→    const leading = (new Date(view.y, view.m, 1).getDay() + 6) % 7;
+   280→   280→
+   281→   281→    const cells: MonthCell[] = [];
+   282→   282→    for (let d = 1; d <= daysInMonth; d++) {
+   283→   283→      const key = dayKeyOf(view.y, view.m, d);
+   284→   284→      const stat = daily[key] ?? EMPTY_STAT;
+   285→   285→      const pomodoros = stat.pomodoros;
+   286→   286→      const minutes = Math.floor(stat.focusSeconds / 60);
+   287→   287→      const dateStr = new Date(view.y, view.m, d).toLocaleDateString("fr-FR", {
+   288→   288→        day: "numeric",
+   289→   289→        month: "long",
+   290→   290→        year: "numeric",
+   291→   291→      });
+   292→   292→      cells.push({
+   293→   293→        key,
+   294→   294→        pomodoros,
+   295→   295→        isFuture: new Date(view.y, view.m, d) > todayMid,
+   296→   296→        isToday: key === todayKey(),
+   297→   297→        title:
+   298→   298→          pomodoros === 0
+   299→   299→            ? `${dateStr} — aucun pomodoro`
+   300→   300→            : `${dateStr} — ${pomodoros} pomodoro${pomodoros > 1 ? "s" : ""}, ${minutes} min de concentration`,
+   301→   301→      });
+   302→   302→    }
+   303→   303→
+   304→   304→    const monthPomodoros = cells.reduce((a, c) => a + c.pomodoros, 0);
+   305→   305→    const trailing = (7 - ((leading + daysInMonth) % 7)) % 7;
+   306→   306→    return { leading, trailing, cells, monthPomodoros };
+   307→   307→  }, [daily, view]);
+   308→   308→
+   309→   309→  /* ----- Year heatmap (53 weeks × 7 days, Monday-first) ----- */
+   310→   310→  const yearData = useMemo(() => {
+   311→   311→    const now = new Date();
+   312→   312→    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+   313→   313→    const first = new Date(viewYear, 0, 1);
+   314→   314→    // Start on the Monday on or before January 1st
+   315→   315→    const start = new Date(first);
+   316→   316→    start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+   317→   317→    const end = new Date(viewYear, 11, 31);
+   318→   318→
+   319→   319→    const weeks: YearDayCell[][] = [];
+   320→   320→    const cur = new Date(start);
+   321→   321→    let yearPomodoros = 0;
+   322→   322→    let yearActiveDays = 0;
+   323→   323→
+   324→   324→    while (cur <= end) {
+   325→   325→      const week: YearDayCell[] = [];
+   326→   326→      for (let i = 0; i < 7; i++) {
+   327→   327→        const inYear = cur.getFullYear() === viewYear;
+   328→   328→        const key = dayKeyOf(cur.getFullYear(), cur.getMonth(), cur.getDate());
+   329→   329→        const pomodoros = (daily[key] ?? EMPTY_STAT).pomodoros;
+   330→   330→        const isFuture = cur > todayMid;
+   331→   331→        const isToday = key === todayKey();
+   332→   332→        if (inYear && !isFuture && pomodoros > 0) {
+   333→   333→          yearPomodoros += pomodoros;
+   334→   334→          yearActiveDays += 1;
+   335→   335→        }
+   336→   336→        const minutes = Math.floor((daily[key] ?? EMPTY_STAT).focusSeconds / 60);
+   337→   337→        const dateStr = new Date(cur).toLocaleDateString("fr-FR", {
+   338→   338→          day: "numeric",
+   339→   339→          month: "long",
+   340→   340→          year: "numeric",
+   341→   341→        });
+   342→   342→        week.push({
+   343→   343→          key,
+   344→   344→          pomodoros,
+   345→   345→          inYear,
+   346→   346→          isFuture,
+   347→   347→          isToday,
+   348→   348→          title:
+   349→   349→            !inYear || isFuture
+   350→   350→              ? ""
+   351→   351→              : pomodoros === 0
+   352→   352→                ? `${dateStr} — aucun pomodoro`
+   353→   353→                : `${dateStr} — ${pomodoros} pomodoro${pomodoros > 1 ? "s" : ""}, ${minutes} min de concentration`,
+   354→   354→        });
+   355→   355→        cur.setDate(cur.getDate() + 1);
+   356→   356→      }
+   357→   357→      weeks.push(week);
+   358→   358→    }
+   359→   359→
+   360→   360→    // Month marks: week index of the 1st of each month, thinned to avoid overlap
+   361→   361→    const marks: MonthMark[] = [];
+   362→   362→    let lastWeek = -99;
+   363→   363→    for (let m = 0; m < 12; m++) {
+   364→   364→      const firstDay = new Date(viewYear, m, 1);
+   365→   365→      const diff = Math.round((firstDay.getTime() - start.getTime()) / 86400000);
+   366→   366→      const week = Math.floor(diff / 7);
+   367→   367→      if (week - lastWeek >= 3) {
+   368→   368→        marks.push({
+   369→   369→          label: capitalize(
+   370→   370→            firstDay.toLocaleDateString("fr-FR", { month: "short" }).replace(".", ""),
+   371→   371→          ),
+   372→   372→          week,
+   373→   373→        });
+   374→   374→        lastWeek = week;
+   375→   375→      }
+   376→   376→    }
+   377→   377→
+   378→   378→    return { weeks, yearPomodoros, yearActiveDays, marks };
+   379→   379→  }, [daily, viewYear]);
+   380→   380→
+   381→   381→  /* ----- Weekday distribution (Monday-first) ----- */
+   382→   382→  const weekday = useMemo(() => {
+   383→   383→    const totals: number[] = Array(7).fill(0);
+   384→   384→    Object.entries(daily).forEach(([k, v]) => {
+   385→   385→      const parts = k.split("-");
+   386→   386→      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+   387→   387→      totals[(d.getDay() + 6) % 7] += v.pomodoros;
+   388→   388→    });
+   389→   389→    const max = Math.max(...totals);
+   390→   390→    const bestIndex = totals.indexOf(max);
+   391→   391→    return { totals, max, bestIndex };
+   392→   392→  }, [daily]);
+   393→   393→
+   394→   394→  const now = new Date();
+   395→   395→  const isCurrentMonth = view.y === now.getFullYear() && view.m === now.getMonth();
+   396→   396→  const isCurrentYear = viewYear === now.getFullYear();
+   397→   397→
+   398→   398→  const goPrevMonth = () =>
+   399→   399→    setView((v) => (v.m === 0 ? { y: v.y - 1, m: 11 } : { ...v, m: v.m - 1 }));
+   400→   400→  const goNextMonth = () =>
+   401→   401→    setView((v) => (v.m === 11 ? { y: v.y + 1, m: 0 } : { ...v, m: v.m + 1 }));
+   402→   402→
+   403→   403→  const gridAria = `${monthLabel} : ${month.monthPomodoros} ${
+   404→   404→    month.monthPomodoros === 1 ? "pomodoro" : "pomodoros"
+   405→   405→  } sur ${totals.pomodoros} ${totals.pomodoros === 1 ? "pomodoro" : "pomodoros"} enregistré${
+   406→   406→    totals.pomodoros === 1 ? "" : "s"
+   407→   407→  }`;
+   408→   408→
+   409→   409→  const yearAria = `Année ${viewYear} : ${yearData.yearPomodoros} ${
+   410→   410→    yearData.yearPomodoros === 1 ? "pomodoro" : "pomodoros"
+   411→   411→  } sur ${totals.pomodoros} ${totals.pomodoros === 1 ? "pomodoro" : "pomodoros"} enregistré${
+   412→   412→    totals.pomodoros === 1 ? "" : "s"
+   413→   413→  }`;
+   414→   414→
+   415→   415→  const hasData = totals.recorded > 0;
+   416→   416→
+   417→   417→  /* ----- Comparaison hebdomadaire : libellés dérivés ----- */
+   418→   418→  const weekMax = Math.max(weekCompare.current.pomodoros, weekCompare.previous.pomodoros);
+   419→   419→  const weekAria = `Cette semaine : ${weekCompare.current.pomodoros} ${
+   420→   420→    weekCompare.current.pomodoros === 1 ? "pomodoro" : "pomodoros"
+   421→   421→  }. Semaine dernière : ${weekCompare.previous.pomodoros} ${
+   422→   422→    weekCompare.previous.pomodoros === 1 ? "pomodoro" : "pomodoros"
+   423→   423→  }.`;
+   424→   424→  // Largeur de barre (max des deux semaines = pleine largeur, plancher 2 % si actif)
+   425→   425→  const weekBarPct = (v: number) =>
+   426→   426→    weekMax > 0 ? Math.max((v / weekMax) * 100, 2) : 0;
+   427→   427→  // Largeur de la jauge d’objectif (plancher 2 % si active, même convention)
+   428→   428→  const goalPct = weekGoal.done > 0 ? Math.max(weekGoal.progress * 100, 2) : 0;
+   429→   429→
+   430→   430→  const handleExport = () => {
+   431→   431→    if (Object.keys(daily).length === 0) {
+   432→   432→      toast.info("Aucune donnée à exporter.");
+   433→   433→      return;
+   434→   434→    }
+   435→   435→    downloadTextFile(dailyToCsv(daily), `focusly-statistiques-${todayKey()}.csv`);
+   436→   436→    toast.success("Export CSV téléchargé.");
+   437→   437→  };
+   438→   438→
+   439→   439→  /* ----- KPI cards (scoped to the selected period) ----- */
+   440→   440→  const shown = periodTotals ?? totals;
+   441→   441→  const periodLabel =
+   442→   442→    period === null
+   443→   443→      ? "Sur l’ensemble de votre historique."
+   444→   444→      : `${period} derniers jours, aujourd’hui inclus.`;
+   445→   445→  // Libellé condensé pour l’image partagée (pas de phrase complète)
+   446→   446→  const imagePeriodLabel = period === null ? "Historique complet" : `${period} derniers jours`;
+   447→   447→
+   448→   448→  const kpis: Array<{
+   449→   449→    icon: LucideIcon;
+   450→   450→    value: string;
+   451→   451→    label: string;
+   452→   452→    hint?: string;
+   453→   453→    hint2?: string;
+   454→   454→  }> = [
+   455→   455→    {
+   456→   456→      icon: Flame,
+   457→   457→      value: String(shown.pomodoros),
+   458→   458→      label: "Pomodoros",
+   459→   459→    },
+   460→   460→    {
+   461→   461→      icon: Timer,
+   462→   462→      value: shown.focusLabel,
+   463→   463→      label: "Temps de concentration",
+   464→   464→    },
+   465→   465→    {
+   466→   466→      icon: CalendarCheck,
+   467→   467→      value: String(shown.activeDays),
+   468→   468→      label: "Jours actifs",
+   469→   469→      hint: `/ ${shown.recorded} jour${shown.recorded > 1 ? "s" : ""} enregistré${
+   470→   470→        shown.recorded > 1 ? "s" : ""
+   471→   471→      }`,
+   472→   472→    },
+   473→   473→    {
+   474→   474→      // Streaks are date-independent: always computed on the whole history
+   475→   475→      icon: Award,
+   476→   476→      value: String(streaks.best),
+   477→   477→      label: "Série record",
+   478→   478→      hint: `actuelle : ${streaks.current} j`,
+   479→   479→      hint2: period !== null ? "indépendante de la période" : undefined,
+   480→   480→    },
+   481→   481→  ];
+   482→   482→
+   483→   483→  const handleShareImage = async () => {
+   484→   484→    setSharePending(true);
+   485→   485→    try {
+   486→   486→      const result = await shareOrDownloadStatsImage({
+   487→   487→        pomodoros: shown.pomodoros,
+   488→   488→        focusSeconds: shown.focusSeconds,
+   489→   489→        bestStreak: streaks.best,
+   490→   490→        periodLabel: imagePeriodLabel,
+   491→   491→        fileName: `focusly-statistiques-${todayKey()}.png`,
+   492→   492→      });
+   493→   493→      // shared : l’OS affiche déjà son retour ; cancelled : annulation silencieuse
+   494→   494→      if (result === "downloaded") toast.success("Image générée.");
+   495→   495→    } catch {
+   496→   496→      toast.error("Impossible de générer l’image.");
+   497→   497→    } finally {
+   498→   498→      setSharePending(false);
+   499→   499→    }
+   500→   500→  };
+   501→   501→
+   502→   502→  return (
+   503→   503→    <div className="mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
+   504→   504→      <Breadcrumb
+   505→   505→        items={[{ label: "Accueil", href: "accueil" }, { label: "Statistiques" }]}
+   506→   506→      />
+   507→   507→
+   508→   508→      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Statistiques</h1>
+   509→   509→      <p className="mt-3 max-w-[680px] text-[17px] text-muted-foreground">
+   510→   510→        Vos calendriers de concentration, mois après mois et année après année. Vos
+   511→   511→        données restent sur votre appareil.
+   512→   512→      </p>
+   513→   513→
+   514→   514→      {!hasData && (
+   515→   515→        <div className="mt-6 rounded-3xl border border-dashed p-8 text-center">
+   516→   516→          <p className="text-[15px] text-soft">
+   517→   517→            Aucune donnée pour l’instant. Terminez votre premier Pomodoro pour voir
+   518→   518→            votre calendrier se remplir.
+   519→   519→          </p>
+   520→   520→        </div>
+   521→   521→      )}
+   522→   522→
+   523→   523→      <div className="mt-8 flex flex-col gap-5">
+   524→   524→        {/* ----- KPI row ----- */}
+   525→   525→        <div className="flex flex-wrap items-center justify-between gap-3">
+   526→   526→          <div>
+   527→   527→            <h2 className="m-0 text-base font-bold tracking-tight">Vue d’ensemble</h2>
+   528→   528→            <p className="mt-0.5 text-[13px] text-faint" aria-live="polite">
+   529→   529→              {periodLabel}
+   530→   530→            </p>
+   531→   531→          </div>
+   532→   532→          <div
+   533→   533→            role="group"
+   534→   534→            aria-label="Période des statistiques"
+   535→   535→            className="flex rounded-xl border bg-secondary/60 p-1"
+   536→   536→          >
+   537→   537→            {PERIOD_OPTIONS.map((opt) => (
+   538→   538→              <button
+   539→   539→                key={opt.label}
+   540→   540→                type="button"
+   541→   541→                aria-pressed={period === opt.value}
+   542→   542→                onClick={() => setPeriod(opt.value)}
+   543→   543→                className={`min-h-8 whitespace-nowrap rounded-lg px-3 text-[12.5px] font-semibold transition-colors ${
+   544→   544→                  period === opt.value
+   545→   545→                    ? "bg-brand text-[#14161a] shadow-[0_2px_10px_-3px_var(--brand)]"
+   546→   546→                    : "text-muted-foreground hover:text-foreground"
+   547→   547→                }`}
+   548→   548→              >
+   549→   549→                {opt.label}
+   550→   550→              </button>
+   551→   551→            ))}
+   552→   552→          </div>
+   553→   553→        </div>
+   554→   554→        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+   555→   555→          {kpis.map((k) => (
+   556→   556→            <div key={k.label} className="flex flex-col gap-2 rounded-3xl border bg-card p-5">
+   557→   557→              <k.icon className="size-5 text-brand" aria-hidden />
+   558→   558→              <span className="time-display text-2xl font-bold">{k.value}</span>
+   559→   559→              <small className="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+   560→   560→                {k.label}
+   561→   561→              </small>
+   562→   562→              {k.hint ? <span className="text-[11px] text-faint">{k.hint}</span> : null}
+   563→   563→              {k.hint2 ? <span className="text-[11px] text-faint">{k.hint2}</span> : null}
+   564→   564→            </div>
+   565→   565→          ))}
+   566→   566→        </div>
+   567→   567→
+   568→   568→        {/* ----- Comparaison hebdomadaire ----- */}
+   569→   569→        <section className="flex flex-col gap-4 rounded-3xl border bg-card p-6">
+   570→   570→          <div className="flex flex-wrap items-baseline justify-between gap-2">
+   571→   571→            <h2 className="m-0 flex items-center gap-2 text-base font-bold tracking-tight">
+   572→   572→              <CalendarRange className="size-4 text-brand" aria-hidden />
+   573→   573→              Comparaison hebdomadaire
+   574→   574→            </h2>
+   575→   575→            {!weekCompare.weekComplete && (
+   576→   576→              <span className="text-xs text-faint">
+   577→   577→                semaine en cours ({weekCompare.daysElapsed} jour
+   578→   578→                {weekCompare.daysElapsed > 1 ? "s" : ""} sur 7)
+   579→   579→              </span>
+   580→   580→            )}
+   581→   581→          </div>
+   582→   582→
+   583→   583→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   584→   584→            <div className="flex flex-col gap-1.5 rounded-2xl border bg-secondary/40 p-4">
+   585→   585→              <small className="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+   586→   586→                Cette semaine
+   587→   587→              </small>
+   588→   588→              <span className="time-display text-2xl font-bold">
+   589→   589→                {weekCompare.current.pomodoros}
+   590→   590→                <span className="ml-1.5 text-sm font-semibold text-soft">
+   591→   591→                  {weekCompare.current.pomodoros === 1 ? "pomodoro" : "pomodoros"} ·{" "}
+   592→   592→                  {weekCompare.current.focusLabel}
+   593→   593→                </span>
+   594→   594→              </span>
+   595→   595→            </div>
+   596→   596→            <div className="flex flex-col gap-1.5 rounded-2xl border bg-secondary/40 p-4">
+   597→   597→              <small className="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+   598→   598→                Semaine dernière
+   599→   599→              </small>
+   600→   600→              <span className="time-display text-2xl font-bold">
+   601→   601→                {weekCompare.previous.pomodoros}
+   602→   602→                <span className="ml-1.5 text-sm font-semibold text-soft">
+   603→   603→                  {weekCompare.previous.pomodoros === 1 ? "pomodoro" : "pomodoros"} ·{" "}
+   604→   604→                  {weekCompare.previous.focusLabel}
+   605→   605→                </span>
+   606→   606→              </span>
+   607→   607→            </div>
+   608→   608→          </div>
+   609→   609→
+   610→   610→          <div className="flex flex-col gap-2.5" role="img" aria-label={weekAria}>
+   611→   611→            <div className="flex items-center gap-3">
+   612→   612→              <span className="w-32 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-brand">
+   613→   613→                Cette semaine
+   614→   614→              </span>
+   615→   615→              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary/50">
+   616→   616→                <div
+   617→   617→                  className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+   618→   618→                  style={{ width: `${weekBarPct(weekCompare.current.pomodoros)}%` }}
+   619→   619→                />
+   620→   620→              </div>
+   621→   621→              <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-foreground">
+   622→   622→                {weekCompare.current.pomodoros}
+   623→   623→              </span>
+   624→   624→            </div>
+   625→   625→            <div className="flex items-center gap-3">
+   626→   626→              <span className="w-32 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-faint">
+   627→   627→                Semaine dernière
+   628→   628→              </span>
+   629→   629→              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary/50">
+   630→   630→                <div
+   631→   631→                  className="h-full rounded-full bg-muted-foreground/40 transition-all duration-500 ease-out"
+   632→   632→                  style={{ width: `${weekBarPct(weekCompare.previous.pomodoros)}%` }}
+   633→   633→                />
+   634→   634→              </div>
+   635→   635→              <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+   636→   636→                {weekCompare.previous.pomodoros}
+   637→   637→              </span>
+   638→   638→            </div>
+   639→   639→          </div>
+   640→   640→
+   641→   641→          <p className="m-0 flex items-center gap-2 text-[13px] text-soft" aria-live="polite">
+   642→   642→            {weekCompare.trend === "up" && (
+   643→   643→              <>
+   644→   644→                <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+   645→   645→                <span>
+   646→   646→                  <strong className="font-semibold text-brand">+{weekCompare.pct} %</strong> par
+   647→   647→                  rapport à la semaine dernière
+   648→   648→                </span>
+   649→   649→              </>
+   650→   650→            )}
+   651→   651→            {weekCompare.trend === "down" && (
+   652→   652→              <>
+   653→   653→                <TrendingDown className="size-4 shrink-0 text-soft" aria-hidden />
+   654→   654→                <span>
+   655→   655→                  <strong className="font-semibold text-foreground">
+   656→   656→                    −{Math.abs(weekCompare.pct)} %
+   657→   657→                  </strong>{" "}
+   658→   658→                  par rapport à la semaine dernière
+   659→   659→                </span>
+   660→   660→              </>
+   661→   661→            )}
+   662→   662→            {weekCompare.trend === "flat" && (
+   663→   663→              <>
+   664→   664→                <Minus className="size-4 shrink-0 text-soft" aria-hidden />
+   665→   665→                <span>
+   666→   666→                  <strong className="font-semibold text-foreground">Stable</strong> par rapport
+   667→   667→                  à la semaine dernière
+   668→   668→                </span>
+   669→   669→              </>
+   670→   670→            )}
+   671→   671→            {weekCompare.trend === "new" && (
+   672→   672→              <span>
+   673→   673→                <strong className="font-semibold text-brand">
+   674→   674→                  {weekCompare.current.pomodoros}
+   675→   675→                </strong>{" "}
+   676→   676→                pomodoro{weekCompare.current.pomodoros > 1 ? "s" : ""} cette semaine, aucun la
+   677→   677→                semaine dernière
+   678→   678→              </span>
+   679→   679→            )}
+   680→   680→            {weekCompare.trend === "empty" && (
+   681→   681→              <span className="text-faint">Aucun pomodoro cette semaine pour l’instant.</span>
+   682→   682→            )}
+   683→   683→          </p>
+   684→   684→
+   685→   685→          {/* ----- Jauge d’objectif hebdomadaire ----- */}
+   686→   686→          <div className="mt-4 flex flex-col gap-2.5 border-t pt-4">
+   687→   687→            <div className="flex items-baseline justify-between gap-2">
+   688→   688→              <span className="text-sm font-medium">Objectif hebdomadaire</span>
+   689→   689→              <span className="time-display text-sm font-semibold tabular-nums text-foreground">
+   690→   690→                {weekGoal.done} / {weekGoal.goal} pomodoro{weekGoal.goal > 1 ? "s" : ""}
+   691→   691→              </span>
+   692→   692→            </div>
+   693→   693→            <div
+   694→   694→              role="progressbar"
+   695→   695→              aria-valuenow={weekGoal.done}
+   696→   696→              aria-valuemin={0}
+   697→   697→              aria-valuemax={weekGoal.goal}
+   698→   698→              aria-label={`Objectif hebdomadaire : ${weekGoal.done} sur ${weekGoal.goal} pomodoro${
+   699→   699→                weekGoal.goal > 1 ? "s" : ""
+   700→   700→              }`}
+   701→   701→              className="h-2 overflow-hidden rounded-full bg-secondary/50"
+   702→   702→            >
+   703→   703→              <div
+   704→   704→                className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+   705→   705→                style={{ width: `${goalPct}%` }}
+   706→   706→              />
+   707→   707→            </div>
+   708→   708→            <p className="m-0 text-xs text-faint">
+   709→   709→              Basé sur votre objectif quotidien : {weekGoal.perDay} pomodoro
+   710→   710→              {weekGoal.perDay > 1 ? "s" : ""} par jour × 7 jours.
+   711→   711→            </p>
+   712→   712→            <p className="m-0 flex items-center gap-2 text-sm" aria-live="polite">
+   713→   713→              {weekGoal.done >= weekGoal.goal ? (
+   714→   714→                <>
+   715→   715→                  <Trophy className="size-4 shrink-0 text-brand" aria-hidden />
+   716→   716→                  <span className="text-soft">Objectif hebdomadaire atteint, bravo !</span>
+   717→   717→                </>
+   718→   718→              ) : weekGoal.onPace ? (
+   719→   719→                <>
+   720→   720→                  <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+   721→   721→                  <span className="text-soft">
+   722→   722→                    En bonne voie — il reste{" "}
+   723→   723→                    <strong className="font-semibold text-foreground">
+   724→   724→                      {weekGoal.remaining} pomodoro{weekGoal.remaining > 1 ? "s" : ""}
+   725→   725→                    </strong>{" "}
+   726→   726→                    et {weekGoal.daysLeft} jour{weekGoal.daysLeft > 1 ? "s" : ""}.
+   727→   727→                  </span>
+   728→   728→                </>
+   729→   729→              ) : (
+   730→   730→                <>
+   731→   731→                  <Flag className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+   732→   732→                  <span className="text-muted-foreground">
+   733→   733→                    {weekGoal.remaining} pomodoro{weekGoal.remaining > 1 ? "s" : ""} restant
+   734→   734→                    {weekGoal.remaining > 1 ? "s" : ""} pour atteindre l’objectif.
+   735→   735→                  </span>
+   736→   736→                </>
+   737→   737→              )}
+   738→   738→            </p>
+   739→   739→          </div>
+   740→   740→        </section>
+   741→   741→
+   742→   742→        {/* ----- Calendar (monthly / yearly) ----- */}
+   743→   743→        <section className="flex flex-col gap-5 rounded-3xl border bg-card p-6">
+   744→   744→          <div className="flex flex-wrap items-center justify-between gap-3">
+   745→   745→            <div>
+   746→   746→              <h2 className="m-0 text-base font-bold tracking-tight">Calendrier</h2>
+   747→   747→              <p className="mt-0.5 text-[13px] text-faint">
+   748→   748→                Chaque case représente un jour de pratique.
+   749→   749→              </p>
+   750→   750→            </div>
+   751→   751→            <Tabs
+   752→   752→              value={calendarTab}
+   753→   753→              onValueChange={(v) => setCalendarTab(v as "mensuel" | "annuel")}
+   754→   754→            >
+   755→   755→              <TabsList aria-label="Type de calendrier">
+   756→   756→                <TabsTrigger value="mensuel" className="rounded-lg px-3 text-[12.5px]">
+   757→   757→                  Mensuel
+   758→   758→                </TabsTrigger>
+   759→   759→                <TabsTrigger value="annuel" className="rounded-lg px-3 text-[12.5px]">
+   760→   760→                  Annuel
+   761→   761→                </TabsTrigger>
+   762→   762→              </TabsList>
+   763→   763→            </Tabs>
+   764→   764→          </div>
+   765→   765→
+   766→   766→          {calendarTab === "mensuel" ? (
+   767→   767→            <>
+   768→   768→              <div className="flex flex-wrap items-center justify-between gap-3">
+   769→   769→                <p className="m-0 text-[13px] font-semibold text-brand">{monthLabel}</p>
+   770→   770→                <div className="flex items-center gap-2">
+   771→   771→                  <Button
+   772→   772→                    variant="outline"
+   773→   773→                    size="icon"
+   774→   774→                    className="rounded-lg"
+   775→   775→                    aria-label="Mois précédent"
+   776→   776→                    onClick={goPrevMonth}
+   777→   777→                  >
+   778→   778→                    <ChevronLeft aria-hidden />
+   779→   779→                  </Button>
+   780→   780→                  <Button
+   781→   781→                    variant="outline"
+   782→   782→                    size="icon"
+   783→   783→                    className="rounded-lg"
+   784→   784→                    aria-label="Mois suivant"
+   785→   785→                    onClick={goNextMonth}
+   786→   786→                    disabled={isCurrentMonth}
+   787→   787→                  >
+   788→   788→                    <ChevronRight aria-hidden />
+   789→   789→                  </Button>
+   790→   790→                </div>
+   791→   791→              </div>
+   792→   792→
+   793→   793→              <div className="overflow-x-auto">
+   794→   794→                <div
+   795→   795→                  role="img"
+   796→   796→                  aria-label={gridAria}
+   797→   797→                  className="mx-auto grid min-w-[320px] max-w-[420px] grid-cols-7 gap-1.5"
+   798→   798→                >
+   799→   799→                  {WEEKDAY_LABELS.map((w) => (
+   800→   800→                    <div
+   801→   801→                      key={w}
+   802→   802→                      className="pb-1 text-center text-[11px] font-semibold text-faint"
+   803→   803→                    >
+   804→   804→                      {w}
+   805→   805→                    </div>
+   806→   806→                  ))}
+   807→   807→
+   808→   808→                  {Array.from({ length: month.leading }, (_, i) => (
+   809→   809→                    <div key={`lead-${i}`} className="aspect-square" />
+   810→   810→                  ))}
+   811→   811→
+   812→   812→                  {month.cells.map((c) => (
+   813→   813→                    <div
+   814→   814→                      key={c.key}
+   815→   815→                      title={c.title}
+   816→   816→                      className={
+   817→   817→                        "aspect-square w-full rounded-md transition-transform hover:scale-110 " +
+   818→   818→                        (c.isFuture
+   819→   819→                          ? "invisible"
+   820→   820→                          : LEVELS[levelIndex(c.pomodoros)] +
+   821→   821→                            (c.isToday
+   822→   822→                              ? " ring-2 ring-brand ring-offset-2 ring-offset-card"
+   823→   823→                              : ""))
+   824→   824→                      }
+   825→   825→                    />
+   826→   826→                  ))}
+   827→   827→
+   828→   828→                  {Array.from({ length: month.trailing }, (_, i) => (
+   829→   829→                    <div key={`trail-${i}`} className="aspect-square" />
+   830→   830→                  ))}
+   831→   831→                </div>
+   832→   832→              </div>
+   833→   833→
+   834→   834→              <div className="flex items-center justify-end gap-1.5 text-[11px] text-faint">
+   835→   835→                <span>Moins</span>
+   836→   836→                {LEVELS.map((l) => (
+   837→   837→                  <span key={l} aria-hidden className={`size-3 rounded-[4px] ${l}`} />
+   838→   838→                ))}
+   839→   839→                <span>Plus</span>
+   840→   840→              </div>
+   841→   841→            </>
+   842→   842→          ) : (
+   843→   843→            <>
+   844→   844→              <div className="flex flex-wrap items-center justify-between gap-3">
+   845→   845→                <div>
+   846→   846→                  <p className="m-0 text-[13px] font-semibold text-brand">
+   847→   847→                    Année {viewYear}
+   848→   848→                  </p>
+   849→   849→                  <p className="mt-0.5 text-[12px] text-faint">
+   850→   850→                    {yearData.yearPomodoros} pomodoro
+   851→   851→                    {yearData.yearPomodoros === 1 ? "" : "s"} ·{" "}
+   852→   852→                    {yearData.yearActiveDays} jour
+   853→   853→                    {yearData.yearActiveDays === 1 ? "" : "s"} actif
+   854→   854→                    {yearData.yearActiveDays === 1 ? "" : "s"}
+   855→   855→                  </p>
+   856→   856→                </div>
+   857→   857→                <div className="flex items-center gap-2">
+   858→   858→                  <Button
+   859→   859→                    variant="outline"
+   860→   860→                    size="icon"
+   861→   861→                    className="rounded-lg"
+   862→   862→                    aria-label="Année précédente"
+   863→   863→                    onClick={() => setViewYear((y) => y - 1)}
+   864→   864→                  >
+   865→   865→                    <ChevronLeft aria-hidden />
+   866→   866→                  </Button>
+   867→   867→                  <Button
+   868→   868→                    variant="outline"
+   869→   869→                    size="icon"
+   870→   870→                    className="rounded-lg"
+   871→   871→                    aria-label="Année suivante"
+   872→   872→                    onClick={() => setViewYear((y) => y + 1)}
+   873→   873→                    disabled={isCurrentYear}
+   874→   874→                  >
+   875→   875→                    <ChevronRight aria-hidden />
+   876→   876→                  </Button>
+   877→   877→                </div>
+   878→   878→              </div>
+   879→   879→
+   880→   880→              <div className="overflow-x-auto pb-1">
+   881→   881→                <div className="mx-auto w-max min-w-full">
+   882→   882→                  {/* Month labels row */}
+   883→   883→                  <div
+   884→   884→                    aria-hidden
+   885→   885→                    className="mb-1.5 grid gap-x-[3px]"
+   886→   886→                    style={{ gridTemplateColumns: `repeat(${yearData.weeks.length}, 11px)` }}
+   887→   887→                  >
+   888→   888→                    {yearData.marks.map((m) => (
+   889→   889→                      <span
+   890→   890→                        key={`${m.label}-${m.week}`}
+   891→   891→                        style={{ gridColumnStart: m.week + 1, gridRow: 1 }}
+   892→   892→                        className="text-[10px] font-semibold text-faint"
+   893→   893→                      >
+   894→   894→                        {m.label}
+   895→   895→                      </span>
+   896→   896→                    ))}
+   897→   897→                  </div>
+   898→   898→                  {/* Day cells: one column per week, Monday-first */}
+   899→   899→                  <div
+   900→   900→                    role="img"
+   901→   901→                    aria-label={yearAria}
+   902→   902→                    className="flex gap-[3px]"
+   903→   903→                  >
+   904→   904→                    {yearData.weeks.map((week, wi) => (
+   905→   905→                      <div key={`week-${wi}`} className="flex flex-col gap-[3px]">
+   906→   906→                        {week.map((c) => (
+   907→   907→                          <div
+   908→   908→                            key={c.key}
+   909→   909→                            title={c.title}
+   910→   910→                            className={
+   911→   911→                              "size-[11px] rounded-[3px] " +
+   912→   912→                              (!c.inYear || c.isFuture
+   913→   913→                                ? "invisible"
+   914→   914→                                : LEVELS_SM[levelIndex(c.pomodoros)] +
+   915→   915→                                  (c.isToday
+   916→   916→                                    ? " ring-1 ring-brand ring-offset-1 ring-offset-card"
+   917→   917→                                    : ""))
+   918→   918→                            }
+   919→   919→                          />
+   920→   920→                        ))}
+   921→   921→                      </div>
+   922→   922→                    ))}
+   923→   923→                  </div>
+   924→   924→                </div>
+   925→   925→              </div>
+   926→   926→
+   927→   927→              <div className="flex items-center justify-end gap-1.5 text-[11px] text-faint">
+   928→   928→                <span>Moins</span>
+   929→   929→                {LEVELS_SM.map((l) => (
+   930→   930→                  <span key={l} aria-hidden className={`size-3 rounded-[3px] ${l}`} />
+   931→   931→                ))}
+   932→   932→                <span>Plus</span>
+   933→   933→              </div>
+   934→   934→            </>
+   935→   935→          )}
+   936→   936→
+   937→   937→          <div
+   938→   938→            className="flex items-center justify-center gap-2 rounded-xl border bg-secondary px-3 py-2 text-[13px]"
+   939→   939→            aria-label={`Série actuelle : ${streaks.current} jour${
+   940→   940→              streaks.current > 1 ? "s" : ""
+   941→   941→            }. Record : ${streaks.best} jour${streaks.best > 1 ? "s" : ""}.`}
+   942→   942→          >
+   943→   943→            <Award className="size-4 text-brand" aria-hidden />
+   944→   944→            <span className="text-soft">
+   945→   945→              Série en cours :{" "}
+   946→   946→              <strong className="font-semibold text-foreground">
+   947→   947→                {streaks.current} jour{streaks.current > 1 ? "s" : ""}
+   948→   948→              </strong>
+   949→   949→            </span>
+   950→   950→            <span className="text-faint" aria-hidden>
+   951→   951→              ·
+   952→   952→            </span>
+   953→   953→            <span className="text-soft">
+   954→   954→              Record :{" "}
+   955→   955→              <strong className="font-semibold text-foreground">
+   956→   956→                {streaks.best} jour{streaks.best > 1 ? "s" : ""}
+   957→   957→              </strong>
+   958→   958→            </span>
+   959→   959→          </div>
+   960→   960→        </section>
+   961→   961→
+   962→   962→        {/* ----- Weekday distribution ----- */}
+   963→   963→        <section className="flex flex-col gap-4 rounded-3xl border bg-card p-6">
+   964→   964→          <div>
+   965→   965→            <h2 className="m-0 flex items-center gap-2 text-base font-bold tracking-tight">
+   966→   966→              <BarChart3 className="size-4 text-brand" aria-hidden />
+   967→   967→              Répartition par jour de la semaine
+   968→   968→            </h2>
+   969→   969→            <p className="mt-0.5 text-[13px] text-faint">
+   970→   970→              Total de pomodoros réalisés pour chaque jour, toutes semaines confondues.
+   971→   971→            </p>
+   972→   972→          </div>
+   973→   973→
+   974→   974→          <div className="flex flex-col gap-2.5">
+   975→   975→            {WEEKDAY_LABELS.map((w, i) => {
+   976→   976→              const value = weekday.totals[i];
+   977→   977→              const pct = weekday.max > 0 ? Math.max((value / weekday.max) * 100, 2) : 0;
+   978→   978→              const isBest = weekday.max > 0 && value === weekday.max;
+   979→   979→              return (
+   980→   980→                <div key={w} className="flex items-center gap-3">
+   981→   981→                  <span className="w-9 shrink-0 text-right text-[11px] font-semibold uppercase tracking-wide text-faint">
+   982→   982→                    {w}
+   983→   983→                  </span>
+   984→   984→                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary">
+   985→   985→                    <div
+   986→   986→                      className={
+   987→   987→                        "h-full rounded-full bg-brand transition-[width] duration-500 ease-out " +
+   988→   988→                        (isBest ? "shadow-[0_0_8px_-1px_var(--brand-glow)]" : "")
+   989→   989→                      }
+   990→   990→                      style={{ width: `${pct}%` }}
+   991→   991→                    />
+   992→   992→                  </div>
+   993→   993→                  <span
+   994→   994→                    className={`w-9 shrink-0 text-right text-xs font-semibold tabular-nums ${
+   995→   995→                      isBest ? "text-brand" : "text-muted-foreground"
+   996→   996→                    }`}
+   997→   997→                  >
+   998→   998→                    {value}
+   999→   999→                  </span>
+  1000→  1000→                </div>
+  1001→  1001→              );
+  1002→  1002→            })}
+  1003→  1003→          </div>
+  1004→  1004→
+  1005→  1005→          <p className="m-0 text-[13px] text-soft" aria-live="polite">
+  1006→  1006→            {weekday.max > 0 ? (
+  1007→  1007→              <>
+  1008→  1008→                Votre jour le plus productif :{" "}
+  1009→  1009→                <strong className="font-semibold text-foreground">
+  1010→  1010→                  {WEEKDAY_LONG[weekday.bestIndex]}
+  1011→  1011→                </strong>{" "}
+  1012→  1012→                <span className="text-faint">
+  1013→  1013→                  ({weekday.max} pomodoro{weekday.max > 1 ? "s" : ""} au total)
+  1014→  1014→                </span>
+  1015→  1015→              </>
+  1016→  1016→            ) : (
+  1017→  1017→              <span className="text-faint">
+  1018→  1018→                Terminez quelques sessions pour découvrir vos jours les plus productifs.
+  1019→  1019→              </span>
+  1020→  1020→            )}
+  1021→  1021→          </p>
+  1022→  1022→        </section>
+  1023→  1023→
+  1024→  1024→        {/* ----- Actions ----- */}
+  1025→  1025→        <div className="flex flex-wrap items-center gap-3">
+  1026→  1026→          <Button
+  1027→  1027→            variant="secondary"
+  1028→  1028→            className="rounded-xl active:scale-[0.98]"
+  1029→  1029→            onClick={handleExport}
+  1030→  1030→          >
+  1031→  1031→            <Download aria-hidden />
+  1032→  1032→            Exporter en CSV
+  1033→  1033→          </Button>
+  1034→  1034→          <Button
+  1035→  1035→            variant="secondary"
+  1036→  1036→            className="rounded-xl active:scale-[0.98]"
+  1037→  1037→            onClick={handleShareImage}
+  1038→  1038→            disabled={sharePending}
+  1039→  1039→            aria-label="Partager les statistiques en image"
+  1040→  1040→          >
+  1041→  1041→            <ImageDown aria-hidden />
+  1042→  1042→            Partager en image
+  1043→  1043→          </Button>
+  1044→  1044→          <Button variant="ghost" asChild className="rounded-xl">
+  1045→  1045→            <a href="#outils">← Retour aux outils</a>
+  1046→  1046→          </Button>
+  1047→  1047→        </div>
+  1048→  1048→      </div>
+  1049→  1049→    </div>
+  1050→  1050→  );
+  1051→  1051→}
+  1052→  1052→

@@ -55,15 +55,17 @@ export const DEFAULT_SETTINGS: TimerSettings = {
 };
 
 /** Recurrence plan for a task: completing it spawns a fresh copy with the next due date */
-export type TaskRecurrence = "daily" | "weekly";
+export type TaskRecurrence = "daily" | "weekdays" | "weekly";
 
 export const RECURRENCE_LABELS: Record<TaskRecurrence, string> = {
   daily: "Quotidienne",
+  weekdays: "Jours ouvrés",
   weekly: "Hebdomadaire",
 };
 
 export const RECURRENCE_SHORT: Record<TaskRecurrence, string> = {
   daily: "Quotid.",
+  weekdays: "Ouvrés",
   weekly: "Hebdo",
 };
 
@@ -195,12 +197,14 @@ export function daysUntil(key: string): number {
 }
 
 /**
- * Next due-date key for a recurring task: daily → +1 day, weekly → +7 days.
- * The base is max(parsed dueDate, today) so a late completion never plans the
- * next occurrence in the past (daily lands on tomorrow, weekly on today + 7).
- * Built from local Date parts — new Date(y, m-1, d + N) auto-normalizes month/
- * year overflow, then local parts are read back (same key style as todayKey,
- * never ISO/UTC).
+ * Next due-date key for a recurring task: daily → +1 day, weekly → +7 days,
+ * weekdays → the next working day (Mon–Fri). The base is max(parsed dueDate,
+ * today) so a late completion never plans the next occurrence in the past, and
+ * the result is always strictly after that anchor: daily lands on tomorrow,
+ * weekly on today + 7, weekdays on the following working day — a Friday,
+ * Saturday or Sunday anchor lands on Monday. Built from local Date parts —
+ * new Date(y, m-1, d + N) auto-normalizes month/year overflow, then local
+ * parts are read back (same key style as todayKey, never ISO/UTC).
  */
 export function nextDueDate(fromKey: string | undefined, recurrence: TaskRecurrence): string {
   let base: Date | null = null;
@@ -211,6 +215,15 @@ export function nextDueDate(fromKey: string | undefined, recurrence: TaskRecurre
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const from = base !== null && base > today ? base : today;
+  if (recurrence === "weekdays") {
+    // Step one local day forward from the anchor, then skip the weekend:
+    // the landing day is always a working day strictly after the anchor
+    // (Friday → Monday, Saturday → Monday, Sunday → Monday, Mon–Thu → next day).
+    const next = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1);
+    const dow = next.getDay();
+    const shift = dow === 6 ? 2 : dow === 0 ? 1 : 0;
+    return todayKey(new Date(next.getFullYear(), next.getMonth(), next.getDate() + shift));
+  }
   const step = recurrence === "weekly" ? 7 : 1;
   return todayKey(new Date(from.getFullYear(), from.getMonth(), from.getDate() + step));
 }
