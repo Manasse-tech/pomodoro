@@ -1,7 +1,7 @@
 # 📋 Note de sortie — Focusly (r12-c)
 
-**Date** : 17 septembre 2026 · **Périmètre** : déployabilité, efficacité, conformité Google AdSense
-**Verdict** : 🟢 **Déployable sous conditions** (checklist §4) · 🟢 **Efficace (QA complète verte)** · 🟡 **AdSense : éligible après mise en ligne réelle** — 3 actions recommandées avant candidature (§3)
+**Date** : 17 septembre 2026 · **Périmètre** : déployabilité, efficacité, conformité Google AdSense · **Révision r12-d** : socle AdSense implémenté (contenus 600+, bandeau consentement, ads.txt)
+**Verdict** : 🟢 **Déployable sous conditions** (checklist §4) · 🟢 **Efficace (QA complète verte)** · 🟡 **AdSense : éligible après mise en ligne réelle** — socle technique prêt, 2 actions externes restantes (§3)
 
 ---
 
@@ -51,15 +51,17 @@
 | UX | ✅ Rapide, responsive, pas d'interstitiels intrusifs, navigation claire |
 | robots.txt | ✅ `Allow: /` — le crawler AdSense/Mediapartners n'est pas bloqué |
 
-### ⚠️ À faire (recommandé avant / juste après candidature)
-1. **Contenu plus profond** — moyenne ~310 mots/article : étendre chaque article à 600–800+ mots et publier régulièrement. *« Low value content » = motif de refus n°1 d'AdSense.*
-2. **CMP certifiée TCF** — obligatoire pour les annonces personnalisées EEE/UK. La politique annonce déjà le consentement ; implémenter le bandeau (ex. Google-certified CMP) **avant** d'activer la personnalisation.
-3. **ads.txt** — à déposer à la racine du domaine **après** validation du compte : `google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`.
+### ✅ Fait (r12-d)
+1. **Contenu enrichi** — les 6 articles dépassent désormais 600 mots (775 / 622 / 625 / 640 / 671 / 693 mots, ~4 000 mots au total, sections expertes originales : FAQ, plans d'action, méthode des trois passes, transitions, auto-diagnostic…). Sommaires auto-générés enrichis en conséquence.
+2. **Socle de consentement CMP-ready** — bandeau RGPD complet (`consent-banner.tsx` + store `focusly.consent.v1`) : Tout accepter / Continuer sans publicité personnalisée / réouverture via le lien « Cookies & publicité » du pied de page. **Inactif par défaut** (`ADS_CONFIG.enabled: false`) — la procédure d'activation pas-à-pas (script gtag conditionné au consentement, CMP TCF, ads.txt) est documentée dans `src/lib/focusly/ads-config.ts`. Flux validé E2E en navigateur.
+3. **ads.txt** — `public/ads.txt` créé avec le modèle commenté (déposer la ligne Google après validation).
+
+### ⚠️ Reste à faire (nécessite infos/action utilisateur)
 4. **Mise en ligne réelle** — AdSense exige un site public sur domaine en propre en HTTPS (le sandbox de prévisualisation ne suffit pas).
 5. Minor : les routes sont en `#hash` (single-page). Acceptable pour AdSense, mais pour un SEO optimal envisager plus tard des routes réelles (`/blog/[slug]`).
 
 ### Verdict AdSense
-🟡 **Éligible dès la mise en ligne** sur domaine réel : la conformité « pages + confidentialité + contenu original » est acquise ; prioriser l'enrichissement éditorial (action 1) pour maximiser les chances d'acceptation.
+🟡 **Éligible dès la mise en ligne** sur domaine réel : pages obligatoires, politique de confidentialité exacte, contenus profonds (600+ mots/article) et socle de consentement sont en place. Restent à la charge du déploiement : domaine réel + validation Google + activation (`ads-config.ts`) à la réception de l'identifiant éditeur.
 
 ---
 
@@ -71,7 +73,7 @@
 - [ ] Env de prod : `ADMIN_KEY` fort, `DATABASE_URL` (volume persistant)
 - [ ] `bun run build` + `bun run start` → smoke-test des 12 routes
 - [ ] Soumission Google Search Console (sitemap)
-- [ ] Candidature AdSense → puis ads.txt + CMP + codes d'annonce
+- [ ] Candidature AdSense → à la validation : `ADS_CONFIG.enabled = true` + `publisherId`, script gtag conditionné au consentement (voir `ads-config.ts`), ligne ads.txt, CMP TCF si personnalisation EEE/UK
 - [ ] Sauvegarde planifiée de la base SQLite
 
 *Généré lors de l'audit de sortie r12-c — détails d'exécution dans `worklog.md`.*

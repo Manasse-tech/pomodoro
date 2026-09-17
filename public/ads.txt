@@ -1,0 +1,10 @@
+# ads.txt — IAB Authorized Digital Sellers (Google AdSense)
+# ------------------------------------------------------------------
+# À compléter APRÈS validation de votre compte Google AdSense :
+# déposez ici la ligne fournie par Google (Admin AdSense → Sites → ads.txt),
+# au format exact :
+#
+# google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+#
+# Tant que ce fichier ne contient que des commentaires, il est valide
+# (aucune entrée déclarée = aucun vendeur autorisé).

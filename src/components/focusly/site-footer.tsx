@@ -1,6 +1,21 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { HashLink } from "./hash-link";
+import { ADS_CONFIG } from "@/lib/focusly/ads-config";
+import { useConsent } from "@/lib/focusly/consent";
+
+/** Compliant mounted-detection (react-hooks/set-state-in-effect) : client
+ * snapshot = true seulement APRÈS hydration → premier rendu identique au
+ * serveur, aucun mismatch SSR (leçon r12-a/r12-b). */
+const emptySubscribe = () => () => {};
+function useMounted(): boolean {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+}
 
 const COLS: Array<{ title: string; links: Array<{ label: string; href: string }> }> = [
   {
@@ -32,6 +47,11 @@ const COLS: Array<{ title: string; links: Array<{ label: string; href: string }>
 
 export function SiteFooter() {
   const year = new Date().getFullYear();
+  /** Lien « Cookies & publicité » uniquement quand la pub/traceurs sont activés
+   * (ADS_CONFIG.enabled) — pattern mounted pour éviter tout mismatch SSR. */
+  const mounted = useMounted();
+  const reopenConsent = useConsent((s) => s.reopen);
+  const showCookiesLink = mounted && ADS_CONFIG.enabled;
   return (
     <footer
       className="mt-auto border-t pt-10 pb-[calc(var(--spacing)*10_+_env(safe-area-inset-bottom))] text-[13.5px] text-muted-foreground"
@@ -67,6 +87,17 @@ export function SiteFooter() {
                     </HashLink>
                   </li>
                 ))}
+                {col.title === "Légal" && showCookiesLink && (
+                  <li>
+                    <button
+                      type="button"
+                      onClick={reopenConsent}
+                      className="cursor-pointer text-left transition-colors hover:text-foreground"
+                    >
+                      Cookies &amp; publicité
+                    </button>
+                  </li>
+                )}
               </ul>
             </nav>
           ))}

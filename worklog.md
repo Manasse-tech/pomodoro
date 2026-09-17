@@ -1158,3 +1158,21 @@ Stage Summary:
 - 2 corrections embarquées : fuite potentielle de clé admin neutralisée en prod + politique de confidentialité exacte.
 - Bloquants documentés (non corrigeables sans info utilisateur) : domaine réel dans layout.tsx/robots/sitemap, placeholders mentions légales, ADMIN_KEY fort.
 - Prochaine round suggérée : enrichir 2-3 articles de blog à 600-800 mots (meilleur levier d'acceptation AdSense).
+
+---
+Task ID: r12-d
+Agent: main (Z.ai Code)
+Task: Suite de la note de sortie — « tu peux le faire ? » : exécuter les actions AdSense réalisables sans infos utilisateur (contenus 600+, bandeau de consentement CMP-ready, ads.txt)
+
+Work Log:
+- Contenus : 6 articles de blog enrichis de 2 vagues de sections expertes originales (environnement/interruptions/FAQ, échelons de récupération/signes/marche/circadien, grille de choix/transitions/erreurs de combinaison, pause minute-par-minute/environnements/journal, auto-diagnostic/Erreur 6/revue hebdo, trois passes/feuille de route/musique-vs-silence). readMinutes mis à jour. Mesuré en navigateur : 775/622/625/640/671/693 mots (~4 000 total, était ~1 865). TOC auto (headingIds) enrichie automatiquement.
+- Consentement : src/lib/focusly/ads-config.ts (commutateur enabled:false + publisherId + procédure d'activation pas-à-pas en JSDoc), src/lib/focusly/consent.ts (zustand persist focusly.consent.v1, partialize sans transient, pas de TDZ), src/components/focusly/tools/consent-banner.tsx (Tout accepter / Continuer sans pub personnalisée / réouverture, safe-area, a11y region), FocuslyApp wiring, SiteFooter : lien « Cookies & publicité » conditionné à ADS_CONFIG.enabled.
+- Anti-mismatch SSR : pattern mounted via useSyncExternalStore (la règle react-hooks/set-state-in-effect rejette le setState-in-effect) — exporté en helper local dans les 2 composants.
+- E2E bannière (enabled:true temporaire) : bandeau visible ✓, lien footer visible ✓, accepter → {ads:granted, decidedAt} persisté + bandeau masqué ✓, réouvrir via footer ✓ + bouton Fermer ✓, refuser → denied persisté ✓, retour enabled:false → bandeau et lien footer disparus ✓. Console buffer clear + fresh reload → 0 erreur (les 2 « Fast Refresh full reload » étaient des résidus d'édition à chaud).
+- ads.txt : public/ads.txt modèle commenté (ligne google.com, pub-…, DIRECT, f08c47fec0942fa0 à déposer post-validation). Servi en 200.
+- RELEASE-NOTE.md révisé (r12-d) : §3 restructuré « Fait / Reste à faire », verdict mis à jour, checklist AdSense détaillée.
+- tsc 0 / eslint 0.
+
+Stage Summary:
+- Socle AdSense complet et testé : contenus 600+ mots/article, consentement RGPD CMP-ready inactif par défaut, ads.txt modèle. Reste externe : domaine réel, mentions légales, validation Google, activation avec publisherId.
+- Nouvelles leçons : react-hooks/set-state-in-effect impose useSyncExternalStore pour le pattern mounted ; le buffer console d'agent-browser accumule les warnings HMR — faire console --clear avant les mesures.

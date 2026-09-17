@@ -7,6 +7,7 @@ import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
 import { HelpDialog } from "./tools/help-dialog";
 import { CommandPalette } from "./tools/command-palette";
+import { ConsentBanner } from "./tools/consent-banner";
 import { SettingsDialog } from "./tools/settings-dialog";
 import { OutilsView } from "./tools/outils-view";
 import { AdminView } from "./admin-view";
@@ -459,6 +460,7 @@ export function FocuslyApp() {
       <SettingsDialog />
       <HelpDialog />
       <CommandPalette />
+      <ConsentBanner />
       {route === "accueil" && (
         <script
           type="application/ld+json"
