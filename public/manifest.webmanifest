@@ -39,6 +39,11 @@
       "url": "/#outils"
     },
     {
+      "name": "Nouvelle tâche",
+      "short_name": "Nouvelle tâche",
+      "url": "/?tache=nouvelle#outils"
+    },
+    {
       "name": "Statistiques",
       "short_name": "Stats",
       "url": "/#statistiques"

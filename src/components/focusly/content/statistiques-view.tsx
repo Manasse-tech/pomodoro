@@ -5,11 +5,16 @@ import {
   Award,
   BarChart3,
   CalendarCheck,
+  CalendarRange,
   ChevronLeft,
   ChevronRight,
   Download,
   Flame,
+  ImageDown,
+  Minus,
   Timer,
+  TrendingDown,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dailyToCsv, downloadTextFile } from "@/lib/focusly/csv";
+import { shareOrDownloadStatsImage } from "@/lib/focusly/share-image";
 import { computeStreaks } from "@/lib/focusly/streaks";
 import { EMPTY_STAT, useFocusly } from "@/lib/focusly/store";
 import { todayKey } from "@/lib/focusly/types";
@@ -120,6 +126,8 @@ export function StatistiquesView() {
   const [viewYear, setViewYear] = useState<number>(() => new Date().getFullYear());
   /** Selected KPI period in days — null = all time (default, preserves old behavior). */
   const [period, setPeriod] = useState<7 | 30 | 90 | null>(null);
+  /** Partage en image en cours (évite les doubles clics pendant la génération). */
+  const [sharePending, setSharePending] = useState(false);
 
   /* ----- Grand totals across all recorded days ----- */
   const totals = useMemo(() => {
@@ -138,6 +146,7 @@ export function StatistiquesView() {
       pomodoros,
       activeDays,
       recorded,
+      focusSeconds: seconds,
       focusLabel:
         hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
     };
@@ -171,12 +180,65 @@ export function StatistiquesView() {
       pomodoros,
       activeDays,
       recorded,
+      focusSeconds: seconds,
       focusLabel:
         hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
     };
   }, [daily, period]);
 
   const streaks = useMemo(() => computeStreaks(daily), [daily]);
+
+  /* ----- Comparaison semaine vs semaine (lundi → dimanche, comme le reste de la page) ----- */
+  const weekCompare = useMemo(() => {
+    const n = new Date();
+    const todayMid = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    // Lundi de la semaine courante (dimanche = 0 → index lundi-first)
+    const monday = new Date(todayMid);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const prevMonday = new Date(monday);
+    prevMonday.setDate(prevMonday.getDate() - 7);
+
+    // Somme des 7 clés de la semaine ; les jours futurs n’existent pas dans daily
+    const sumWeek = (start: Date) => {
+      let pomodoros = 0;
+      let seconds = 0;
+      const cur = new Date(start);
+      for (let i = 0; i < 7; i++) {
+        const s = daily[dayKeyOf(cur.getFullYear(), cur.getMonth(), cur.getDate())];
+        if (s) {
+          pomodoros += s.pomodoros;
+          seconds += s.focusSeconds;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return {
+        pomodoros,
+        focusLabel:
+          hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`,
+      };
+    };
+
+    const current = sumWeek(monday);
+    const previous = sumWeek(prevMonday);
+
+    // Position dans la semaine : 0 = lundi … 6 = dimanche
+    const dayIndex = (todayMid.getDay() + 6) % 7;
+    const daysElapsed = dayIndex + 1;
+
+    // Évolution en % — garde anti-division par zéro
+    let trend: "up" | "down" | "flat" | "new" | "empty" = "empty";
+    let pct = 0;
+    if (previous.pomodoros === 0 && current.pomodoros > 0) {
+      trend = "new";
+    } else if (previous.pomodoros > 0) {
+      pct = Math.round(((current.pomodoros - previous.pomodoros) / previous.pomodoros) * 100);
+      trend = pct > 0 ? "up" : pct < 0 ? "down" : "flat";
+    }
+
+    return { current, previous, daysElapsed, weekComplete: dayIndex === 6, trend, pct };
+  }, [daily]);
 
   /* ----- Current month grid ----- */
   const monthLabel = useMemo(() => {
@@ -331,6 +393,17 @@ export function StatistiquesView() {
 
   const hasData = totals.recorded > 0;
 
+  /* ----- Comparaison hebdomadaire : libellés dérivés ----- */
+  const weekMax = Math.max(weekCompare.current.pomodoros, weekCompare.previous.pomodoros);
+  const weekAria = `Cette semaine : ${weekCompare.current.pomodoros} ${
+    weekCompare.current.pomodoros === 1 ? "pomodoro" : "pomodoros"
+  }. Semaine dernière : ${weekCompare.previous.pomodoros} ${
+    weekCompare.previous.pomodoros === 1 ? "pomodoro" : "pomodoros"
+  }.`;
+  // Largeur de barre (max des deux semaines = pleine largeur, plancher 2 % si actif)
+  const weekBarPct = (v: number) =>
+    weekMax > 0 ? Math.max((v / weekMax) * 100, 2) : 0;
+
   const handleExport = () => {
     if (Object.keys(daily).length === 0) {
       toast.info("Aucune donnée à exporter.");
@@ -346,6 +419,8 @@ export function StatistiquesView() {
     period === null
       ? "Sur l’ensemble de votre historique."
       : `${period} derniers jours, aujourd’hui inclus.`;
+  // Libellé condensé pour l’image partagée (pas de phrase complète)
+  const imagePeriodLabel = period === null ? "Historique complet" : `${period} derniers jours`;
 
   const kpis: Array<{
     icon: LucideIcon;
@@ -381,6 +456,25 @@ export function StatistiquesView() {
       hint2: period !== null ? "indépendante de la période" : undefined,
     },
   ];
+
+  const handleShareImage = async () => {
+    setSharePending(true);
+    try {
+      const result = await shareOrDownloadStatsImage({
+        pomodoros: shown.pomodoros,
+        focusSeconds: shown.focusSeconds,
+        bestStreak: streaks.best,
+        periodLabel: imagePeriodLabel,
+        fileName: `focusly-statistiques-${todayKey()}.png`,
+      });
+      // shared : l’OS affiche déjà son retour ; cancelled : annulation silencieuse
+      if (result === "downloaded") toast.success("Image générée.");
+    } catch {
+      toast.error("Impossible de générer l’image.");
+    } finally {
+      setSharePending(false);
+    }
+  };
 
   return (
     <div className="mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
@@ -447,6 +541,124 @@ export function StatistiquesView() {
             </div>
           ))}
         </div>
+
+        {/* ----- Comparaison hebdomadaire ----- */}
+        <section className="flex flex-col gap-4 rounded-3xl border bg-card p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="m-0 flex items-center gap-2 text-base font-bold tracking-tight">
+              <CalendarRange className="size-4 text-brand" aria-hidden />
+              Comparaison hebdomadaire
+            </h2>
+            {!weekCompare.weekComplete && (
+              <span className="text-xs text-faint">
+                semaine en cours ({weekCompare.daysElapsed} jour
+                {weekCompare.daysElapsed > 1 ? "s" : ""} sur 7)
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5 rounded-2xl border bg-secondary/40 p-4">
+              <small className="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                Cette semaine
+              </small>
+              <span className="time-display text-2xl font-bold">
+                {weekCompare.current.pomodoros}
+                <span className="ml-1.5 text-sm font-semibold text-soft">
+                  {weekCompare.current.pomodoros === 1 ? "pomodoro" : "pomodoros"} ·{" "}
+                  {weekCompare.current.focusLabel}
+                </span>
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 rounded-2xl border bg-secondary/40 p-4">
+              <small className="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                Semaine dernière
+              </small>
+              <span className="time-display text-2xl font-bold">
+                {weekCompare.previous.pomodoros}
+                <span className="ml-1.5 text-sm font-semibold text-soft">
+                  {weekCompare.previous.pomodoros === 1 ? "pomodoro" : "pomodoros"} ·{" "}
+                  {weekCompare.previous.focusLabel}
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2.5" role="img" aria-label={weekAria}>
+            <div className="flex items-center gap-3">
+              <span className="w-32 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-brand">
+                Cette semaine
+              </span>
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary/50">
+                <div
+                  className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                  style={{ width: `${weekBarPct(weekCompare.current.pomodoros)}%` }}
+                />
+              </div>
+              <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-foreground">
+                {weekCompare.current.pomodoros}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="w-32 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-faint">
+                Semaine dernière
+              </span>
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary/50">
+                <div
+                  className="h-full rounded-full bg-muted-foreground/40 transition-all duration-500 ease-out"
+                  style={{ width: `${weekBarPct(weekCompare.previous.pomodoros)}%` }}
+                />
+              </div>
+              <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+                {weekCompare.previous.pomodoros}
+              </span>
+            </div>
+          </div>
+
+          <p className="m-0 flex items-center gap-2 text-[13px] text-soft" aria-live="polite">
+            {weekCompare.trend === "up" && (
+              <>
+                <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+                <span>
+                  <strong className="font-semibold text-brand">+{weekCompare.pct} %</strong> par
+                  rapport à la semaine dernière
+                </span>
+              </>
+            )}
+            {weekCompare.trend === "down" && (
+              <>
+                <TrendingDown className="size-4 shrink-0 text-soft" aria-hidden />
+                <span>
+                  <strong className="font-semibold text-foreground">
+                    −{Math.abs(weekCompare.pct)} %
+                  </strong>{" "}
+                  par rapport à la semaine dernière
+                </span>
+              </>
+            )}
+            {weekCompare.trend === "flat" && (
+              <>
+                <Minus className="size-4 shrink-0 text-soft" aria-hidden />
+                <span>
+                  <strong className="font-semibold text-foreground">Stable</strong> par rapport
+                  à la semaine dernière
+                </span>
+              </>
+            )}
+            {weekCompare.trend === "new" && (
+              <span>
+                <strong className="font-semibold text-brand">
+                  {weekCompare.current.pomodoros}
+                </strong>{" "}
+                pomodoro{weekCompare.current.pomodoros > 1 ? "s" : ""} cette semaine, aucun la
+                semaine dernière
+              </span>
+            )}
+            {weekCompare.trend === "empty" && (
+              <span className="text-faint">Aucun pomodoro cette semaine pour l’instant.</span>
+            )}
+          </p>
+        </section>
 
         {/* ----- Calendar (monthly / yearly) ----- */}
         <section className="flex flex-col gap-5 rounded-3xl border bg-card p-6">
@@ -739,6 +951,16 @@ export function StatistiquesView() {
           >
             <Download aria-hidden />
             Exporter en CSV
+          </Button>
+          <Button
+            variant="secondary"
+            className="rounded-xl active:scale-[0.98]"
+            onClick={handleShareImage}
+            disabled={sharePending}
+            aria-label="Partager les statistiques en image"
+          >
+            <ImageDown aria-hidden />
+            Partager en image
           </Button>
           <Button variant="ghost" asChild className="rounded-xl">
             <a href="#outils">← Retour aux outils</a>

@@ -160,6 +160,19 @@ export function FocuslyApp() {
     document.title = titleFor(route);
   }, [running, route]);
 
+  /* App badge (installed PWA, Chromium): number of pomodoros done today */
+  const pomodorosToday = useFocusly((s) => s.daily[todayKey()]?.pomodoros ?? 0);
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    const nav = navigator as Navigator & {
+      setAppBadge?: (n?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (typeof nav.setAppBadge !== "function") return;
+    if (pomodorosToday > 0) nav.setAppBadge(pomodorosToday).catch(() => {});
+    else nav.clearAppBadge?.().catch(() => {});
+  }, [pomodorosToday]);
+
   /* Catch up when the tab becomes visible again */
   useEffect(() => {
     const onVisible = () => {

@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Download,
   Inbox,
   Lock,
   Mail,
   MailOpen,
   RefreshCw,
+  Reply,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
@@ -27,7 +29,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { frDateTime } from "@/lib/focusly/types";
+import { downloadTextFile, messagesToCsv } from "@/lib/focusly/csv";
+import { frDateTime, todayKey } from "@/lib/focusly/types";
 
 import { Breadcrumb } from "./content/breadcrumb";
 
@@ -52,6 +55,27 @@ const FILTERS: Array<{ value: "tous" | "non-lus"; label: string }> = [
   { value: "tous", label: "Tous" },
   { value: "non-lus", label: "Non lus" },
 ];
+
+/** Pre-filled FR reply (mailto) — quotes the original message, truncated after 600 characters. */
+function buildReplyHref(msg: ContactMsg): string {
+  const normalized = msg.message.replace(/\r\n/g, "\n");
+  const truncated =
+    normalized.length > 600
+      ? normalized.slice(0, 600).replace(/\s+\S*$/, "") + " …"
+      : normalized;
+  const body = [
+    `Bonjour ${msg.name},`,
+    "",
+    "Merci pour votre message :",
+    "",
+    ...truncated.split("\n").map((line) => `> ${line}`),
+    "",
+    "Cordialement,",
+    "L’équipe Focusly",
+  ].join("\n");
+  const subject = "Re: " + (msg.subject ?? "Votre message Focusly");
+  return `mailto:${msg.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 /* ------------------------------------------------------------------ */
 /* View                                                                */
@@ -201,6 +225,16 @@ export function AdminView() {
     }
   };
 
+  /* ----- Export all the messages as a client-side CSV download ----- */
+  const handleExportCsv = () => {
+    if (messages.length === 0) {
+      toast.info("Aucun message à exporter.");
+      return;
+    }
+    downloadTextFile(messagesToCsv(messages), `focusly-messages-${todayKey()}.csv`);
+    toast.success("Export CSV téléchargé.");
+  };
+
   /* ---------------------------------------------------------------- */
   /* Gate (no valid key in this tab)                                   */
   /* ---------------------------------------------------------------- */
@@ -308,6 +342,16 @@ export function AdminView() {
             >
               <RefreshCw className={loading ? "animate-spin" : undefined} aria-hidden />
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg"
+              aria-label="Exporter les messages en CSV"
+              onClick={handleExportCsv}
+            >
+              <Download aria-hidden />
+              Exporter en CSV
+            </Button>
             <Button variant="ghost" className="rounded-xl" onClick={handleSignOut}>
               Se déconnecter
             </Button>
@@ -402,6 +446,17 @@ export function AdminView() {
                         >
                           {m.read ? <Mail aria-hidden /> : <MailOpen aria-hidden />}
                           {m.read ? "Marquer comme non lu" : "Marquer comme lu"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Répondre à ${m.name}`}
+                          onClick={() => {
+                            window.location.href = buildReplyHref(m);
+                          }}
+                        >
+                          <Reply aria-hidden />
+                          Répondre
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>

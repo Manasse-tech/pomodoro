@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowDownWideNarrow,
   Calendar,
   CalendarClock,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Crosshair,
@@ -30,6 +31,15 @@ function dueDateLabel(key: string): string {
   return frDate(new Date(y, m - 1, d).getTime());
 }
 
+/** View-level filters — « Aujourd’hui » = due today or overdue, « En retard » = overdue only */
+type TaskFilter = "toutes" | "aujourdhui" | "retard";
+
+const TASK_FILTERS: Array<{ value: TaskFilter; label: string }> = [
+  { value: "toutes", label: "Toutes" },
+  { value: "aujourdhui", label: "Aujourd’hui" },
+  { value: "retard", label: "En retard" },
+];
+
 export function TasksPanel() {
   const tasks = useFocusly((s) => s.tasks);
   const addTask = useFocusly((s) => s.addTask);
@@ -51,11 +61,37 @@ export function TasksPanel() {
   /* drag-and-drop reorder state (id of the dragged task / hovered target) */
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  /* view-level filter — never reorders or mutates the store */
+  const [filter, setFilter] = useState<TaskFilter>("toutes");
+
+  /* PWA shortcut « /?tache=nouvelle#outils » — focus the new-task input once, then clean the URL */
+  const newTaskInputRef = useRef<HTMLInputElement | null>(null);
+  const deepLinkFired = useRef(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tache") !== "nouvelle") return;
+    const id = window.setTimeout(() => {
+      if (deepLinkFired.current) return;
+      deepLinkFired.current = true;
+      newTaskInputRef.current?.focus();
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, []);
 
   const remaining = tasks.filter((t) => !t.done).length;
   const doneCount = tasks.length - remaining;
   const plannedTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.estimate ?? 1), 0);
   const spentTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.spent ?? 0), 0);
+
+  /* « Aujourd’hui » keeps due-today + overdue, « En retard » only overdue — done tasks included */
+  const visibleTasks =
+    filter === "toutes"
+      ? tasks
+      : tasks.filter((t) => {
+          if (!t.dueDate) return false;
+          const d = daysUntil(t.dueDate);
+          return filter === "aujourdhui" ? d <= 0 : d < 0;
+        });
 
   const clearDrag = () => {
     setDragId(null);
@@ -121,7 +157,34 @@ export function TasksPanel() {
           <span className="text-xs font-semibold text-muted-foreground">
             {remaining} / {tasks.length}
           </span>
+          {filter !== "toutes" && (
+            <span className="text-xs text-faint">
+              · {visibleTasks.length} affichée{visibleTasks.length > 1 ? "s" : ""}
+            </span>
+          )}
         </div>
+      </div>
+
+      <div
+        role="group"
+        aria-label="Filtrer les tâches"
+        className="-mt-2 flex flex-wrap items-center gap-1.5"
+      >
+        {TASK_FILTERS.map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            aria-pressed={filter === f.value}
+            onClick={() => setFilter(f.value)}
+            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+              filter === f.value
+                ? "border-brand/40 bg-brand/15 font-medium text-brand"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {tasks.length > 0 && remaining > 0 && (
@@ -150,6 +213,7 @@ export function TasksPanel() {
           Nouvelle tâche
         </label>
         <Input
+          ref={newTaskInputRef}
           id="task-input"
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -201,10 +265,12 @@ export function TasksPanel() {
       </form>
 
       <ul className="slim-scroll flex max-h-96 list-none flex-col gap-2 overflow-y-auto p-0 m-0">
-        {tasks.map((t, index) => {
+        {visibleTasks.map((t) => {
           const editing = t.id === editingId;
           const due = t.dueDate ?? null;
           const dueDays = due ? daysUntil(due) : null;
+          /* chevron bounds follow the store order — the filter is view-level only */
+          const storeIndex = tasks.findIndex((x) => x.id === t.id);
           return (
             <li
               key={t.id}
@@ -420,7 +486,7 @@ export function TasksPanel() {
                       <button
                         type="button"
                         onClick={() => moveTask(t.id, -1)}
-                        disabled={index === 0}
+                        disabled={storeIndex === 0}
                         aria-label={`Monter la tâche : ${t.text}`}
                         className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
                       >
@@ -429,7 +495,7 @@ export function TasksPanel() {
                       <button
                         type="button"
                         onClick={() => moveTask(t.id, 1)}
-                        disabled={index === tasks.length - 1}
+                        disabled={storeIndex === tasks.length - 1}
                         aria-label={`Descendre la tâche : ${t.text}`}
                         className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
                       >
@@ -448,6 +514,19 @@ export function TasksPanel() {
         <div className="rounded-xl border border-dashed px-4 py-6 text-center text-[13.5px] text-faint">
           Aucune tâche pour le moment. Ajoutez-en une pour la lier au minuteur.
         </div>
+      )}
+
+      {tasks.length > 0 && visibleTasks.length === 0 && filter !== "toutes" && (
+        filter === "retard" ? (
+          <div className="flex flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center text-[13.5px] text-faint">
+            <CheckCircle2 aria-hidden className="size-5 text-brand" />
+            Aucune tâche en retard. Vous êtes à jour.
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed px-4 py-6 text-center text-[13.5px] text-faint">
+            Rien de prévu aujourd’hui. Profitez-en ou planifiez une échéance.
+          </div>
+        )
       )}
 
       {doneCount > 0 && (
