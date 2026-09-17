@@ -1139,3 +1139,22 @@ Stage Summary:
 Risques / suite:
 - Offline complet (shell app) volontairement dégradé vers /offline.html — impossible honnêtement avec des bundles dev ; à réévaluer si un build production voit le jour.
 - Prochaine round : candidats — filtres chips Admin + export CSV complet, filtres de période Stats, PWA manifest audit (offline page FR), validation réel navigateur des animations `.fade-up`.
+
+---
+Task ID: r12-c
+Agent: main (Z.ai Code)
+Task: Note de sortie utilisateur — « effectue une note de sortie pour voir si elle est déployable et efficace et respecte les règles de Google AdSense » (audit déployabilité + efficacité + conformité AdSense)
+
+Work Log:
+- Collecte facts : package.json (scripts standalone ✓), next.config.ts (output standalone, ignoreBuildErrors:true), prisma/schema.prisma (SQLite + ContactMessage), robots.txt/sitemap.xml/metadataBase (placeholder focusly.example), manifest PWA, API /api/contact (zod + honeypot + consentement + rate-limit 5/15min + anti brute-force admin), .env (ADMIN_KEY, DATABASE_URL absolu).
+- Audit contenu pour AdSense : guide 694 mots, blog 6 articles ≈ 1865 mots (~310 mots/article — court), confidentialité = section AdSense explicite ✓ mais §2 inexact (ne déclarait pas les données du formulaire de contact stockées serveur).
+- FIX 1 (sécurité) : admin-view.tsx — le message « Clé de développement par défaut : focusly-admin-2026 » n'apparaît PLUS en production (render conditionnel process.env.NODE_ENV !== "production", inliné au build) — vérifié navigateur : visible en dev, absent en prod.
+- FIX 2 (conformité) : legal-views.tsx Confidentialité §2 réécrit — divulgation honnête du stockage serveur des données de contact (nom/email/message, finalité, suppression sur demande) — vérifié navigateur.
+- QA sortie agent-browser : 12 routes smoke OK, console 0 erreur, tsc 0, eslint 0.
+- Livrable : /home/z/my-project/RELEASE-NOTE.md (verdict : déployable sous conditions ; 6 conditions de prod listées ; AdSense éligible après domaine réel + 3 actions : contenu 600-800+ mots/article, CMP TCF avant personnalisation, ads.txt post-approbation ; checklist de mise en ligne en 8 étapes).
+
+Stage Summary:
+- Verdict global : 🟢 déployable sous conditions (domaine réel, mentions légales à compléter, secrets de prod, build à valider) · 🟢 efficace (QA verte) · 🟡 AdSense éligible après mise en ligne.
+- 2 corrections embarquées : fuite potentielle de clé admin neutralisée en prod + politique de confidentialité exacte.
+- Bloquants documentés (non corrigeables sans info utilisateur) : domaine réel dans layout.tsx/robots/sitemap, placeholders mentions légales, ADMIN_KEY fort.
+- Prochaine round suggérée : enrichir 2-3 articles de blog à 600-800 mots (meilleur levier d'acceptation AdSense).

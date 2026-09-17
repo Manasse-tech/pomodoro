@@ -1,0 +1,724 @@
+     1→import { NextResponse } from "next/server";
+     2→import { Prisma } from "@prisma/client";
+     3→import { z } from "zod";
+     4→
+     5→import { db } from "@/lib/db";
+     6→// Format CSV établi côté client (Date;Nom;Email;Sujet;Message;Lu;Archivé, séparateur « ; »,
+     7→// champs quotés) — réutilisé à l'identique pour l'export serveur.
+     8→import { messagesToCsv } from "@/lib/focusly/csv";
+     9→import { todayKey } from "@/lib/focusly/types";
+    10→
+    11→export const runtime = "nodejs";
+    12→
+    13→/* ------------------------------------------------------------------ */
+    14→/* Validation (zod) — messages en français                             */
+    15→/* ------------------------------------------------------------------ */
+    16→
+    17→const contactSchema = z.object({
+    18→  name: z
+    19→    .string({ error: "Le nom est requis." })
+    20→    .trim()
+    21→    .min(2, "Le nom doit contenir au moins 2 caractères.")
+    22→    .max(100, "Le nom ne peut pas dépasser 100 caractères."),
+    23→  email: z
+    24→    .string({ error: "L'email est requis." })
+    25→    .trim()
+    26→    .max(200, "L'email ne peut pas dépasser 200 caractères.")
+    27→    .email("Adresse email invalide."),
+    28→  subject: z
+    29→    .string()
+    30→    .trim()
+    31→    .max(150, "Le sujet ne peut pas dépasser 150 caractères.")
+    32→    .optional()
+    33→    .default(""),
+    34→  message: z
+    35→    .string({ error: "Le message est requis." })
+    36→    .trim()
+    37→    .min(10, "Le message doit contenir au moins 10 caractères.")
+    38→    .max(5000, "Le message ne peut pas dépasser 5000 caractères."),
+    39→  consent: z.literal(true, {
+    40→    error: "Vous devez accepter l'utilisation de vos données.",
+    41→  }),
+    42→  // Honeypot anti-spam : doit rester vide (rempli par les bots uniquement)
+    43→  website: z.string().optional(),
+    44→});
+    45→
+    46→export type ContactPayload = z.infer<typeof contactSchema>;
+    47→
+    48→/* ------------------------------------------------------------------ */
+    49→/* Rate limit mémoire : 5 soumissions / 15 min par IP                  */
+    50→/* ------------------------------------------------------------------ */
+    51→
+    52→const RATE_LIMIT_MAX = 5;
+    53→const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+    54→
+    55→const submissions = new Map<string, number[]>();
+    56→/** Failed admin-key attempts per IP (brute-force guard) */
+    57→const adminFails = new Map<string, number[]>();
+    58→
+    59→const ADMIN_KEY = process.env.ADMIN_KEY ?? "focusly-admin";
+    60→const ADMIN_FAIL_MAX = 10;
+    61→const ADMIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+    62→
+    63→function isRateLimited(ip: string): boolean {
+    64→  const now = Date.now();
+    65→  const timestamps = (submissions.get(ip) ?? []).filter(
+    66→    (t) => now - t < RATE_LIMIT_WINDOW_MS,
+    67→  );
+    68→
+    69→  if (timestamps.length >= RATE_LIMIT_MAX) {
+    70→    submissions.set(ip, timestamps);
+    71→    return true;
+    72→  }
+    73→
+    74→  timestamps.push(now);
+    75→  submissions.set(ip, timestamps);
+    76→
+    77→  // Nettoyage périodique pour éviter une croissance indéfinie de la Map
+    78→  if (submissions.size > 1000) {
+    79→    for (const [key, times] of submissions) {
+    80→      if (times.every((t) => now - t >= RATE_LIMIT_WINDOW_MS)) {
+    81→        submissions.delete(key);
+    82→      }
+    83→    }
+    84→  }
+    85→
+    86→  return false;
+    87→}
+    88→
+    89→function getClientIp(request: Request): string {
+    90→  const forwarded = request.headers.get("x-forwarded-for");
+    91→  if (forwarded) {
+    92→    const first = forwarded.split(",")[0]?.trim();
+    93→    if (first) return first;
+    94→  }
+    95→  return "local";
+    96→}
+    97→
+    98→/* ------------------------------------------------------------------ */
+    99→/* Administration : garde-fou anti-force brute sur la clé              */
+   100→/* ------------------------------------------------------------------ */
+   101→
+   102→function isAdminBlocked(ip: string): boolean {
+   103→  const now = Date.now();
+   104→  const fails = (adminFails.get(ip) ?? []).filter(
+   105→    (t) => now - t < ADMIN_FAIL_WINDOW_MS,
+   106→  );
+   107→  adminFails.set(ip, fails);
+   108→  return fails.length >= ADMIN_FAIL_MAX;
+   109→}
+   110→
+   111→function recordAdminFail(ip: string) {
+   112→  const fails = (adminFails.get(ip) ?? []).filter(
+   113→    (t) => Date.now() - t < ADMIN_FAIL_WINDOW_MS,
+   114→  );
+   115→  fails.push(Date.now());
+   116→  adminFails.set(ip, fails);
+   117→}
+   118→
+   119→function isAdmin(request: Request, ip: string): boolean {
+   120→  if (isAdminBlocked(ip)) return false;
+   121→  const key =
+   122→    request.headers.get("x-admin-key") ??
+   123→    new URL(request.url).searchParams.get("adminKey") ??
+   124→    "";
+   125→  if (key.length > 0 && key === ADMIN_KEY) return true;
+   126→  recordAdminFail(ip);
+   127→  return false;
+   128→}
+   129→
+   130→/* ------------------------------------------------------------------ */
+   131→/* POST /api/contact                                                   */
+   132→/* ------------------------------------------------------------------ */
+   133→
+   134→export async function POST(request: Request) {
+   135→  let body: unknown;
+   136→  try {
+   137→    body = await request.json();
+   138→  } catch {
+   139→    return NextResponse.json(
+   140→      { error: "Requête invalide." },
+   141→      { status: 400 },
+   142→    );
+   143→  }
+   144→
+   145→  // Honeypot : si le champ caché « website » est rempli, c'est un bot.
+   146→  // On renvoie OK sans rien enregistrer (abandon silencieux).
+   147→  const maybeWebsite =
+   148→    typeof body === "object" &&
+   149→    body !== null &&
+   150→    "website" in body &&
+   151→    typeof (body as { website?: unknown }).website === "string"
+   152→      ? (body as { website: string }).website
+   153→      : "";
+   154→
+   155→  if (maybeWebsite.trim().length > 0) {
+   156→    return NextResponse.json({ ok: true }, { status: 200 });
+   157→  }
+   158→
+   159→  // Rate limit par IP
+   160→  if (isRateLimited(getClientIp(request))) {
+   161→    return NextResponse.json(
+   162→      { error: "Trop de messages envoyés. Réessayez plus tard." },
+   163→      { status: 429 },
+   164→    );
+   165→  }
+   166→
+   167→  // Validation
+   168→  const parsed = contactSchema.safeParse(body);
+   169→  if (!parsed.success) {
+   170→    const firstMessage =
+   171→      parsed.error.issues[0]?.message ?? "Formulaire invalide.";
+   172→    return NextResponse.json({ error: firstMessage }, { status: 400 });
+   173→  }
+   174→
+   175→  const { name, email, subject, message } = parsed.data;
+   176→
+   177→  try {
+   178→    const created = await db.contactMessage.create({
+   179→      data: {
+   180→        name,
+   181→        email,
+   182→        subject: subject.length > 0 ? subject : null,
+   183→        message,
+   184→      },
+   185→    });
+   186→    // Colonne `search` (ajoutée au schéma après la génération du client mis en
+   187→    // cache par le serveur de dev) : écrite en SQL brut avec paramètres liés —
+   188→    // voir la note au-dessus de selectContactPage. En cas d'échec, le message
+   189→    // reste créé : le backfill paresseux du GET réparera la ligne (search IS
+   190→    // NULL) au prochain chargement de l'admin.
+   191→    try {
+   192→      await db.$executeRaw`
+   193→        UPDATE "ContactMessage"
+   194→        SET "search" = ${buildSearchValue({ name, email, subject, message, reply: null })}
+   195→        WHERE "id" = ${created.id}
+   196→      `;
+   197→    } catch (searchError) {
+   198→      console.error("[/api/contact] Échec d'indexation search :", searchError);
+   199→    }
+   200→    return NextResponse.json({ ok: true, id: created.id }, { status: 200 });
+   201→  } catch (error) {
+   202→    console.error("[/api/contact] Échec d'enregistrement :", error);
+   203→    return NextResponse.json(
+   204→      { error: "Erreur serveur. Réessayez." },
+   205→      { status: 500 },
+   206→    );
+   207→  }
+   208→}
+   209→
+   210→/* ------------------------------------------------------------------ */
+   211→/* Lecture des messages en SQL brut ($queryRaw / $executeRaw) pour     */
+   212→/* les colonnes reply/repliedAt : le serveur de dev peut conserver un  */
+   213→/* client Prisma généré avant le dernier db:push (instance mise en     */
+   214→/* cache sur globalThis dans src/lib/db.ts). Le SQL brut fonctionne    */
+   215→/* identiquement avec toutes les générations du client.                */
+   216→/* ------------------------------------------------------------------ */
+   217→
+   218→/** Nombre de messages par page par défaut (pagination de l'admin). */
+   219→const DEFAULT_PAGE_SIZE = 25;
+   220→/** Bornes de la pagination : 1 message minimum, 100 maximum par page. */
+   221→const MAX_PAGE_SIZE = 100;
+   222→/** Longueur maximale d'une réponse, alignée sur la limite d'un message. */
+   223→const REPLY_MAX_LENGTH = 5000;
+   224→
+   225→/** Colonnes telles que nommées dans SQLite (sans @map, le champ Prisma = la colonne). */
+   226→const CONTACT_SELECT = `
+   227→  SELECT "id", "name", "email", "subject", "message", "read", "archived", "reply", "repliedAt", "createdAt"
+   228→  FROM "ContactMessage"
+   229→`;
+   230→
+   231→interface RawContactRow {
+   232→  id: string;
+   233→  name: string;
+   234→  email: string;
+   235→  subject: string | null;
+   236→  message: string;
+   237→  read: number | boolean;
+   238→  archived: number | boolean;
+   239→  reply: string | null;
+   240→  repliedAt: unknown;
+   241→  createdAt: unknown;
+   242→}
+   243→
+   244→/** Convertit une valeur date renvoyée par SQLite (Date ou texte ISO) en chaîne ISO, ou null. */
+   245→function toIsoOrNull(value: unknown): string | null {
+   246→  if (value instanceof Date) return value.toISOString();
+   247→  if (typeof value === "string" && value.length > 0) {
+   248→    const parsed = new Date(value);
+   249→    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+   250→  }
+   251→  return null;
+   252→}
+   253→
+   254→/** Normalise une ligne brute SQLite vers la forme JSON exposée par l'API. */
+   255→function mapContactRow(row: RawContactRow) {
+   256→  return {
+   257→    id: row.id,
+   258→    name: row.name,
+   259→    email: row.email,
+   260→    subject: row.subject ?? null,
+   261→    message: row.message,
+   262→    read: Number(row.read) !== 0,
+   263→    archived: Number(row.archived) !== 0,
+   264→    reply: typeof row.reply === "string" ? row.reply : null,
+   265→    repliedAt: toIsoOrNull(row.repliedAt),
+   266→    createdAt: toIsoOrNull(row.createdAt) ?? new Date(0).toISOString(),
+   267→  };
+   268→}
+   269→
+   270→/** Entier positif depuis une query string, avec valeur de repli et bornes. */
+   271→function positiveIntParam(
+   272→  value: string | null,
+   273→  fallback: number,
+   274→  min: number,
+   275→  max: number,
+   276→): number {
+   277→  const parsed = Number.parseInt(value ?? "", 10);
+   278→  if (Number.isNaN(parsed)) return fallback;
+   279→  return Math.min(Math.max(parsed, min), max);
+   280→}
+   281→
+   282→/** Longueur maximale de la recherche serveur (?q=). */
+   283→const MAX_QUERY_LENGTH = 100;
+   284→
+   285→/** Filtres de la liste admin (?filter=) — toute valeur inconnue retombe sur « actifs ». */
+   286→type ContactFilter = "actifs" | "non-lus" | "archives";
+   287→
+   288→function parseFilterParam(value: string | null): ContactFilter {
+   289→  if (value === "non-lus" || value === "archives") return value;
+   290→  return "actifs";
+   291→}
+   292→
+   293→/** Échappe les jokers LIKE (%, _) et l'échappement \ → recherche littérale (clause ESCAPE '\'). */
+   294→function escapeLikePattern(value: string): string {
+   295→  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+   296→}
+   297→
+   298→/**
+   299→ * Pliage accent-insensible (fold) : décomposition canonique NFD → suppression
+   300→ * des signes diacritiques combinants (é → e, à → a, ç → c, ü → u…) → minuscules.
+   301→ *
+   302→ * ⚠️ Cohérence contractuelle : cette fonction est utilisée À L'IDENTIQUE pour
+   303→ * (1) l'INDEXATION — remplissage de la colonne `search` à chaque écriture
+   304→ * (POST, PATCH reply/read/archive, backfill) — et (2) la REQUÊTE — pliage de
+   305→ * ?q= dans buildWhereClause. Une seule implémentation partagée par les deux
+   306→ * chemins garantit que l'index et la requête ne peuvent jamais diverger.
+   307→ *
+   308→ * Limitation assumée : les ligatures non décomposables par NFD (œ, æ) sont
+   309→ * conservées telles quelles — « cœur » trouvera « Cœur » (casse pliée) mais
+   310→ * pas la variante « coeur ».
+   311→ */
+   312→function fold(value: string): string {
+   313→  return value
+   314→    .normalize("NFD")
+   315→    .replace(/[\u0300-\u036f]/g, "")
+   316→    .toLowerCase();
+   317→}
+   318→
+   319→/**
+   320→ * Valeur de la colonne `search` : concaténation pliée des champs textuels du
+   321→ * message (reply inclus — répondre met l'index à jour). Les champs optionnels
+   322→ * absents (subject / reply) comptent pour une chaîne vide.
+   323→ */
+   324→function buildSearchValue(parts: {
+   325→  name: string;
+   326→  email: string;
+   327→  subject: string | null;
+   328→  message: string;
+   329→  reply?: string | null;
+   330→}): string {
+   331→  return fold(
+   332→    [parts.name, parts.email, parts.subject ?? "", parts.message, parts.reply ?? ""].join(" "),
+   333→  );
+   334→}
+   335→
+   336→/**
+   337→ * Backfill paresseux de la colonne `search` : les lignes insérées avant la
+   338→ * migration (search IS NULL) sont recalculées en JS (fold) puis écrites en
+   339→ * $executeRaw, au premier GET qui les détecte.
+   340→ *
+   341→ * Garde anti-travail inutile : le SELECT … WHERE search IS NULL EST la garde —
+   342→ * une fois toutes les lignes renseignées, chaque GET ne paie qu'une lecture
+   343→ * vide (table de boîte de contact, quelques centaines de lignes max) et le
+   344→ * backfill ne réécrit jamais une ligne déjà indexée. Il est aussi auto-réparant
+   345→ * (une ligne NULL insérée par un chemin externe est rattrapée). Idempotent en
+   346→ * cas de GET concurrents : deux écritures du même fold sont identiques.
+   347→ * Une erreur n'interrompt JAMAIS le GET (journalisée, retentée au GET suivant).
+   348→ */
+   349→async function ensureSearchBackfill(): Promise<void> {
+   350→  try {
+   351→    const pending = await db.$queryRaw<
+   352→      Array<{
+   353→        id: string;
+   354→        name: string;
+   355→        email: string;
+   356→        subject: string | null;
+   357→        message: string;
+   358→        reply: string | null;
+   359→      }>
+   360→    >`
+   361→      SELECT "id", "name", "email", "subject", "message", "reply"
+   362→      FROM "ContactMessage"
+   363→      WHERE "search" IS NULL
+   364→    `;
+   365→    for (const row of pending) {
+   366→      await db.$executeRaw`
+   367→        UPDATE "ContactMessage"
+   368→        SET "search" = ${buildSearchValue(row)}
+   369→        WHERE "id" = ${row.id}
+   370→      `;
+   371→    }
+   372→  } catch (error) {
+   373→    console.error("[/api/contact] Backfill de la colonne search impossible :", error);
+   374→  }
+   375→}
+   376→
+   377→/**
+   378→ * Clause WHERE partagée par la liste paginée, le compteur « total » et l'export CSV :
+   379→ * filtre (actifs / non-lus / archives) + recherche plein texte ?q= sur la
+   380→ * colonne `search` (concaténation pliée de name + email + subject + message + reply).
+   381→ *
+   382→ * Recherche : la requête est pliée avec le MÊME fold() que l'indexation (NFD →
+   383→ * diacritiques retirés → minuscules) puis comparée LIKE à la colonne `search` —
+   384→ * la recherche est désormais ACCENT-INSENSIBLE (« reponse » trouve « réponse »,
+   385→ * « REUNION » trouve « réunion ») et insensible à la casse. Les jokers LIKE du
+   386→ * user (%, _) sont neutralisés (ESCAPE '\') pour une recherche littérale.
+   387→ */
+   388→function buildWhereClause(filter: ContactFilter, query: string): Prisma.Sql {
+   389→  const chunks: Prisma.Sql[] = [];
+   390→  if (filter === "non-lus") {
+   391→    chunks.push(Prisma.sql`"archived" = 0 AND "read" = 0`);
+   392→  } else if (filter === "archives") {
+   393→    chunks.push(Prisma.sql`"archived" = 1`);
+   394→  } else {
+   395→    chunks.push(Prisma.sql`"archived" = 0`);
+   396→  }
+   397→  const needle = fold(query.trim());
+   398→  if (needle.length > 0) {
+   399→    const pattern = `%${escapeLikePattern(needle)}%`;
+   400→    chunks.push(Prisma.sql`"search" LIKE ${pattern} ESCAPE '\\'`);
+   401→  }
+   402→  return Prisma.sql` WHERE ${Prisma.join(chunks, " AND ")}`;
+   403→}
+   404→
+   405→/** Page de messages filtrée (les plus récents d'abord). */
+   406→async function selectContactPage(page: number, pageSize: number, where: Prisma.Sql) {
+   407→  const rows = await db.$queryRaw<RawContactRow[]>`
+   408→    ${Prisma.raw(CONTACT_SELECT)}
+   409→    ${where}
+   410→    ORDER BY "createdAt" DESC
+   411→    LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+   412→  `;
+   413→  return rows.map(mapContactRow);
+   414→}
+   415→
+   416→/** Tous les messages filtrés, sans limite de pagination (export CSV). */
+   417→async function selectAllContacts(where: Prisma.Sql) {
+   418→  const rows = await db.$queryRaw<RawContactRow[]>`
+   419→    ${Prisma.raw(CONTACT_SELECT)}
+   420→    ${where}
+   421→    ORDER BY "createdAt" DESC
+   422→  `;
+   423→  return rows.map(mapContactRow);
+   424→}
+   425→
+   426→/** Comptage filtré en SQL brut (même WHERE que la liste et l'export). */
+   427→async function countContacts(where: Prisma.Sql): Promise<number> {
+   428→  const rows = await db.$queryRaw<Array<{ n: number | bigint }>>`
+   429→    SELECT COUNT(*) AS "n" FROM "ContactMessage" ${where}
+   430→  `;
+   431→  return Number(rows[0]?.n ?? 0);
+   432→}
+   433→
+   434→/** Relit un message par son id (null si introuvable). */
+   435→async function selectContactById(id: string) {
+   436→  const rows = await db.$queryRaw<RawContactRow[]>`
+   437→    ${Prisma.raw(CONTACT_SELECT)}
+   438→    WHERE "id" = ${id}
+   439→    LIMIT 1
+   440→  `;
+   441→  const row = rows[0];
+   442→  return row ? mapContactRow(row) : null;
+   443→}
+   444→
+   445→/* ------------------------------------------------------------------ */
+   446→/* GET /api/contact — liste paginée + recherche + filtre (back-office, protégé)      */
+   447→/* ?page=1&pageSize=25&filter=actifs&q=… → { items, total, page, pageSize, unread }   */
+   448→/* ?format=csv → export CSV de TOUTES les lignes correspondant à q + filter           */
+   449→/* ------------------------------------------------------------------ */
+   450→
+   451→export async function GET(request: Request) {
+   452→  const ip = getClientIp(request);
+   453→  if (isAdminBlocked(ip)) {
+   454→    return NextResponse.json(
+   455→      { error: "Trop de tentatives. Réessayez plus tard." },
+   456→      { status: 429 },
+   457→    );
+   458→  }
+   459→  if (!isAdmin(request, ip)) {
+   460→    return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
+   461→  }
+   462→
+   463→  const params = new URL(request.url).searchParams;
+   464→  const requestedPage = positiveIntParam(params.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
+   465→  const pageSize = positiveIntParam(params.get("pageSize"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+   466→  // Recherche ?q= : trim + plafonnée à 100 caractères, puis pliée par
+   467→  // buildWhereClause avec le même fold() que l'indexation (accent-insensible).
+   468→  const query = (params.get("q") ?? "").trim().slice(0, MAX_QUERY_LENGTH);
+   469→  const filter = parseFilterParam(params.get("filter"));
+   470→
+   471→  try {
+   472→    // Répare les lignes antérieures à la colonne `search` (search IS NULL)
+   473→    // AVANT toute lecture filtrée — no-op tant que tout est indexé.
+   474→    await ensureSearchBackfill();
+   475→    const where = buildWhereClause(filter, query);
+   476→    const [filteredTotal, unread] = await Promise.all([
+   477→      // `total` = messages correspondant au filtre + à la recherche (la pagination
+   478→      // et l'export portent sur l'ensemble filtré, pas seulement la page courante).
+   479→      countContacts(where),
+   480→      // Compteur « non lus » = compteur GLOBAL des messages actifs non lus,
+   481→      // indépendant de ?q= et ?filter= (sémantique conservée pour le badge d'en-tête).
+   482→      db.contactMessage.count({ where: { read: false, archived: false } }),
+   483→    ]);
+   484→
+   485→    // Export CSV : TOUTES les lignes correspondant à q + filter, hors pagination.
+   486→    if (params.get("format") === "csv") {
+   487→      const allRows = await selectAllContacts(where);
+   488→      // BOM UTF-8 : Excel reconnaît ainsi l'encodage et le séparateur « ; ».
+   489→      const csv = `\uFEFF${messagesToCsv(allRows)}`;
+   490→      const filename = `focusly-messages-${todayKey()}.csv`;
+   491→      return new Response(csv, {
+   492→        status: 200,
+   493→        headers: {
+   494→          "Content-Type": "text/csv; charset=utf-8",
+   495→          "Content-Disposition": `attachment; filename="${filename}"`,
+   496→          "Cache-Control": "no-store",
+   497→        },
+   498→      });
+   499→    }
+   500→
+   501→    // La page demandée est ramenée dans les bornes valides.
+   502→    const pageCount = Math.max(1, Math.ceil(filteredTotal / pageSize));
+   503→    const page = Math.min(requestedPage, pageCount);
+   504→    const items = await selectContactPage(page, pageSize, where);
+   505→    // `messages` : alias rétrocompatible de `items`.
+   506→    return NextResponse.json(
+   507→      { ok: true, items, total: filteredTotal, page, pageSize, unread, messages: items },
+   508→      { status: 200 },
+   509→    );
+   510→  } catch (error) {
+   511→    console.error("[/api/contact] Échec de lecture :", error);
+   512→    return NextResponse.json(
+   513→      { error: "Erreur serveur. Réessayez." },
+   514→      { status: 500 },
+   515→    );
+   516→  }
+   517→}
+   518→
+   519→/* ------------------------------------------------------------------ */
+   520→/* PATCH /api/contact — lu/non lu, archiver/restaurer, répondre (protégé) */
+   521→/* ------------------------------------------------------------------ */
+   522→
+   523→export async function PATCH(request: Request) {
+   524→  const ip = getClientIp(request);
+   525→  if (isAdminBlocked(ip)) {
+   526→    return NextResponse.json(
+   527→      { error: "Trop de tentatives. Réessayez plus tard." },
+   528→      { status: 429 },
+   529→    );
+   530→  }
+   531→  if (!isAdmin(request, ip)) {
+   532→    return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
+   533→  }
+   534→
+   535→  let body: {
+   536→    id?: unknown;
+   537→    read?: unknown;
+   538→    archived?: unknown;
+   539→    reply?: unknown;
+   540→    markAllRead?: unknown;
+   541→  };
+   542→  try {
+   543→    body = (await request.json()) as {
+   544→      id?: unknown;
+   545→      read?: unknown;
+   546→      archived?: unknown;
+   547→      reply?: unknown;
+   548→      markAllRead?: unknown;
+   549→    };
+   550→  } catch {
+   551→    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+   552→  }
+   553→
+   554→  const { id, read, archived, reply } = body;
+   555→
+   556→  // Action globale « tout marquer comme lu » : prioritaire sur toute autre
+   557→  // clé du corps (id / read / archived / reply ignorés) — marque TOUS les
+   558→  // messages non archivés comme lus. read/archived sont des colonnes connues
+   559→  // du client périmé : updateMany typé possible (pas de SQL brut nécessaire).
+   560→  // La sémantique de reply reste inchangée (aucune écriture de reply ici).
+   561→  if (body.markAllRead === true) {
+   562→    try {
+   563→      const result = await db.contactMessage.updateMany({
+   564→        where: { archived: false, read: false },
+   565→        data: { read: true },
+   566→      });
+   567→      // Après un « tout lire », plus aucun actif non lu par construction.
+   568→      return NextResponse.json(
+   569→        { ok: true, updated: result.count, unread: 0 },
+   570→        { status: 200 },
+   571→      );
+   572→    } catch (error) {
+   573→      console.error("[/api/contact] Échec du marquage global comme lu :", error);
+   574→      return NextResponse.json(
+   575→        { error: "Erreur serveur. Réessayez." },
+   576→        { status: 500 },
+   577→      );
+   578→    }
+   579→  }
+   580→  const hasRead = typeof read === "boolean";
+   581→  const hasArchived = typeof archived === "boolean";
+   582→  const hasReply = typeof reply === "string";
+   583→  const trimmedReply = hasReply ? reply.trim() : "";
+   584→
+   585→  if (hasReply && (trimmedReply.length === 0 || trimmedReply.length > REPLY_MAX_LENGTH)) {
+   586→    return NextResponse.json(
+   587→      { error: `La réponse doit contenir entre 1 et ${REPLY_MAX_LENGTH} caractères.` },
+   588→      { status: 400 },
+   589→    );
+   590→  }
+   591→  if (
+   592→    typeof id !== "string" ||
+   593→    id.length === 0 ||
+   594→    (!hasRead && !hasArchived && !hasReply)
+   595→  ) {
+   596→    return NextResponse.json(
+   597→      {
+   598→        error:
+   599→          "Paramètres invalides (id requis, read, archived ou reply requis).",
+   600→      },
+   601→      { status: 400 },
+   602→    );
+   603→  }
+   604→
+   605→  // Réponse à un message : on enregistre le texte, on date la réponse et on
+   606→  // marque le message comme lu (répondre implique l'avoir lu). Écriture en SQL
+   607→  // brut volontaire — voir la note au-dessus de selectContactPage. La colonne
+   608→  // `search` est réindexée dans le MÊME UPDATE (le texte de la réponse fait
+   609→  // partie de l'index de recherche) — pliage calculé depuis la ligne relue
+   610→  // AVANT l'écriture (jamais depuis un objet typé : le client périmé omet reply).
+   611→  if (hasReply) {
+   612→    const nextRead = hasRead ? read : true;
+   613→    try {
+   614→      const existing = await selectContactById(id);
+   615→      if (!existing) {
+   616→        return NextResponse.json(
+   617→          { error: "Message introuvable." },
+   618→          { status: 404 },
+   619→        );
+   620→      }
+   621→      const searchValue = buildSearchValue({
+   622→        name: existing.name,
+   623→        email: existing.email,
+   624→        subject: existing.subject,
+   625→        message: existing.message,
+   626→        reply: trimmedReply,
+   627→      });
+   628→      const affected = await db.$executeRaw`
+   629→        UPDATE "ContactMessage"
+   630→        SET "reply" = ${trimmedReply}, "repliedAt" = ${new Date().toISOString()}, "read" = ${nextRead ? 1 : 0}, "search" = ${searchValue}
+   631→        WHERE "id" = ${id}
+   632→      `;
+   633→      if (affected === 0) {
+   634→        return NextResponse.json(
+   635→          { error: "Message introuvable." },
+   636→          { status: 404 },
+   637→        );
+   638→      }
+   639→      const message = await selectContactById(id);
+   640→      return NextResponse.json({ ok: true, message }, { status: 200 });
+   641→    } catch (error) {
+   642→      console.error("[/api/contact] Échec d'enregistrement de la réponse :", error);
+   643→      return NextResponse.json(
+   644→        { error: "Erreur serveur. Réessayez." },
+   645→        { status: 500 },
+   646→      );
+   647→    }
+   648→  }
+   649→
+   650→  // On met à jour uniquement les champs fournis (read et/ou archived).
+   651→  // Chemin typé conservé (colonnes connues du client périmé) ; `search` ne
+   652→  // dépend pas de read/archived mais on la réécrit quand même, pliée depuis
+   653→  // une relecture BRUTE complète — l'objet renvoyé par le client périmé omet
+   654→  // reply, recalculer depuis lui écraserait l'index avec un reply manquant.
+   655→  // Bonus : ce passage réindexe aussi une ligne restée sans search.
+   656→  const data: { read?: boolean; archived?: boolean } = {};
+   657→  if (hasRead) data.read = read;
+   658→  if (hasArchived) data.archived = archived;
+   659→
+   660→  try {
+   661→    const existing = await selectContactById(id);
+   662→    if (!existing) {
+   663→      return NextResponse.json(
+   664→        { error: "Message introuvable." },
+   665→        { status: 404 },
+   666→      );
+   667→    }
+   668→    const updated = await db.contactMessage.update({
+   669→      where: { id },
+   670→      data,
+   671→    });
+   672→    try {
+   673→      await db.$executeRaw`
+   674→        UPDATE "ContactMessage"
+   675→        SET "search" = ${buildSearchValue(existing)}
+   676→        WHERE "id" = ${id}
+   677→      `;
+   678→    } catch (searchError) {
+   679→      console.error("[/api/contact] Échec de réindexation search :", searchError);
+   680→    }
+   681→    return NextResponse.json({ ok: true, message: updated }, { status: 200 });
+   682→  } catch {
+   683→    return NextResponse.json(
+   684→      { error: "Message introuvable." },
+   685→      { status: 404 },
+   686→    );
+   687→  }
+   688→}
+   689→
+   690→/* ------------------------------------------------------------------ */
+   691→/* DELETE /api/contact?id=… — supprimer un message (protégé)           */
+   692→/* ------------------------------------------------------------------ */
+   693→
+   694→export async function DELETE(request: Request) {
+   695→  const ip = getClientIp(request);
+   696→  if (isAdminBlocked(ip)) {
+   697→    return NextResponse.json(
+   698→      { error: "Trop de tentatives. Réessayez plus tard." },
+   699→      { status: 429 },
+   700→    );
+   701→  }
+   702→  if (!isAdmin(request, ip)) {
+   703→    return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
+   704→  }
+   705→
+   706→  const id = new URL(request.url).searchParams.get("id") ?? "";
+   707→  if (!id) {
+   708→    return NextResponse.json(
+   709→      { error: "Paramètre id requis." },
+   710→      { status: 400 },
+   711→    );
+   712→  }
+   713→
+   714→  try {
+   715→    await db.contactMessage.delete({ where: { id } });
+   716→    return NextResponse.json({ ok: true }, { status: 200 });
+   717→  } catch {
+   718→    return NextResponse.json(
+   719→      { error: "Message introuvable." },
+   720→      { status: 404 },
+   721→    );
+   722→  }
+   723→}
+   724→

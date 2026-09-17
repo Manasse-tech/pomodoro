@@ -591,9 +591,14 @@ export function AdminView() {
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-faint">
-            Clé de développement par défaut : focusly-admin-2026
-          </p>
+          {/* Indication clé de dev : JAMAIS visible dans un build production
+              (process.env.NODE_ENV est inliné au build). Évite de divulguer
+              une clé par défaut sur un déploiement réel — audit sortie r12-c. */}
+          {process.env.NODE_ENV !== "production" && (
+            <p className="mt-4 text-center text-xs text-faint">
+              Clé de développement par défaut : focusly-admin-2026
+            </p>
+          )}
 
           <div className="mt-6 flex justify-center">
             <Button variant="ghost" asChild className="rounded-xl">

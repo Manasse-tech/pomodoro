@@ -98,10 +98,20 @@ export function ConfidentialiteView() {
 
       <h2 className={H2_CLASS}>2. Données collectées</h2>
       <p className={P_CLASS}>
-        Focusly ne collecte aucune donnée personnelle identifiable directement.
-        Les statistiques (Pomodoros, tâches, notes) sont stockées uniquement
-        dans votre navigateur via <em>localStorage</em>. Elles ne sont jamais
-        transmises à nos serveurs.
+        Les statistiques d&apos;utilisation (Pomodoros, tâches, notes) sont
+        stockées uniquement dans votre navigateur via <em>localStorage</em>.
+        Elles ne sont jamais transmises à nos serveurs et ne quittent pas votre
+        appareil.
+      </p>
+      <p className={P_CLASS}>
+        La seule donnée transmise à nos serveurs est celle que vous nous
+        envoyez volontairement via le{" "}
+        <HashLink href="#contact" className={LINK_CLASS}>
+          formulaire de contact
+        </HashLink>{" "}
+        (nom, adresse email, message) : elle est conservée uniquement pour
+        traiter votre demande et y répondre, puis supprimée sur simple demande
+        de votre part.
       </p>
 
       <h2 className={H2_CLASS}>3. Cookies et technologies similaires</h2>
