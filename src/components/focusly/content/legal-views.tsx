@@ -248,11 +248,11 @@ export function MentionsLegalesView() {
 
       <h2 className={H2_CLASS}>Hébergeur</h2>
       <p className={P_CLASS}>
-        [Nom de l’hébergeur]
+        Netlify, Inc.
         <br />
-        [Adresse]
+        610 22nd Street, Suite 503, San Francisco, CA 94107, États-Unis
         <br />
-        [Téléphone]
+        www.netlify.com
       </p>
 
       <h2 className={H2_CLASS}>Propriété intellectuelle</h2>

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://focusly.example/sitemap.xml
+Sitemap: https://tangerine-cactus-866ff3.netlify.app/sitemap.xml

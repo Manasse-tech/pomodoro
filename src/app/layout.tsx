@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ADS_CONFIG } from "@/lib/focusly/ads-config";
+import { SITE_INFO } from "@/lib/focusly/site-config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
   creator: "Focusly",
   applicationName: "Focusly",
   manifest: "/manifest.webmanifest",
-  metadataBase: new URL("https://focusly.example"),
+  metadataBase: new URL(SITE_INFO.siteUrl),
   openGraph: {
     title: "Focusly — Minuteur Pomodoro et outils de concentration",
     description:

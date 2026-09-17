@@ -1198,3 +1198,24 @@ Stage Summary:
 - Leçon technique majeure : l'API NPA de Google est write-only (setter pur) et window.adsbygoogle est remplacé par le loader — toute intégration doit (1) poser le défaut AVANT le loader (script inline), (2) ré-appliquer après son arrivée (load event), (3) ne JAMAIS vérifier par relecture de la propriété (descripteur uniquement).
 - Reste côté utilisateur (hors code) : email réel (site-config.ts, 1 ligne), domaine réel (metadataBase/robots/sitemap), hébergement HTTPS, mentions légales (nom/adresse/hébergeur), CMP TCF certifiée avant toute pub personnalisée EEE/UK, ADMIN_KEY fort en prod.
 - Prochaine round suggérée : injecter l'email réel dès réception ; candidats : filtres chips Admin + CSV complet, filtres de période Stats, validation anims `.fade-up`.
+
+---
+Task ID: r12-f
+Agent: main (Z.ai Code)
+Task: Utilisateur fournit l'URL du site EN LIGNE (https://tangerine-cactus-866ff3.netlify.app/#accueil) et son email réel (ephrainguetta@gmail.com)
+
+Work Log:
+- DIAGNOSTIC du déploiement Netlify en ligne (curl) : accueil 200 + title OK ; /api/contact → 401 sans clé = fonction serverless vivante (backend contact/admin opérationnel en prod) ; sw.js = focusly-v5 (déploiement post-r12-b) ; MAIS ads.txt en ligne = ancien modèle commenté ET 0 occurrence du tag AdSense dans le HTML → version déployée antérieure à r12-e → redéploiement nécessaire (communiqué à l'utilisateur).
+- src/lib/focusly/site-config.ts : contactEmail = ephrainguetta@gmail.com + nouveau champ siteUrl = https://tangerine-cactus-866ff3.netlify.app (point unique pour un futur domaine personnalisé) ; JSDoc à jour (reste editorName en TODO).
+- src/app/layout.tsx : metadataBase = new URL(SITE_INFO.siteUrl) → URLs canoniques/OG en dur sur le domaine réel (vérifié curl : og:image https://tangerine-cactus-866ff3.netlify.app/og-image.png).
+- public/robots.txt : Sitemap → domaine Netlify réel. public/sitemap.xml : les 17 <loc> réécrits vers le domaine réel.
+- legal-views.tsx mentions légales : Hébergeur renseigné — Netlify, Inc., 610 22nd Street, Suite 503, San Francisco, CA 94107, États-Unis, www.netlify.com (restent volontairement : nom/adresse éditeur + directeur de publication, non fournis).
+- RELEASE-NOTE.md révisé (r12-f) : verdict « Site EN LIGNE (Netlify HTTPS) », §1 conditions 1-2 mises à jour, §3 reste = redéploiement Netlify détaillé, checklist : item « Redéployer sur Netlify » ajouté en tête + hébergement/metadataBase/email cochés [x].
+- Vérifications : tsc 0 erreur, eslint 0 erreur ; navigateur : #contact → mailto:ephrainguetta@gmail.com ✓ ; #mentions-legales → Netlify ✓ + email ✓ ; 0 erreur console ; dev.log 200s.
+
+Stage Summary:
+- Toutes les infos utilisateur disponibles sont intégrées : email réel (contact + mentions + confidentialité), domaine réel (metadataBase/robots/sitemap), hébergeur (LCEN). Il ne manque QUE nom/adresse de l'éditeur + directeur de publication pour des mentions légales complètes.
+- État déploiement : site EN LIGNE mais version pré-r12-e → 1 redéploiement Netlify publie d'un coup AdSense (script head + ads.txt officiel + consentement), email réel et domaine réel.
+- Risque/limite documenté : SQLite sur Netlify = filesystem éphémère — les messages de contact peuvent ne pas persister entre les invocations de fonction (le formulaire répond, mais l'archivage admin n'est pas garanti en prod) ; migration DB managée (Turso/Supabase) à proposer si l'utilisateur veut conserver les messages.
+- Leçon : diagnostiquer le déploiement LIVE par curl (ads.txt, sw.js, HEAD API) avant de conseiller — évite toute hypothèse sur la version réellement déployée.
+- Prochaine round : volontés utilisateur (nom mentions légales, redéploiement confirmé) ; sinon candidats : filtres chips Admin, filtres de période Stats, validation anims `.fade-up`.

@@ -1,17 +1,19 @@
 /**
  * Informations éditeur / contact — Focusly.
  *
- * ⚠️ À PERSONNALISER : `contactEmail` est encore un placeholder — remplacez-le
- * par l'adresse email réelle de l'éditeur (et complétez `editorName`).
+ * ÉTAT (r12-f) : email + URL réelle renseignés d'après l'utilisateur.
  * Cette config unique alimente automatiquement :
+ *  - le SEO (`metadataBase` du layout → URLs canoniques / OpenGraph),
  *  - la page Contact (encart « email direct » cliquable),
  *  - les mentions légales (section Éditeur),
  *  - la politique de confidentialité (responsable du traitement + droits RGPD).
- * Un seul endroit à modifier — aucune autre fichier à toucher.
+ * Reste TODO : `editorName` (nom de l'éditeur pour les mentions légales).
  */
 export const SITE_INFO = {
-  /** Email public de contact — TODO utilisateur : adresse réelle. */
-  contactEmail: "contact@focusly.example",
-  /** Nom de l'éditeur (personne physique ou raison sociale) — TODO utilisateur. */
+  /** URL publique réelle du site — déploiement Netlify (HTTPS). */
+  siteUrl: "https://tangerine-cactus-866ff3.netlify.app",
+  /** Email public de contact — renseigné r12-f (demande utilisateur). */
+  contactEmail: "ephrainguetta@gmail.com",
+  /** Nom de l'éditeur (personne physique) — TODO utilisateur : nom réel. */
   editorName: "",
 } as const;
