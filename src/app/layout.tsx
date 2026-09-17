@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { ADS_CONFIG } from "@/lib/focusly/ads-config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s — Focusly",
   },
   description:
-    "Minuteur Pomodoro gratuit, gestionnaire de tâches, notes et guides sur la concentration. Sans compte, sans collecte de données.",
+    "Minuteur Pomodoro gratuit, gestionnaire de tâches, notes et guides sur la concentration. Sans compte, vos données restent sur votre appareil.",
   keywords: [
     "Pomodoro",
     "minuteur Pomodoro",
@@ -37,7 +39,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Focusly — Minuteur Pomodoro et outils de concentration",
     description:
-      "Minuteur Pomodoro gratuit, gestionnaire de tâches, notes et guides sur la concentration. Sans compte, sans collecte de données.",
+      "Minuteur Pomodoro gratuit, gestionnaire de tâches, notes et guides sur la concentration. Sans compte, vos données restent sur votre appareil.",
     siteName: "Focusly",
     type: "website",
     locale: "fr_FR",
@@ -84,6 +86,31 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+        {/* RGPD : défaut conservateur posé AVANT le chargement du loader
+            Google (inline = exécuté dès le parse du HTML) — annonces non
+            personnalisées tant qu'aucune acceptation explicite. AdConsentSync
+            réaligne ce flag après acceptation et au chargement du loader. */}
+        {ADS_CONFIG.enabled && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html:
+                "(window.adsbygoogle=window.adsbygoogle||[]).requestNonPersonalizedAds=1;",
+            }}
+          />
+        )}
+        {/* Google AdSense — activé via ads-config.ts. "beforeInteractive"
+            place le tag ca-pub-… dans le HTML brut du <head> (exigence de
+            vérification de site Google) ; la personnalisation des annonces
+            reste soumise au consentement (AdConsentSync → NPA 0/1). */}
+        {ADS_CONFIG.enabled && (
+          <Script
+            id="adsbygoogle-loader"
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-${ADS_CONFIG.publisherId}`}
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        )}
         {children}
         <Toaster position="bottom-right" />
       </body>

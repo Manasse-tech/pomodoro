@@ -1,0 +1,632 @@
+     1→import type { Block } from "@/components/focusly/content/article-blocks";
+     2→
+     3→/** Blog post shape — filled by task 2-a with the 6 original French articles. */
+     4→export interface BlogPost {
+     5→  slug: string;
+     6→  title: string;
+     7→  tag: string;
+     8→  /** ISO date */
+     9→  date: string;
+    10→  readMinutes: number;
+    11→  excerpt: string;
+    12→  content: Block[];
+    13→}
+    14→
+    15→export const BLOG_POSTS: BlogPost[] = [
+    16→  {
+    17→    slug: "methode-pomodoro-debutant",
+    18→    title: "La méthode Pomodoro expliquée aux débutants",
+    19→    tag: "Guide",
+    20→    date: "2025-03-12",
+    21→    readMinutes: 9,
+    22→    excerpt: "Origines, principes, mise en pratique.",
+    23→    content: [
+    24→      {
+    25→        type: "p",
+    26→        text: "Vous avez probablement déjà entendu parler de la méthode Pomodoro. Peut-être l’avez-vous essayée sans trop de succès, ou peut-être n’avez-vous jamais osé vous lancer. Cet article vous explique, sans jargon, ce qu’est cette méthode et comment la mettre en pratique dès aujourd’hui.",
+    27→      },
+    28→      { type: "h2", text: "Une invention estudiantine devenue mondiale" },
+    29→      {
+    30→        type: "p",
+    31→        text: "En 1987, un étudiant italien nommé Francesco Cirillo peine à se concentrer sur ses révisions. Un jour, il attrape le minuteur de cuisine en forme de tomate de sa mère, le règle sur dix minutes, et se lance un défi : « Je vais me concentrer intensément, juste dix minutes. » Le minuteur fonctionne. Il baptise sa découverte « méthode Pomodoro ».",
+    32→      },
+    33→      { type: "h2", text: "Le principe en une phrase" },
+    34→      {
+    35→        type: "p",
+    36→        text: "Travailler par blocs courts et intenses, séparés par des pauses obligatoires, plutôt que de s’acharner sur une tâche pendant des heures. Ce principe repose sur une réalité physiologique : notre attention n’est pas un réservoir infini.",
+    37→      },
+    38→      { type: "h2", text: "Les règles fondamentales" },
+    39→      {
+    40→        type: "list",
+    41→        items: [
+    42→          "Un Pomodoro dure **25 minutes**.",
+    43→          "Il est indivisible.",
+    44→          "Après chaque Pomodoro, une **pause de 5 minutes**.",
+    45→          "Après quatre Pomodoros, la pause dure **15 à 30 minutes**.",
+    46→        ],
+    47→      },
+    48→      { type: "h2", text: "Pourquoi ça marche vraiment" },
+    49→      {
+    50→        type: "list",
+    51→        ordered: true,
+    52→        items: [
+    53→          "**La contrainte temporelle** réduit la procrastination.",
+    54→          "**La pause planifiée** permet au cerveau de consolider.",
+    55→          "**La mesure objective** fournit un retour précieux.",
+    56→        ],
+    57→      },
+    58→      { type: "h2", text: "Comment démarrer concrètement" },
+    59→      {
+    60→        type: "p",
+    61→        text: "Oubliez les applications complexes. Prenez le minuteur Focusly, choisissez **une seule tâche**, et lancez un Pomodoro. Vingt-cinq minutes plus tard, notez ce que vous avez accompli. Puis prenez cinq minutes de pause — vraiment cinq minutes.",
+    62→      },
+    63→      { type: "h2", text: "Préparer l’environnement : la moitié du travail" },
+    64→      {
+    65→        type: "p",
+    66→        text: "Aucune technique de concentration ne résiste à un environnement hostile. Avant de lancer votre premier Pomodoro, prenez trois minutes pour préparer le terrain : téléphone en mode avion et posé hors de portée de bras, onglets inutiles fermés, eau à portée de main, casque si vous travaillez dans un espace partagé. Ce rituel court a un double effet : il supprime les interruptions les plus fréquentes, et il sert de signal d’envol à votre cerveau, qui apprend que ce moment signifie « on travaille maintenant ».",
+    67→      },
+    68→      {
+    69→        type: "list",
+    70→        items: [
+    71→          "**Le téléphone** est l’ennemi numéro un : même éteint, posé sur le bureau, il attire le regard. Mettez-le dans une autre pièce.",
+    72→          "**Les notifications** : désactivez tout ce qui n’est pas vital pour la durée de la session.",
+    73→          "**La tâche unique** : écrivez sur papier ce que vous ferez pendant les 25 minutes. Une seule ligne. Si vous ne pouvez pas la formuler, la tâche est trop vague.",
+    74→        ],
+    75→      },
+    76→      { type: "h2", text: "Gérer une interruption sans perdre son élan" },
+    77→      {
+    78→        type: "p",
+    79→        text: "Le téléphone et les collègues existent, et un Pomodoro sera parfois interrompu. Francesco Cirillo propose une stratégie en quatre temps, redoutablement efficace en contexte professionnel :",
+    80→      },
+    81→      {
+    82→        type: "list",
+    83→        ordered: true,
+    84→        items: [
+    85→          "**Informer** : « Je suis au milieu d’une session, je finis à 14h30. »",
+    86→          "**Négocier** : proposez un moment précis pour revenir vers la personne.",
+    87→          "**Reporter** : notez la demande sur papier, elle n’occupera plus votre esprit.",
+    88→          "**Rappeler** : à la fin du Pomodoro, honorez l’engagement pris.",
+    89→        ],
+    90→      },
+    91→      {
+    92→        type: "p",
+    93→        text: "Le fait de noter l’interruption est essentiel : c’est ce qui permet à votre cerveau de lâcher prise immédiatement. Une demande non notée tourne en boucle dans la mémoire de travail ; une demande consignée devient un rendez-vous.",
+    94→      },
+    95→      { type: "h2", text: "Foire aux questions des premiers Pomodoros" },
+    96→      { type: "h3", text: "Vingt-cinq minutes, c’est trop court ou trop long ?" },
+    97→      {
+    98→        type: "p",
+    99→        text: "Les deux, selon les jours et les tâches. Commencez par les 25 minutes classiques pendant deux semaines complètes avant d’ajuster : il faut un point de référence stable pour mesurer l’effet d’un changement. Ensuite, 15 minutes conviennent mieux aux tâches de mémorisation, 45 minutes à la rédaction.",
+   100→      },
+   101→      { type: "h3", text: "Que faire si une session tourne vraiment bien ?" },
+   102→      {
+   103→        type: "p",
+   104→        text: "Tentez de finir à temps, notez d’où vous repartirez, et prenez quand même la pause. C’est contre-intuitif, mais s’arrêter volontairement au milieu d’un passage fluide rend le redémarrage instantané : vous savez exactement quoi écrire ensuite. C’est le procédé qu’Hemingway utilisait pour ne jamais subir la page blanche.",
+   105→      },
+   106→      { type: "h3", text: "Compte-t-on les Pomodoros par tâche ou par jour ?" },
+   107→      {
+   108→        type: "p",
+   109→        text: "Les deux se complètent. Estimer une tâche « en Pomodoros » affine progressivement votre sens du temps réel (la plupart des gens sous-estiment d’un facteur deux au départ), tandis que le total journalier sert d’indicateur d’ensemble : six à huit Pomodoros réellement concentrés constituent déjà une excellente journée de travail profond.",
+   110→      },
+   111→      { type: "h2", text: "Les premiers jours : à quoi s’attendre" },
+   112→      {
+   113→        type: "p",
+   114→        text: "Il est normal de trouver les premières sessions difficiles. Au bout de trois à cinq jours, cette résistance s’atténue. Votre cerveau a compris le rythme.",
+   115→      },
+   116→      { type: "h2", text: "Et après ?" },
+   117→      {
+   118→        type: "p",
+   119→        text: "Une fois la méthode maîtrisée, vous pourrez ajuster les durées et l’intégrer à d’autres techniques. Commencez par la base.",
+   120→      },
+   121→      { type: "cta", href: "blog", label: "← Retour au blog" },
+   122→    ],
+   123→  },
+   124→  {
+   125→    slug: "pauses-cerveau",
+   126→    title: "Pourquoi les pauses sont essentielles à votre cerveau",
+   127→    tag: "Neurosciences",
+   128→    date: "2025-03-20",
+   129→    readMinutes: 8,
+   130→    excerpt: "Le réseau du mode par défaut et l’ennui créatif.",
+   131→    content: [
+   132→      {
+   133→        type: "p",
+   134→        text: "Dans notre culture du « toujours plus », la pause est souvent perçue comme une faiblesse. Les neurosciences racontent une histoire radicalement différente : sans pauses, le cerveau ne consolide pas, ne récupère pas, et finit par produire un travail de moindre qualité.",
+   135→      },
+   136→      { type: "h2", text: "Le cerveau n’est pas une machine à effort continu" },
+   137→      {
+   138→        type: "p",
+   139→        text: "Notre attention soutenue repose sur un réseau de régions cérébrales qui consomme énormément d’énergie. Après environ 20 à 45 minutes d’effort cognitif intense, ce réseau commence à montrer des signes de fatigue.",
+   140→      },
+   141→      { type: "h2", text: "Le réseau du mode par défaut" },
+   142→      {
+   143→        type: "p",
+   144→        text: "L’une des découvertes les plus fascinantes des neurosciences récentes est l’existence du **Default Mode Network** (DMN). Il s’active précisément lorsque nous ne sommes pas engagés dans une tâche cognitive exigeante. Ce réseau joue un rôle central dans :",
+   145→      },
+   146→      {
+   147→        type: "list",
+   148→        items: [
+   149→          "La **consolidation mnésique**.",
+   150→          "La **créativité**.",
+   151→          "La **régulation émotionnelle**.",
+   152→          "La **planification à long terme**.",
+   153→        ],
+   154→      },
+   155→      { type: "h2", text: "Ce qui empêche le cerveau de récupérer" },
+   156→      {
+   157→        type: "p",
+   158→        text: "Regarder son fil Twitter pendant cinq minutes ne sollicite pas le DMN : cela sur-sollicite au contraire les circuits de l’attention et de la récompense.",
+   159→      },
+   160→      { type: "h2", text: "La théorie de la restauration de l’attention" },
+   161→      {
+   162→        type: "p",
+   163→        text: "Deux psychologues américains, Rachel et Stephen Kaplan, ont proposé la théorie de la restauration de l’attention. Pour la restaurer, il faut s’exposer à des environnements qui satisfont quatre critères : être ailleurs, être fascinant, être cohérent, être compatible.",
+   164→      },
+   165→      { type: "h2", text: "Trois échelons de récupération, trois fonctions différentes" },
+   166→      { type: "h3", text: "La micro-pause (30 secondes à 2 minutes)" },
+   167→      {
+   168→        type: "p",
+   169→        text: "Fermer les yeux, respirer lentement, rouler les épaules. Trop courte pour activer pleinement le DMN, elle suffit pourtant à relâcher la tension musculaire du cou et des yeux — les deux zones qui saturent en premier devant un écran.",
+   170→      },
+   171→      { type: "h3", text: "La pause courte (5 minutes)" },
+   172→      {
+   173→        type: "p",
+   174→        text: "C’est le format Pomodoro standard. Elle permet une vraie bascule de réseau : se lever, marcher, regarder au loin. Cinq minutes paraissent peu ; pratiquées toutes les 25 minutes, elles changent la trajectoire d’une journée entière.",
+   175→      },
+   176→      { type: "h3", text: "La pause longue (15 à 30 minutes)" },
+   177→      {
+   178→        type: "p",
+   179→        text: "Après quatre Pomodoros, le cerveau a accumulé une dette de consolidation que seules les pauses longues remboursent : marche dehors, déjeuner sans écran, ou sieste courte — jamais plus de 20 minutes, pour éviter l’inertie du sommeil profond.",
+   180→      },
+   181→      { type: "h2", text: "Trois signes que votre cerveau réclame une pause" },
+   182→      {
+   183→        type: "list",
+   184→        items: [
+   185→          "**La relecture compulsive** : vous relisez la même phrase trois fois sans la retenir. La mémoire de travail sature.",
+   186→          "**Le réflexe de l’onglet** : votre main ouvre un nouvel onglet toutes les deux minutes. Le cerveau cherche une échappatoire à l’effort.",
+   187→          "**L’irritabilité** : un message anodin vous agace. La régulation émotionnelle est l’une des premières victimes de la fatigue attentionnelle.",
+   188→        ],
+   189→      },
+   190→      { type: "h2", text: "Marcher, la pause la mieux documentée" },
+   191→      {
+   192→        type: "p",
+   193→        text: "Les travaux de l’université de Stanford sur la marche et la créativité ont montré que quelques minutes de marche augmentent de façon mesurable la production d’idées originales, pendant l’effort mais aussi juste après. La combinaison gagnante tient en une phrase : marcher, sans téléphone, en regardant au loin. La fenêtre fait l’affaire si vous ne pouvez pas sortir : l’œil a besoin de distance, pas de paysage.",
+   194→      },
+   195→      { type: "h2", text: "Et l’après-déjeuner ?" },
+   196→      {
+   197→        type: "p",
+   198→        text: "La baisse de vigilance du début d’après-midi est physiologique : le rythme circadien descend naturellement entre 13 h et 15 h, indépendamment du repas. Inutile de lutter avec du café : c’est le moment idéal pour placer une tâche mécanique ou administrative, ou une pause longue si votre planning le permet. Réserver les tâches créatives au matin, c’est déjà la moitié du chemin.",
+   199→      },
+   200→      { type: "h2", text: "Conséquences pratiques pour votre Pomodoro" },
+   201→      {
+   202→        type: "p",
+   203→        text: "La méthode Pomodoro intègre déjà ces principes. Mais l’efficacité dépend entièrement de la qualité des pauses. Une pause de cinq minutes passée sur les réseaux sociaux annule presque totalement les bénéfices.",
+   204→      },
+   205→      { type: "cta", href: "blog", label: "← Retour au blog" },
+   206→    ],
+   207→  },
+   208→  {
+   209→    slug: "comparaison-methodes",
+   210→    title: "Pomodoro vs Deep Work vs Time Blocking",
+   211→    tag: "Comparatif",
+   212→    date: "2025-03-28",
+   213→    readMinutes: 8,
+   214→    excerpt: "Trois approches, trois contextes.",
+   215→    content: [
+   216→      {
+   217→        type: "p",
+   218→        text: "Trois méthodes dominent aujourd’hui le discours sur la productivité. Elles sont souvent présentées comme concurrentes. En réalité, elles répondent à des problèmes différents et se combinent remarquablement bien.",
+   219→      },
+   220→      { type: "h2", text: "La méthode Pomodoro : structurer l’effort" },
+   221→      {
+   222→        type: "p",
+   223→        text: "**Principe :** alterner des blocs de travail courts et des pauses fixes. **Point fort :** s’attaque à la procrastination. **Limite :** fragmente le travail.",
+   224→      },
+   225→      { type: "h2", text: "Deep Work : protéger l’immersion" },
+   226→      {
+   227→        type: "p",
+   228→        text: "**Principe :** réserver des plages de plusieurs heures à un travail cognitif intense. **Point fort :** atteindre le « flow ». **Limite :** difficile sans maîtrise préalable.",
+   229→      },
+   230→      { type: "h2", text: "Time Blocking : planifier chaque heure" },
+   231→      {
+   232→        type: "p",
+   233→        text: "**Principe :** attribuer à chaque tâche une plage horaire précise. **Point fort :** vision réaliste de la journée. **Limite :** demande de la discipline.",
+   234→      },
+   235→      { type: "h2", text: "Comment les combiner" },
+   236→      {
+   237→        type: "list",
+   238→        ordered: true,
+   239→        items: [
+   240→          "**Time Blocking** pour structurer la journée.",
+   241→          "**Deep Work** dans les plages créatives.",
+   242→          "**Pomodoro** pour les tâches administratives.",
+   243→        ],
+   244→      },
+   245→      { type: "h2", text: "La grille de choix en trois questions" },
+   246→      {
+   247→        type: "p",
+   248→        text: "Devant une journée à organiser, trois questions suffisent à choisir l’outil adapté. Quelle est la nature de la tâche — mécanique, créative ou mixte ? Quel est votre état de départ — frais, chargé ou distrait ? Quelle contrainte externe pèse sur vous — réunions, collègues, délais ? Le Pomodoro excelle quand la tâche est résistante au démarrage, le Deep Work quand elle exige de la profondeur, le Time Blocking quand la journée est un emploi du temps négocié avec d’autres.",
+   249→      },
+   250→      { type: "h2", text: "Les trois erreurs de combinaison" },
+   251→      {
+   252→        type: "list",
+   253→        items: [
+   254→          "**Planifier du Deep Work en Pomodoros** : la vérification toutes les 25 minutes casse l’immersion que le Deep Work cherche à construire.",
+   255→          "**Empiler du Time Blocking sans tampon** : une journée où chaque heure est occupée explose à la première surprise. Prévoyez un bloc tampon quotidien.",
+   256→          "**Confondre méthode et application** : aucune de ces méthodes n’exige un logiciel particulier. Le papier et un minuteur de cuisine fonctionnent parfaitement.",
+   257→        ],
+   258→      },
+   259→      { type: "h2", text: "Une semaine type combinée" },
+   260→      {
+   261→        type: "list",
+   262→        ordered: true,
+   263→        items: [
+   264→          "**Lundi matin** : 30 minutes de Time Blocking pour la semaine entière.",
+   265→          "**Chaque matin** : un bloc de Deep Work de 2 heures sur le projet le plus important, téléphone dans une autre pièce.",
+   266→          "**Après-midi** : Pomodoros de 25 minutes pour les emails, la comptabilité, les retours à faire — tout ce qui traîne.",
+   267→          "**Vendredi 16 h** : revue de 20 minutes — ce qui est fait, ce qui passe à la semaine suivante.",
+   268→        ],
+   269→      },
+   270→      {
+   271→        type: "quote",
+   272→        text: "Le but n’est pas de trouver la meilleure méthode, mais la combinaison qui correspond à votre métier, votre énergie et votre calendrier.",
+   273→      },
+   274→      { type: "h2", text: "Transitions : le vrai sujet que personne n’aborde" },
+   275→      {
+   276→        type: "p",
+   277→        text: "Toutes ces méthodes partagent un coût invisible : la transition. Passer d’un Pomodoro administratif à un bloc de Deep Work ne se fait pas instantanément — les études sur le changement de tâche (« task switching ») montrent qu’une partie de l’attention reste accrochée à la tâche précédente pendant plusieurs minutes. Concrètement : évitez d’enchaîner sans respiration une session fragmentée et un travail profond. Entre les deux, marchez cinq minutes ou prenez un vrai repas — jamais un fil d’actualité.",
+   278→      },
+   279→      {
+   280→        type: "list",
+   281→        items: [
+   282→          "**Après un Pomodoro administratif** : cinq minutes de marche avant toute tâche exigeante.",
+   283→          "**Avant un bloc de Deep Work** : relisez votre ligne d’intention, coupez les notifications, fermez les onglets de la veille.",
+   284→          "**En fin de journée** : notez où vous reprendrez demain — c’est la transition la plus rentable de toutes, elle achète le démarrage du lendemain.",
+   285→        ],
+   286→      },
+   287→      {
+   288→        type: "quote",
+   289→        text: "Une méthode n’est pas une discipline de plus : c’est un choix sur ce que votre attention mérite. Choisissez-la pour un mois, mesurez, puis jugez.",
+   290→      },
+   291→      { type: "h2", text: "Quelle méthode pour quel profil ?" },
+   292→      {
+   293→        type: "list",
+   294→        items: [
+   295→          "**Étudiants** : Pomodoro en priorité.",
+   296→          "**Développeurs / créatifs** : Deep Work comme méthode principale.",
+   297→          "**Entrepreneurs** : Time Blocking indispensable.",
+   298→          "**Personnes distraites** : commencez par le Pomodoro.",
+   299→        ],
+   300→      },
+   301→      { type: "cta", href: "blog", label: "← Retour au blog" },
+   302→    ],
+   303→  },
+   304→  {
+   305→    slug: "activites-pauses",
+   306→    title: "10 activités pour des pauses vraiment réparatrices",
+   307→    tag: "Pratique",
+   308→    date: "2025-04-04",
+   309→    readMinutes: 8,
+   310→    excerpt: "Ce qu’il faut faire — et éviter — pendant vos 5 minutes.",
+   311→    content: [
+   312→      {
+   313→        type: "p",
+   314→        text: "Une pause n’est pas un vide : c’est un moment où le cerveau bascule dans un autre mode de fonctionnement.",
+   315→      },
+   316→      { type: "h2", text: "Ce qu’il faut éviter" },
+   317→      {
+   318→        type: "list",
+   319→        items: [
+   320→          "**Consulter les réseaux sociaux**.",
+   321→          "**Lire ses emails**.",
+   322→          "**Regarder une vidéo courte**.",
+   323→        ],
+   324→      },
+   325→      { type: "h2", text: "Les 10 activités" },
+   326→      {
+   327→        type: "list",
+   328→        ordered: true,
+   329→        items: [
+   330→          "Se lever et s’étirer (1 min).",
+   331→          "Marcher quelques minutes (3-5 min).",
+   332→          "Regarder par la fenêtre (2-3 min).",
+   333→          "Boire un verre d’eau (1 min).",
+   334→          "Respirer consciemment (2 min).",
+   335→          "Écrire trois lignes dans un carnet (2 min).",
+   336→          "Faire une micro-tâche ménagère (3 min).",
+   337→          "Discuter brièvement avec quelqu’un (5 min).",
+   338→          "Écouter un morceau de musique (3-4 min).",
+   339→          "Fermer les yeux (5 min).",
+   340→        ],
+   341→      },
+   342→      { type: "h2", text: "La pause parfaite, minute par minute" },
+   343→      {
+   344→        type: "list",
+   345→        ordered: true,
+   346→        items: [
+   347→          "**0:00** — Posez le stylet, poussez la chaise, levez-vous. Le simple fait de changer de posture bascule le rythme.",
+   348→          "**0:30** — Regardez au loin par la fenêtre pendant 20 secondes : les muscles de l’accommodation oculaire se relâchent.",
+   349→          "**1:00** — Buvez deux ou trois gorgées d’eau. La déshydratation légère dégrade l’attention avant même la sensation de soif.",
+   350→          "**2:00** — Marchez jusqu’à la fenêtre la plus lointaine, ou faites dix élévations d’épaules.",
+   351→          "**3:00** — Respirez en 4-6 : quatre secondes d’inspiration, six d’expiration, trois cycles.",
+   352→          "**5:00** — Retour au poste. Relisez votre ligne d’intention avant de relancer le minuteur.",
+   353→        ],
+   354→      },
+   355→      { type: "h2", text: "Adapter la pause à son environnement" },
+   356→      { type: "h3", text: "En open-space" },
+   357→      {
+   358→        type: "p",
+   359→        text: "Se lever à chaque pause peut sembler exposé : personne n’en tient rigueur, et la marche jusqu’à la machine à café ou à la fenêtre suffit. Un casque sert de signal visuel universel.",
+   360→      },
+   361→      { type: "h3", text: "En télétravail" },
+   362→      {
+   363→        type: "p",
+   364→        text: "Le piège du télétravail n’est pas la distraction mais l’absence de transitions. Sortir deux minutes sur le palier ou au balcon crée la rupture que l’open-space offre gratuitement.",
+   365→      },
+   366→      { type: "h3", text: "En bibliothèque" },
+   367→      {
+   368→        type: "p",
+   369→        text: "Étirez-vous assis, regardez au loin, marchez dans l’allée jusqu’aux rayonnages périphériques. La règle reste identique : quitter la position de travail.",
+   370→      },
+   371→      { type: "h2", text: "Et si vous n’avez que deux minutes ?" },
+   372→      {
+   373→        type: "p",
+   374→        text: "Fermez les yeux, respirez en 4-6 pendant quatre cycles, puis buvez une gorgée d’eau. C’est le strict minimum qui combine relâchement oculaire, respiration et hydratation. Une micro-pause de deux minutes vaut infiniment mieux qu’une pause parfaite reportée sine die.",
+   375→      },
+   376→      { type: "h2", text: "Trois pauses à tester cette semaine" },
+   377→      {
+   378→        type: "list",
+   379→        ordered: true,
+   380→        items: [
+   381→          "**La pause fenêtre** (3 min) : debout, regard au loin, sans téléphone. Comptez silencieusement cinq objets de couleur bleue : ce tri visuel doux éteint le verbal de la mémoire de travail.",
+   382→          "**La pause 4-6** (2 min) : inspiration quatre secondes, expiration six. L’expiration allongée active le système parasympathique — c’est le frein physiologique du stress.",
+   383→          "**La pause marche** (5 min) : hors du bureau si possible, sans objectif de pas. La créativité monte pendant la marche et redescend lentement : revenez directement à la tâche, pas aux notifications.",
+   384→        ],
+   385→      },
+   386→      { type: "h2", text: "Boire de l’eau : pourquoi c’est plus qu’un conseil générique" },
+   387→      {
+   388→        type: "p",
+   389→        text: "La déshydratation légère — celle qui ne déclenche même pas la soif — dégrade déjà la vigilance et la mémoire de travail. Or pendant une session intense, on oublie de boire. Le rituel qui fonctionne : un verre d’eau à chaque pause courte, rempli à chaque pause longue. L’habitude se greffe sur le minuteur, elle ne dépend plus de la mémoire.",
+   390→      },
+   391→      { type: "h2", text: "Le journal des pauses" },
+   392→      {
+   393→        type: "p",
+   394→        text: "Pendant une semaine, notez en une ligne ce que vous avez fait pendant chaque pause longue, et cotez de 1 à 5 l’énergie ressentie à la reprise. Trois jours suffisent généralement pour voir émerger votre profil : pour certains c’est la marche, pour d’autres la musique ou le silence les yeux fermés. Votre meilleure pause est une donnée personnelle — elle se mesure, elle ne se devine pas.",
+   395→      },
+   396→      { type: "h2", text: "Le rituel de la pause longue" },
+   397→      {
+   398→        type: "p",
+   399→        text: "La pause longue (15-30 minutes) mérite un traitement particulier : marche, déjeuner sans écran, sieste de 20 minutes maximum.",
+   400→      },
+   401→      { type: "h2", text: "Une règle simple" },
+   402→      {
+   403→        type: "p",
+   404→        text: "Pendant vos pauses, éloignez-vous de l’écran. Tout le reste découle naturellement.",
+   405→      },
+   406→      { type: "cta", href: "blog", label: "← Retour au blog" },
+   407→    ],
+   408→  },
+   409→  {
+   410→    slug: "erreurs-pomodoro",
+   411→    title: "Les 5 erreurs qui ruinent votre méthode Pomodoro",
+   412→    tag: "Pratique",
+   413→    date: "2025-04-11",
+   414→    readMinutes: 7,
+   415→    excerpt: "Repérer les pièges classiques.",
+   416→    content: [
+   417→      {
+   418→        type: "p",
+   419→        text: "La méthode Pomodoro est simple. Trop simple, peut-être : c’est précisément parce qu’on croit l’avoir comprise en cinq minutes qu’on la pratique mal pendant des mois.",
+   420→      },
+   421→      { type: "h2", text: "Erreur 1 : interrompre un Pomodoro en cours" },
+   422→      {
+   423→        type: "p",
+   424→        text: "Un Pomodoro interrompu n’est plus un Pomodoro. Si une interruption survient, la règle est de considérer la session comme perdue.",
+   425→      },
+   426→      { type: "h2", text: "Erreur 2 : zapper les pauses" },
+   427→      {
+   428→        type: "p",
+   429→        text: "La pause n’est pas un luxe, c’est ce qui rend les sessions suivantes possibles.",
+   430→      },
+   431→      { type: "h2", text: "Erreur 3 : utiliser son téléphone pendant les pauses" },
+   432→      {
+   433→        type: "p",
+   434→        text: "Consulter son téléphone pendant cinq minutes ne repose pas le cerveau, cela l’épuise davantage.",
+   435→      },
+   436→      { type: "h2", text: "Erreur 4 : utiliser le Pomodoro pour tout" },
+   437→      {
+   438→        type: "p",
+   439→        text: "Le Pomodoro est moins adapté aux réunions, au travail créatif profond et à la réflexion diffuse.",
+   440→      },
+   441→      { type: "h2", text: "Erreur 5 : ne pas mesurer ses progrès" },
+   442→      {
+   443→        type: "p",
+   444→        text: "Suivez vos sessions (Focusly le fait automatiquement) et prenez cinq minutes chaque semaine pour analyser.",
+   445→      },
+   446→      { type: "h2", text: "Auto-diagnostic : votre pratique est-elle déraillée ?" },
+   447→      {
+   448→        type: "list",
+   449→        items: [
+   450→          "Vous comptez des Pomodoros mais votre liste de tâches n’avance pas.",
+   451→          "Vos « pauses » durent 20 minutes sur les réseaux sociaux.",
+   452→          "Vous interrompez régulièrement des sessions « juste pour une seconde ».",
+   453→          "Le minuteur tourne pendant que vous lisez vos emails.",
+   454→        ],
+   455→      },
+   456→      {
+   457→        type: "p",
+   458→        text: "Deux réponses positives ou plus : votre pratique mérite une remise à plat. La bonne nouvelle, c’est que les cinq erreurs ci-dessus se corrigent en une semaine de discipline bienveillante.",
+   459→      },
+   460→      { type: "h2", text: "Le plan de remise à niveau en une semaine" },
+   461→      {
+   462→        type: "list",
+   463→        ordered: true,
+   464→        items: [
+   465→          "**Jour 1-2** : revenez aux 25 minutes strictes et à une seule tâche par session. Réduisez l’ambition pour rétablir la fiabilité.",
+   466→          "**Jour 3-4** : pauses debout, sans écran, chronométrées. Le téléphone quitte la pièce pendant toute la session ET la pause.",
+   467→          "**Jour 5** : mesurez. Comparez le nombre de tâches réellement terminées à votre moyenne des deux dernières semaines.",
+   468→          "**Jour 6-7** : ajustez une seule variable — durée des sessions ou des pauses — jamais les deux en même temps.",
+   469→        ],
+   470→      },
+   471→      { type: "h2", text: "Quand interrompre volontairement une session" },
+   472→      {
+   473→        type: "p",
+   474→        text: "Il existe un cas légitime d’abandon : quand vous réalisez que la tâche choisie n’était pas la bonne — prérequis manquant, information à demander, ou décision de niveau supérieur non prise. Dans ce cas, arrêtez le minuteur, consignez le blocage dans la tâche, et basculez sur une nouvelle session avec un objectif atteignable. Un Pomodoro interrompu en connaissance de cause n’est pas un échec : c’est de la planification.",
+   475→      },
+   476→      {
+   477→        type: "quote",
+   478→        text: "Un système fiable vaut mieux qu’une performance héroïque : vingt Pomodoros honnêtes valent mieux que quarante sessions fantaisistes.",
+   479→      },
+   480→      { type: "h2", text: "Erreur 6 (la plus sournoise) : refuser d’ajuster" },
+   481→      {
+   482→        type: "p",
+   483→        text: "Il existe une erreur que les cinq précédentes n’annoncent pas : coller aux 25 minutes par principe, alors que votre métier ou votre saison de vie a changé. Un développeur en architecture complexe, un parent de jeune enfant, un étudiant en période de concours n’ont pas le même profil d’attention. La méthode est une base de départ, pas un dogme : une fois la pratique stabilisée, ajuster la durée des sessions ou des pauses — une seule variable à la fois — est de la maturité, pas de la triche.",
+   484→      },
+   485→      {
+   486→        type: "list",
+   487→        items: [
+   488→          "**Sessions interrompues chaque jour** par la même contrainte ? C’est un signal de configuration, pas de volonté.",
+   489→          "**Pauses systématiquement dépassées** ? Elles sont trop courtes : passez de 5 à 8 minutes et mesurez.",
+   490→          "**Ennui récurrent en fin de session** ? Passez à 35-40 minutes pour les tâches d’immersion.",
+   491→        ],
+   492→      },
+   493→      { type: "h2", text: "La revue hebdomadaire en quatre questions" },
+   494→      {
+   495→        type: "p",
+   496→        text: "Cinq minutes chaque vendredi suffisent pour garder la pratique honnête. Posez-vous ces quatre questions, dans l’ordre :",
+   497→      },
+   498→      {
+   499→        type: "list",
+   500→        ordered: true,
+   501→        items: [
+   502→          "Quelle tâche a réellement avancé cette semaine — et combien de Pomodoros lui sont allés ?",
+   503→          "Où mes sessions se sont-elles cassées le plus souvent (moment, lieu, type de tâche) ?",
+   504→          "Quelle interruption revenir au moins trois fois ? Peut-elle être éliminée à la source ?",
+   505→          "Une seule chose à changer la semaine prochaine — laquelle ?",
+   506→        ],
+   507→      },
+   508→      { type: "h2", text: "Bonus : croire qu’il faut être motivé" },
+   509→      {
+   510→        type: "p",
+   511→        text: "La méthode a précisément été conçue pour fonctionner sans motivation préalable.",
+   512→      },
+   513→      { type: "cta", href: "blog", label: "← Retour au blog" },
+   514→    ],
+   515→  },
+   516→  {
+   517→    slug: "etudiants-revisions",
+   518→    title: "Réviser efficacement avec la méthode Pomodoro",
+   519→    tag: "Étudiants",
+   520→    date: "2025-04-18",
+   521→    readMinutes: 8,
+   522→    excerpt: "Adapter la méthode aux examens.",
+   523→    content: [
+   524→      {
+   525→        type: "p",
+   526→        text: "La période des examens est un moment de tension. La méthode Pomodoro est particulièrement adaptée aux révisions, à condition d’être adaptée aux spécificités de la mémorisation.",
+   527→      },
+   528→      { type: "h2", text: "Pourquoi le Pomodoro est idéal pour les révisions" },
+   529→      {
+   530→        type: "list",
+   531→        items: [
+   532→          "Il rend le démarrage plus facile.",
+   533→          "Il impose une limite.",
+   534→          "Il fragmente naturellement le travail.",
+   535→        ],
+   536→      },
+   537→      { type: "h2", text: "Adapter les durées" },
+   538→      {
+   539→        type: "list",
+   540→        items: [
+   541→          "**Mémorisation brute** : 15-20 min.",
+   542→          "**Compréhension de concepts** : 30-45 min.",
+   543→          "**Rédaction** : 45-50 min.",
+   544→          "**Révision générale** : 25 min.",
+   545→        ],
+   546→      },
+   547→      { type: "h2", text: "La structure idéale d’une journée" },
+   548→      {
+   549→        type: "list",
+   550→        ordered: true,
+   551→        items: [
+   552→          "**8h30 - 9h00 :** révision des fiches de la veille.",
+   553→          "**9h00 - 10h30 :** apprentissage de nouveaux contenus.",
+   554→          "**10h30 - 11h00 :** pause longue.",
+   555→          "**11h00 - 12h30 :** exercices d’application.",
+   556→          "**14h00 - 16h00 :** révision active.",
+   557→          "**16h30 - 18h00 :** auto-évaluation.",
+   558→        ],
+   559→      },
+   560→      { type: "h2", text: "La règle d’or : la récupération active" },
+   561→      {
+   562→        type: "p",
+   563→        text: "Le piège classique est de confondre relire et réviser. Pour vraiment mémoriser, il faut se tester.",
+   564→      },
+   565→      { type: "h2", text: "La méthode des trois passes" },
+   566→      {
+   567→        type: "p",
+   568→        text: "Relire trois fois la même fiche est le meilleur moyen de la trouver familière sans la connaître. Structurez plutôt vos révisions en trois passes de nature différente :",
+   569→      },
+   570→      {
+   571→        type: "list",
+   572→        ordered: true,
+   573→        items: [
+   574→          "**Passe 1 — la découverte** (Pomodoros de 25-30 min) : lecture active, surlignage minimal, questions en marge. L’objectif est de comprendre, pas de retenir.",
+   575→          "**Passe 2 — la récupération** (Pomodoros de 15-20 min) : fiche retournée, feuille blanche. On se teste, on vérifie, on note les trous — c’est la passe qui compte vraiment.",
+   576→          "**Passe 3 — la consolidation** (répartie sur les jours suivants) : re-test rapide des chapitres échoués, espacé selon la répétition espacée (J+1, J+3, J+7).",
+   577→        ],
+   578→      },
+   579→      { type: "h2", text: "Réviser à plusieurs : le Pomodoro collectif" },
+   580→      {
+   581→        type: "p",
+   582→        text: "Travailler en groupe détruit la concentration… à moins de partager la structure. Le format qui fonctionne : quatre personnes, un objectif commun, chacun sur son chapitre pendant 25 minutes, puis dix minutes d’explication croisée — chacun explique aux autres ce qu’il vient de réviser. Enseigner est la forme de récupération la plus puissante qui existe, et la structure commune empêche la session de dériver en conversation.",
+   583→      },
+   584→      { type: "h2", text: "La veille de l’examen" },
+   585→      {
+   586→        type: "list",
+   587→        items: [
+   588→          "**Pas de nouveau contenu** : la découverte la veille crée de l’anxiété sans mémorisation durable.",
+   589→          "**Révision rapide des fiches de récupération** : passe 2 en version condensée, une heure maximum.",
+   590→          "**Préparer le matériel** : papiers, calculatrice, convocation — chaque friction du matin coûte de l’énergie.",
+   591→          "**Dormir** : la consolidation mnésique se produit pendant le sommeil profond. Une nuit blanche annule des jours de travail.",
+   592→        ],
+   593→      },
+   594→      { type: "h3", text: "« Je panique en voyant la quantité à réviser »" },
+   595→      {
+   596→        type: "p",
+   597→        text: "Ne planifiez pas la matière : planifiez les Pomodoros. « Aujourd’hui, huit sessions » est apaisant ; « tout le chapitre 4, 5 et 6 » est paralysant. La méthode transforme une montagne en marches d’escalier.",
+   598→      },
+   599→      { type: "h2", text: "Construire sa feuille de route d’examen" },
+   600→      {
+   601→        type: "p",
+   602→        text: "Avant la première session, prenez 30 minutes pour transformer le programme en feuille de route : un chapitre par ligne, une estimation en Pomodoros, une case de passage 1/2/3 (les trois passes vues plus haut). Cette feuille remplace l’angoisse du « combien il reste » par une donnée visible — et chaque case cochée procure la petite satisfaction qui entretient l’élan. Recalculez vos estimations chaque soir : après trois jours, vos prédictions deviennent redoutablement précises.",
+   603→      },
+   604→      {
+   605→        type: "list",
+   606→        ordered: true,
+   607→        items: [
+   608→          "**Listez** tous les chapitres à couvrir, sans tri préalable.",
+   609→          "**Estimez** chaque chapitre en Pomodoros (comptez deux pour tout ce qui est nouveau).",
+   610→          "**Ordonnez** : bases d’abord — les chapitres dépendants viennent plus vite une fois les fondations acquises.",
+   611→          "**Planifiez** seulement les Pomodoros du jour, jamais toute la semaine d’avance.",
+   612→        ],
+   613→      },
+   614→      { type: "h2", text: "Musique, silence, bruit blanc : que choisir ?" },
+   615→      {
+   616→        type: "p",
+   617→        text: "La réponse dépend de la tâche, pas de votre goût. Pour la mémorisation, le silence gagne : les paroles entrent en compétition avec le matériel verbal à retenir. Pour les exercices mécaniques ou la rédaction, une musique instrumentale familière à volume bas aide à masquer l’environnement. Le bruit blanc ou le bruit rose est un bon compromis en open-space ou en résidence bruyante. Et si vous doutez, testez : une semaine avec, une semaine sans, en comparant vos Pomodoros réellement tenus.",
+   618→      },
+   619→      { type: "h2", text: "Le sommeil" },
+   620→      {
+   621→        type: "p",
+   622→        text: "Aucune méthode de productivité ne remplace le sommeil. Visez au minimum 7 heures.",
+   623→      },
+   624→      { type: "cta", href: "blog", label: "← Retour au blog" },
+   625→    ],
+   626→  },
+   627→];
+   628→
+   629→export function getPost(slug: string): BlogPost | undefined {
+   630→  return BLOG_POSTS.find((p) => p.slug === slug);
+   631→}
+   632→

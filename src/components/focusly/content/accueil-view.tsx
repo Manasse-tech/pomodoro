@@ -99,8 +99,8 @@ export function AccueilView() {
         </p>
         <p className="mt-4 max-w-[760px] leading-relaxed text-soft">
           Focusly est volontairement minimaliste : pas de compte à créer, pas
-          de publicité intrusive, pas de collecte de données. Vos sessions,
-          tâches et notes sont enregistrées uniquement dans votre navigateur.
+          de publicité intrusive. Vos sessions, tâches et notes sont
+          enregistrées uniquement dans votre navigateur.
         </p>
       </section>
 

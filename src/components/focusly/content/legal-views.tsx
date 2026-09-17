@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 
 import { BLOG_POSTS } from "@/lib/focusly/blog";
+import { SITE_INFO } from "@/lib/focusly/site-config";
 import { ROUTES, type TopRoute } from "@/lib/focusly/router";
 import { ArticleBlocks, type Block } from "./article-blocks";
 import { Breadcrumb } from "./breadcrumb";
@@ -75,6 +76,15 @@ function ExternalLink({
   );
 }
 
+/** Lien mailto vers l'email public de l'éditeur (site-config.ts). */
+function MailLink({ children }: { children?: ReactNode }) {
+  return (
+    <a href={`mailto:${SITE_INFO.contactEmail}`} className={LINK_CLASS}>
+      {children ?? SITE_INFO.contactEmail}
+    </a>
+  );
+}
+
 export function ConfidentialiteView() {
   return (
     <LegalShell
@@ -89,7 +99,9 @@ export function ConfidentialiteView() {
 
       <h2 className={H2_CLASS}>1. Responsable du traitement</h2>
       <p className={P_CLASS}>
-        Le responsable du traitement est Focusly. Contact : voir la{" "}
+        Le responsable du traitement est Focusly. Contact :{" "}
+        <MailLink />{" "}
+        ou la{" "}
         <HashLink href="#contact" className={LINK_CLASS}>
           page de contact
         </HashLink>
@@ -146,7 +158,8 @@ export function ConfidentialiteView() {
       <h2 className={H2_CLASS}>6. Vos droits (RGPD)</h2>
       <p className={P_CLASS}>
         Vous disposez d’un droit d’accès, de rectification, d’effacement, de
-        limitation, d’opposition et de portabilité. Contactez-nous via la{" "}
+        limitation, d’opposition et de portabilité. Contactez-nous par email
+        ( <MailLink /> ) ou via la{" "}
         <HashLink href="#contact" className={LINK_CLASS}>
           page de contact
         </HashLink>
@@ -227,7 +240,7 @@ export function MentionsLegalesView() {
         <br />
         [Adresse complète]
         <br />
-        Email : contact [arobase] focusly.example
+        Email : <MailLink />
       </p>
 
       <h2 className={H2_CLASS}>Directeur de la publication</h2>

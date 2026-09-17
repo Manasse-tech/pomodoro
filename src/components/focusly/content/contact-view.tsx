@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { CheckCircle2, Loader2, Send } from "lucide-react";
+import { CheckCircle2, Loader2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Breadcrumb } from "@/components/focusly/content/breadcrumb";
+import { SITE_INFO } from "@/lib/focusly/site-config";
 
 /* ------------------------------------------------------------------ */
 /* Types & validation client                                           */
@@ -376,9 +377,25 @@ export function ContactView() {
         </form>
       )}
 
-      <p className="mt-6 text-[13px] text-faint">
-        Ou par email direct : contact [arobase] focusly.example
-      </p>
+      {/* Encart email direct — l'adresse vient de SITE_INFO (site-config.ts) :
+          un seul endroit à modifier pour la personnaliser. */}
+      <div className="fade-up fade-up-3 mt-6 flex items-center gap-3 rounded-2xl border bg-card px-4 py-3.5 sm:max-w-[560px]">
+        <span
+          className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"
+          aria-hidden
+        >
+          <Mail className="size-4" />
+        </span>
+        <p className="min-w-0 text-sm text-soft">
+          Ou par email direct :{" "}
+          <a
+            href={`mailto:${SITE_INFO.contactEmail}`}
+            className="break-all font-medium text-brand hover:underline"
+          >
+            {SITE_INFO.contactEmail}
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

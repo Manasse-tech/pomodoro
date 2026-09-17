@@ -1176,3 +1176,25 @@ Work Log:
 Stage Summary:
 - Socle AdSense complet et testé : contenus 600+ mots/article, consentement RGPD CMP-ready inactif par défaut, ads.txt modèle. Reste externe : domaine réel, mentions légales, validation Google, activation avec publisherId.
 - Nouvelles leçons : react-hooks/set-state-in-effect impose useSyncExternalStore pour le pattern mounted ; le buffer console d'agent-browser accumule les warnings HMR — faire console --clear avant les mesures.
+
+---
+Task ID: r12-e
+Agent: main (Z.ai Code)
+Task: Utilisateur fournit les vraies infos AdSense + demande d'ajout de ses infos de contact — verbatim : script `adsbygoogle.js?client=ca-pub-6410999448746776`, ligne ads.txt `google.com, pub-6410999448746776, DIRECT, f08c47fec0942fa0`, « ajoute mes infos perso pour le contact genre mon email »
+
+Work Log:
+- ads-config.ts : `enabled: true` + `publisherId: "pub-6410999448746776"` ; JSDoc réécrit en « ÉTAT r12-e » (fait ✅ / reste externe).
+- layout.tsx : script AdSense officiel via next/script `strategy="beforeInteractive"` → tag `adsbygoogle.js?client=ca-pub-6410999448746776` présent dans le HTML BRUT servi (vérifié curl, tag + preloads) — exigence de vérification de site Google.
+- layout.tsx : script INLINE `(window.adsbygoogle=window.adsbygoogle||[]).requestNonPersonalizedAds=1` placé AVANT le loader → défaut RGPD (annonces non personnalisées) appliqué dès le parse HTML, sans attendre un choix utilisateur.
+- DÉCOUVERTE DÉBUGGAGE (agent-browser eval + getOwnPropertyDescriptor) : le loader Google REMPLACE window.adsbygoogle par un objet non-Array à son arrivée (un flag posé avant est perdu) et `requestNonPersonalizedAds` y est un SETTER PUR (hasGet:false, hasSet:true, configurable:false) — l'écriture fonctionne, la relecture renvoie undefined par design. Correctif : nouveau composant `tools/ad-consent-sync.tsx` (effet pur, rendu null) : (a) applique NPA=0/1 selon le consentement persisté (granted→0, sinon 1), (b) ré-applique à l'événement `load` du script si le loader n'était pas encore arrivé (détection `!Array.isArray(window.adsbygoogle)`). Monté dans focusly-app.tsx à côté de ConsentBanner.
+- public/ads.txt : ligne officielle déposée (curl → 200, contenu exact).
+- Contact éditeur : nouveau `src/lib/focusly/site-config.ts` (SITE_INFO.contactEmail placeholder `contact@focusly.example`, editorName vide — UNIQUE point à modifier) ; câblé dans contact-view.tsx (encart « email direct » cliquable, icône Mail, remplace « contact [arobase] … ») et legal-views.tsx (mentions légales §Éditeur : mailto ; confidentialité §1 responsable : mailto ; §6 droits RGPD : mailto).
+- Conformité contenu (conséquence AdSense actif) : mentions devenues inexactes corrigées — accueil-view.tsx « pas de collecte de données » supprimé, description SEO du layout ×2 « sans collecte de données » → « vos données restent sur votre appareil ».
+- RELEASE-NOTE.md révisé (r12-e) : §3 « Fait (r12-d/r12-e) » enrichi (intégration réelle + contact centralisé), verdict AdSense actualisé, checklist : item AdSense-code coché [x], CMP TCF certifiée + email réel ajoutés comme items ouverts.
+- Vérifications : tsc 0 erreur, eslint 0 erreur ; curl ads.txt 200 + tag ca-pub- dans HTML brut ; agent-browser : bandeau visible pour nouveau visiteur → « Continuer sans publicité personnalisée » → {ads:denied} persisté + bandeau masqué ; réouverture via footer « Cookies & publicité » → « Tout accepter » → {ads:granted} persisté ; setter NPA invoqué sans erreur (« setter-ok ») ; contact 375px overflow 0 + encart mailto présent ; mentions légales 1 mailto, confidentialité 2 mailto ; article blog rendu (~800 mots avec sommaire) ; reload à froid après reset du consentement : bandeau réapparaît, 0 erreur console, dev.log 200s. Profil QA remis à neuf (focusly.consent.v1 supprimé → état visiteur neuf).
+
+Stage Summary:
+- AdSense RÉELLEMENT intégré et actif dans le code : script ca-pub-6410999448746776 dans le head du HTML servi, ads.txt officiel, consentement RGPD actif (NPA=1 sans acceptation, réaligné après), lien footer « Cookies & publicité ».
+- Leçon technique majeure : l'API NPA de Google est write-only (setter pur) et window.adsbygoogle est remplacé par le loader — toute intégration doit (1) poser le défaut AVANT le loader (script inline), (2) ré-appliquer après son arrivée (load event), (3) ne JAMAIS vérifier par relecture de la propriété (descripteur uniquement).
+- Reste côté utilisateur (hors code) : email réel (site-config.ts, 1 ligne), domaine réel (metadataBase/robots/sitemap), hébergement HTTPS, mentions légales (nom/adresse/hébergeur), CMP TCF certifiée avant toute pub personnalisée EEE/UK, ADMIN_KEY fort en prod.
+- Prochaine round suggérée : injecter l'email réel dès réception ; candidats : filtres chips Admin + CSV complet, filtres de période Stats, validation anims `.fade-up`.
