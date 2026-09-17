@@ -1219,3 +1219,22 @@ Stage Summary:
 - Risque/limite documenté : SQLite sur Netlify = filesystem éphémère — les messages de contact peuvent ne pas persister entre les invocations de fonction (le formulaire répond, mais l'archivage admin n'est pas garanti en prod) ; migration DB managée (Turso/Supabase) à proposer si l'utilisateur veut conserver les messages.
 - Leçon : diagnostiquer le déploiement LIVE par curl (ads.txt, sw.js, HEAD API) avant de conseiller — évite toute hypothèse sur la version réellement déployée.
 - Prochaine round : volontés utilisateur (nom mentions légales, redéploiement confirmé) ; sinon candidats : filtres chips Admin, filtres de période Stats, validation anims `.fade-up`.
+
+---
+Task ID: r12-g
+Agent: main (Z.ai Code)
+Task: Utilisateur fournit le nom de l'éditeur (« nom erik ») et dépose le fichier de vérification Google Search Console (upload/google0be7b3a266557144.html)
+
+Work Log:
+- Fichier de vérification Google copié vers `public/google0be7b3a266557144.html` (contenu exact : `google-site-verification: google0be7b3a266557144.html`) — servi localement en 200 avec le corps exact (curl + rendu navigateur).
+- `site-config.ts` : `editorName = "Erik"` (réponse « nom erik ») ; JSDoc à jour (reste : adresse postale de l'éditeur).
+- `legal-views.tsx` mentions légales : Éditeur + Directeur de la publication rendus depuis `SITE_INFO.editorName` (plus de placeholders `[Votre nom ou raison sociale]` / `[Nom du directeur]`) ; blockquote final « Il ne reste que l'adresse postale » ; `[Adresse complète]` conservé (non fourni par l'utilisateur).
+- Diagnostic LIVE Netlify (curl) : ads.txt = ligne officielle `pub-6410999448746776` ✓ ; HTML = 2 occurrences `ca-pub` ✓ ; og:image = domaine Netlify (r12-f inclus) ✓ → le redéploiement demandé en r12-f a eu lieu, la version en ligne est à jour jusqu'à r12-f. Seul r12-g attend un nouveau déploiement (fichier Search Console encore 404 en ligne, attendu).
+- QA : tsc 0 erreur, eslint 0 erreur ; navigateur : #mentions-legales → Erik présent dans Éditeur + Directeur, ancien placeholder disparu, 1 mailto, `[Adresse complète]` restant (voulu) ; accueil title OK ; `/google0be7b3a266557144.html` rendu avec corps exact ; console 0 erreur ; dev.log 200s.
+- RELEASE-NOTE.md révisé (r12-g) : en-tête + verdict (redéploiement effectué et vérifié en ligne), §1.2 mentions légales (reste adresse), §3 « Fait » + item 6 / « Reste » réécrit, checklist : redéploiement coché + nouveau redéploiement r12-g ajouté, Search Console précisée.
+
+Stage Summary:
+- Identité éditeur complète (email + nom) et preuve de propriété Google intégrée : la validation Search Console ne demandera qu'un redéploiement Netlify de plus.
+- État live vérifié par curl (pas d'hypothèse) : en ligne = r12-e + r12-f ; en attente de déploiement = r12-g.
+- Reste : adresse postale mentions légales, ADMIN_KEY prod + DATABASE_URL persistant, build prod à valider, CMP TCF si pub personnalisée.
+- Prochaine round : selon retours utilisateur (redéploiement, adresse) ; sinon candidats internes : filtres chips Admin + CSV complet, filtres de période Stats, validation anims `.fade-up`.

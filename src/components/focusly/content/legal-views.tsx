@@ -227,16 +227,16 @@ export function MentionsLegalesView() {
     >
       <blockquote className="my-6 rounded-r-xl border-l-[3px] border-brand bg-brand/5 px-5 py-3.5 italic text-soft">
         <strong className="font-semibold text-foreground">
-          À compléter avant mise en ligne.
+          Dernier champ à compléter.
         </strong>{" "}
-        Remplissez ces champs avec vos informations réelles.
+        Il ne reste que l’adresse postale de l’éditeur à renseigner.
       </blockquote>
 
       <h2 className={H2_CLASS}>Éditeur du site</h2>
       <p className={P_CLASS}>
         <strong className="font-semibold text-foreground">Focusly</strong>
         <br />
-        [Votre nom ou raison sociale]
+        {SITE_INFO.editorName}
         <br />
         [Adresse complète]
         <br />
@@ -244,7 +244,7 @@ export function MentionsLegalesView() {
       </p>
 
       <h2 className={H2_CLASS}>Directeur de la publication</h2>
-      <p className={P_CLASS}>[Nom du directeur]</p>
+      <p className={P_CLASS}>{SITE_INFO.editorName}</p>
 
       <h2 className={H2_CLASS}>Hébergeur</h2>
       <p className={P_CLASS}>
