@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   Download,
   Inbox,
   Lock,
@@ -9,8 +11,10 @@ import {
   MailOpen,
   RefreshCw,
   Reply,
+  Search,
   ShieldCheck,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,16 +49,28 @@ interface ContactMsg {
   subject: string | null;
   message: string;
   read: boolean;
+  archived: boolean;
   createdAt: string;
 }
 
 /** sessionStorage key — holds the admin key for the current tab only. */
 const STORAGE_KEY = "focusly.adminKey";
 
-const FILTERS: Array<{ value: "tous" | "non-lus"; label: string }> = [
-  { value: "tous", label: "Tous" },
+type AdminFilter = "actifs" | "non-lus" | "archives";
+
+const FILTERS: Array<{ value: AdminFilter; label: string }> = [
+  { value: "actifs", label: "Actifs" },
   { value: "non-lus", label: "Non lus" },
+  { value: "archives", label: "Archivés" },
 ];
+
+/** Case-insensitive + accent-insensitive fold (same pattern as blog-view). */
+function fold(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
 
 /** Pre-filled FR reply (mailto) — quotes the original message, truncated after 600 characters. */
 function buildReplyHref(msg: ContactMsg): string {
@@ -88,7 +104,27 @@ export function AdminView() {
   const [unlocking, setUnlocking] = useState(false);
   const [messages, setMessages] = useState<ContactMsg[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState<"tous" | "non-lus">("tous");
+  const [filter, setFilter] = useState<AdminFilter>("actifs");
+  const [query, setQuery] = useState("");
+
+  /* Visible list = filter chip (archived first) then accent-insensitive search */
+  const visible = useMemo(() => {
+    const base =
+      filter === "archives"
+        ? messages.filter((m) => m.archived)
+        : filter === "non-lus"
+          ? messages.filter((m) => !m.archived && !m.read)
+          : messages.filter((m) => !m.archived);
+    const needle = fold(query.trim());
+    if (!needle) return base;
+    return base.filter(
+      (m) =>
+        fold(m.name).includes(needle) ||
+        fold(m.email).includes(needle) ||
+        fold(m.subject ?? "").includes(needle) ||
+        fold(m.message).includes(needle),
+    );
+  }, [messages, filter, query]);
 
   /* Restore a previously unlocked key (same tab only) */
   useEffect(() => {
@@ -116,7 +152,7 @@ export function AdminView() {
         return;
       }
       const data = (await res.json()) as { ok?: boolean; messages?: ContactMsg[] };
-      setMessages((data.messages ?? []).map((m) => ({ ...m, read: m.read ?? false })));
+      setMessages((data.messages ?? []).map((m) => ({ ...m, read: m.read ?? false, archived: m.archived ?? false })));
     } catch {
       toast.error("Erreur réseau.");
     } finally {
@@ -149,7 +185,7 @@ export function AdminView() {
         window.sessionStorage.setItem(STORAGE_KEY, k);
         setAdminKey(k);
         setEntered(""); // never keep the key in the DOM
-        setMessages((data.messages ?? []).map((m) => ({ ...m, read: m.read ?? false })));
+        setMessages((data.messages ?? []).map((m) => ({ ...m, read: m.read ?? false, archived: m.archived ?? false })));
       } else if (res.status === 401) {
         setGateError("Clé incorrecte.");
       } else if (res.status === 429) {
@@ -172,7 +208,8 @@ export function AdminView() {
     setMessages([]);
     setEntered("");
     setGateError(null);
-    setFilter("tous");
+    setFilter("actifs");
+    setQuery("");
   };
 
   /* ----- Toggle read state (optimistic, reverted on failure) ----- */
@@ -196,6 +233,34 @@ export function AdminView() {
     } catch (err) {
       setMessages((ms) =>
         ms.map((m) => (m.id === msg.id ? { ...m, read: msg.read } : m)),
+      );
+      toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+    }
+  };
+
+  /* ----- Archive / restore (optimistic, reverted on failure) ----- */
+  const toggleArchived = async (msg: ContactMsg) => {
+    const next = !msg.archived;
+    setMessages((ms) =>
+      ms.map((m) => (m.id === msg.id ? { ...m, archived: next } : m)),
+    );
+    try {
+      const res = await fetch("/api/contact", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey ?? "",
+        },
+        body: JSON.stringify({ id: msg.id, archived: next }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Erreur réseau.");
+      }
+      toast.success(next ? "Message archivé." : "Message restauré.");
+    } catch (err) {
+      setMessages((ms) =>
+        ms.map((m) => (m.id === msg.id ? { ...m, archived: msg.archived } : m)),
       );
       toast.error(err instanceof Error ? err.message : "Erreur réseau.");
     }
@@ -225,13 +290,13 @@ export function AdminView() {
     }
   };
 
-  /* ----- Export all the messages as a client-side CSV download ----- */
+  /* ----- Export the currently visible messages as a client-side CSV download ----- */
   const handleExportCsv = () => {
-    if (messages.length === 0) {
+    if (visible.length === 0) {
       toast.info("Aucun message à exporter.");
       return;
     }
-    downloadTextFile(messagesToCsv(messages), `focusly-messages-${todayKey()}.csv`);
+    downloadTextFile(messagesToCsv(visible), `focusly-messages-${todayKey()}.csv`);
     toast.success("Export CSV téléchargé.");
   };
 
@@ -302,9 +367,7 @@ export function AdminView() {
   /* Authenticated                                                     */
   /* ---------------------------------------------------------------- */
 
-  const unreadCount = messages.filter((m) => !m.read).length;
-  const visible =
-    filter === "non-lus" ? messages.filter((m) => !m.read) : messages;
+  const unreadCount = messages.filter((m) => !m.read && !m.archived).length;
 
   return (
     <section className="mx-auto w-full max-w-[920px] px-5 py-8 sm:py-10">
@@ -358,23 +421,53 @@ export function AdminView() {
           </div>
         </div>
 
-        {/* ----- Filters ----- */}
-        <div role="group" aria-label="Filtrer les messages" className="flex items-center gap-2">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              aria-pressed={filter === f.value}
-              onClick={() => setFilter(f.value)}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                filter === f.value
-                  ? "border-transparent bg-brand text-[#14161a]"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* ----- Search + filters ----- */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-64">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Rechercher un nom, email, sujet…"
+              aria-label="Rechercher dans les messages"
+              className="pl-9 pr-8"
+            />
+            {query !== "" ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Effacer la recherche"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-faint transition-colors hover:text-foreground"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+          <div
+            role="group"
+            aria-label="Filtrer les messages"
+            className="flex flex-wrap items-center gap-2"
+          >
+            {FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                aria-pressed={filter === f.value}
+                onClick={() => setFilter(f.value)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  filter === f.value
+                    ? "border-transparent bg-brand text-[#14161a]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ----- Messages ----- */}
@@ -395,7 +488,13 @@ export function AdminView() {
             <p className="m-0 text-[15px] text-soft">
               {messages.length === 0
                 ? "Aucun message pour le moment."
-                : "Aucun message non lu."}
+                : query.trim() !== ""
+                  ? `Aucun résultat pour « ${query.trim()} ».`
+                  : filter === "archives"
+                    ? "Aucun message archivé."
+                    : filter === "non-lus"
+                      ? "Aucun message non lu."
+                      : "Aucun message actif."}
             </p>
           </div>
         ) : (
@@ -405,7 +504,11 @@ export function AdminView() {
                 <li key={m.id}>
                   <article
                     className={`rounded-2xl border bg-card p-4 ${
-                      m.read ? "opacity-75" : "border-l-2 border-l-brand"
+                      m.archived
+                        ? "opacity-60"
+                        : m.read
+                          ? "opacity-75"
+                          : "border-l-2 border-l-brand"
                     }`}
                   >
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -422,6 +525,12 @@ export function AdminView() {
                       >
                         {m.email}
                       </a>
+                      {m.archived ? (
+                        <Badge variant="secondary">
+                          <Archive className="size-3" aria-hidden />
+                          Archivé
+                        </Badge>
+                      ) : null}
                     </div>
 
                     {m.subject ? (
@@ -457,6 +566,23 @@ export function AdminView() {
                         >
                           <Reply aria-hidden />
                           Répondre
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={
+                            m.archived
+                              ? `Restaurer le message de ${m.name}`
+                              : `Archiver le message de ${m.name}`
+                          }
+                          onClick={() => void toggleArchived(m)}
+                        >
+                          {m.archived ? (
+                            <ArchiveRestore aria-hidden />
+                          ) : (
+                            <Archive aria-hidden />
+                          )}
+                          {m.archived ? "Restaurer" : "Archiver"}
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>

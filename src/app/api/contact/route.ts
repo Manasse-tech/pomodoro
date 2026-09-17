@@ -207,7 +207,7 @@ export async function GET(request: Request) {
   try {
     const messages = await db.contactMessage.findMany({
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: 300,
     });
     return NextResponse.json({ ok: true, messages }, { status: 200 });
   } catch (error) {
@@ -220,7 +220,7 @@ export async function GET(request: Request) {
 }
 
 /* ------------------------------------------------------------------ */
-/* PATCH /api/contact — marquer lu / non lu (protégé)                  */
+/* PATCH /api/contact — lu/non lu, archiver/restaurer (protégé)        */
 /* ------------------------------------------------------------------ */
 
 export async function PATCH(request: Request) {
@@ -235,25 +235,43 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
   }
 
-  let body: { id?: unknown; read?: unknown };
+  let body: { id?: unknown; read?: unknown; archived?: unknown };
   try {
-    body = (await request.json()) as { id?: unknown; read?: unknown };
+    body = (await request.json()) as {
+      id?: unknown;
+      read?: unknown;
+      archived?: unknown;
+    };
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
-  const { id, read } = body;
-  if (typeof id !== "string" || id.length === 0 || typeof read !== "boolean") {
+  const { id, read, archived } = body;
+  const hasRead = typeof read === "boolean";
+  const hasArchived = typeof archived === "boolean";
+  if (
+    typeof id !== "string" ||
+    id.length === 0 ||
+    (!hasRead && !hasArchived)
+  ) {
     return NextResponse.json(
-      { error: "Paramètres invalides (id, read booléen requis)." },
+      {
+        error:
+          "Paramètres invalides (id requis, read ou archived booléen requis).",
+      },
       { status: 400 },
     );
   }
 
+  // On met à jour uniquement les champs fournis (read et/ou archived).
+  const data: { read?: boolean; archived?: boolean } = {};
+  if (hasRead) data.read = read;
+  if (hasArchived) data.archived = archived;
+
   try {
     const updated = await db.contactMessage.update({
       where: { id },
-      data: { read },
+      data,
     });
     return NextResponse.json({ ok: true, message: updated }, { status: 200 });
   } catch {

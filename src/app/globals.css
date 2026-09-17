@@ -124,18 +124,26 @@ body[data-mode="long"] {
     @apply bg-background text-foreground;
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
+    /* Smooth color transition on theme switch (guarded globally by
+       prefers-reduced-motion at the end of this file) */
     transition:
-      background-color 0.3s,
-      color 0.3s;
+      background-color 0.25s ease,
+      color 0.25s ease;
   }
+  /* Brand-tinted selection: translucent mix keeps --foreground readable in
+     both themes (a solid brand background forced near-black text, hard to
+     read in dark mode) */
   ::selection {
-    background: var(--brand);
-    color: #14161a;
+    background: color-mix(in srgb, var(--brand) 28%, transparent);
+    color: var(--foreground);
   }
-  :focus-visible {
+  /* Consistent keyboard focus ring, scoped to interactive elements with
+     :where() (zero specificity) so shadcn ring/outline utilities in the
+     utilities layer always win. No forced border-radius: the outline
+     follows each element's own radius natively. */
+  :where(a, button, [role="button"], input, select, textarea, [tabindex]):focus-visible {
     outline: 2px solid var(--brand);
-    outline-offset: 3px;
-    border-radius: 4px;
+    outline-offset: 2px;
   }
 }
 
@@ -262,5 +270,83 @@ kbd {
   }
   html {
     scroll-behavior: auto;
+  }
+}
+
+/* ---------- Polish round 7: shared utilities (purely additive) ---------- */
+
+/* Global thin branded scrollbar: 10px, transparent track, rounded neutral
+   thumb, slightly stronger on hover. Firefox (and Chromium 121+) via the
+   standardized properties; the ::-webkit-* rules cover older engines.
+   .slim-scroll keeps its own tighter styling (class specificity wins) and
+   the admin view's arbitrary [&::-webkit-scrollbar] utilities stack on top. */
+@supports (scrollbar-width: thin) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-3) transparent;
+  }
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--input);
+}
+
+/* Tabular figures for any numeric display (mirrors .time-display) */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Micro-interaction utilities, adoptable by any view later (no retrofit):
+   - .press: tactile squeeze on activation
+   - .card-hover-glow: brand-tinted border + soft glow on hover
+   - .lift: gentle hover raise with shadow (declared after .press so a
+     combined .lift.press element keeps the transform+box-shadow transition) */
+.press {
+  transition: transform 0.15s ease;
+}
+.press:active {
+  transform: scale(0.98);
+}
+.card-hover-glow {
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.card-hover-glow:hover {
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--border));
+  box-shadow: 0 14px 34px -18px var(--brand-glow);
+}
+.lift {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.4);
+}
+
+/* Explicit reduced-motion guard for the named animations and the utilities
+   above (belt-and-suspenders next to the global guard above, which already
+   covers them via *) */
+@media (prefers-reduced-motion: reduce) {
+  .ring-pulse,
+  .pulse-dot,
+  .ring-fg,
+  .lift,
+  .press,
+  .card-hover-glow {
+    animation: none !important;
+    transition: none !important;
   }
 }

@@ -5,6 +5,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import {
   clamp,
   DEFAULT_SETTINGS,
+  nextDueDate,
   todayKey,
   uid,
   type DailyStat,
@@ -12,6 +13,7 @@ import {
   type Mode,
   type NoteItem,
   type TaskItem,
+  type TaskRecurrence,
   type Theme,
   type TimerSettings,
 } from "./types";
@@ -69,17 +71,25 @@ interface FocuslyState extends PersistShape {
   /** Record the finished session and switch to the next mode. Returns next mode. */
   completeSession: () => Mode;
 
-  addTask: (text: string, estimate?: number) => void;
+  /** Add a task; empty dueDate is ignored, a recurrence respawns the task on completion */
+  addTask: (
+    text: string,
+    estimate?: number,
+    dueDate?: string,
+    recurrence?: TaskRecurrence,
+  ) => void;
   toggleTask: (id: string, done: boolean) => void;
   removeTask: (id: string) => void;
   clearDoneTasks: () => void;
   setActiveTask: (id: string | null) => void;
   /** Set the pomodoro estimate of a task (clamped 1–12) */
   setTaskEstimate: (id: string, estimate: number) => void;
-  /** Edit a task's text and/or due date (null clears the due date) */
+  /** Edit a task's text and/or due date (null clears the due date); recurrence: null clears it */
   updateTask: (
     id: string,
-    patch: Partial<Pick<TaskItem, "text" | "dueDate" | "estimate">>,
+    patch: Partial<Pick<TaskItem, "text" | "dueDate" | "estimate">> & {
+      recurrence?: TaskRecurrence | null;
+    },
   ) => void;
   /** Move a task up (-1) or down (+1) by one position */
   moveTask: (id: string, direction: -1 | 1) => void;
@@ -252,20 +262,47 @@ export const useFocusly = create<FocuslyState>()(
         return next;
       },
 
-      addTask: (text, estimate) => {
+      addTask: (text, estimate, dueDate, recurrence) => {
         const v = text.trim();
         if (!v) return;
         const est = clamp(Math.round(estimate ?? 1), 1, 12);
+        const task: TaskItem = {
+          id: uid(),
+          text: v,
+          done: false,
+          created: Date.now(),
+          estimate: est,
+          spent: 0,
+        };
+        if (dueDate) task.dueDate = dueDate;
+        if (recurrence) task.recurrence = recurrence;
         set({
-          tasks: [
-            ...get().tasks,
-            { id: uid(), text: v, done: false, created: Date.now(), estimate: est, spent: 0 },
-          ].slice(-200),
+          tasks: [...get().tasks, task].slice(-200),
         });
       },
 
-      toggleTask: (id, done) =>
-        set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, done } : t)) }),
+      toggleTask: (id, done) => {
+        const prev = get().tasks;
+        const tasks = prev.map((t) => (t.id === id ? { ...t, done } : t));
+        const src = done ? prev.find((t) => t.id === id) : undefined;
+        if (src && src.recurrence) {
+          // Recurring task completed: spawn its next occurrence inside the same
+          // set() as the flip (inherently once per completion — flipping back to
+          // false never spawns). The original keeps its active flag as-is and the
+          // fresh copy starts unlinked, not done, with the next due date.
+          tasks.push({
+            id: uid(),
+            text: src.text,
+            done: false,
+            created: Date.now(),
+            estimate: src.estimate,
+            spent: 0,
+            dueDate: nextDueDate(src.dueDate, src.recurrence),
+            recurrence: src.recurrence,
+          });
+        }
+        set({ tasks: tasks.slice(-200) });
+      },
 
       removeTask: (id) => set({ tasks: get().tasks.filter((t) => t.id !== id) }),
 
@@ -297,6 +334,12 @@ export const useFocusly = create<FocuslyState>()(
             }
             if (patch.dueDate !== undefined) {
               next.dueDate = patch.dueDate === null || patch.dueDate === "" ? undefined : patch.dueDate;
+            }
+            if (patch.recurrence !== undefined) {
+              // Explicit null clears the recurrence; a value sets it. An absent
+              // key (partial patch) leaves it untouched.
+              if (patch.recurrence) next.recurrence = patch.recurrence;
+              else delete next.recurrence;
             }
             return next;
           }),

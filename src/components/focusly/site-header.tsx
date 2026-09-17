@@ -64,21 +64,24 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
               : "hidden"
           } order-3 basis-full flex-wrap items-center gap-0.5 sm:order-none sm:flex sm:basis-auto`}
         >
-          {NAV.map((n) => (
-            <Link
-              key={n.route}
-              href={`#${n.route}`}
-              aria-current={isNavActive(route, n.route) ? "page" : undefined}
-              className={`inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                isNavActive(route, n.route)
-                  ? "bg-accent text-foreground"
-                  : "text-soft hover:bg-secondary hover:text-foreground"
-              }`}
-              onClick={() => setNavOpen(false)}
-            >
-              {n.label}
-            </Link>
-          ))}
+          {NAV.map((n) => {
+            const active = isNavActive(route, n.route);
+            return (
+              <Link
+                key={n.route}
+                href={`#${n.route}`}
+                aria-current={active ? "page" : undefined}
+                className={`relative inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors sm:after:absolute sm:after:-bottom-[6px] sm:after:left-1/2 sm:after:content-[''] sm:after:h-1 sm:after:w-1 sm:after:-translate-x-1/2 sm:after:rounded-full sm:after:bg-brand sm:after:transition sm:after:duration-200 ${
+                  active
+                    ? "bg-accent text-foreground sm:after:scale-100 sm:after:opacity-100"
+                    : "text-soft hover:bg-secondary hover:text-foreground hover:underline hover:underline-offset-4 hover:decoration-brand/50 sm:after:scale-0 sm:after:opacity-0"
+                }`}
+                onClick={() => setNavOpen(false)}
+              >
+                {n.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-1.5">
@@ -87,7 +90,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
             size="icon"
             aria-label={theme === "dark" ? "Passer en thème clair" : "Passer en thème sombre"}
             title="Thème (T)"
-            className="size-10 rounded-xl"
+            className="relative size-10 rounded-xl before:absolute before:content-[''] before:-inset-y-1 before:-inset-x-0.5"
             onClick={toggleTheme}
           >
             {theme === "dark" ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
@@ -97,7 +100,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
             size="icon"
             aria-label="Réglages du minuteur"
             title="Réglages (,)"
-            className="hidden size-10 rounded-xl sm:inline-flex"
+            className="relative hidden size-10 rounded-xl before:absolute before:content-[''] before:-inset-y-1 before:-inset-x-0.5 sm:inline-flex"
             onClick={onOpenSettings}
           >
             <Settings2 className="size-[18px]" />
@@ -107,7 +110,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
             size="icon"
             aria-label="Ouvrir la palette de commandes"
             title="Recherche (Ctrl+K)"
-            className="size-10 rounded-xl"
+            className="relative size-10 rounded-xl before:absolute before:content-[''] before:-inset-y-1 before:-inset-x-0.5"
             onClick={() => window.dispatchEvent(new CustomEvent("focusly:open-command"))}
           >
             <Search className="size-[18px]" />
@@ -117,7 +120,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
             size="icon"
             aria-label="Raccourcis clavier"
             title="Raccourcis clavier"
-            className="size-10 rounded-xl"
+            className="relative size-10 rounded-xl before:absolute before:content-[''] before:-inset-y-1 before:-inset-x-0.5"
             onClick={onOpenHelp}
           >
             <HelpCircle className="size-[18px]" />
@@ -127,7 +130,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp }: SiteHeaderProp
             size="icon"
             aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
             aria-expanded={open}
-            className="size-10 rounded-xl sm:hidden"
+            className="relative size-10 rounded-xl before:absolute before:content-[''] before:-inset-y-1 before:-inset-x-0.5 sm:hidden"
             onClick={() => setNavOpen(!open)}
           >
             {open ? <X className="size-[18px]" /> : <Menu className="size-[18px]" />}

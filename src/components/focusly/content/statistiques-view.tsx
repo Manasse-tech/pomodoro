@@ -9,12 +9,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Flag,
   Flame,
   ImageDown,
   Minus,
   Timer,
   TrendingDown,
   TrendingUp,
+  Trophy,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -118,6 +120,7 @@ interface MonthMark {
 
 export function StatistiquesView() {
   const daily = useFocusly((s) => s.daily);
+  const settings = useFocusly((s) => s.settings);
   const [calendarTab, setCalendarTab] = useState<"mensuel" | "annuel">("mensuel");
   const [view, setView] = useState<ViewMonth>(() => {
     const n = new Date();
@@ -239,6 +242,24 @@ export function StatistiquesView() {
 
     return { current, previous, daysElapsed, weekComplete: dayIndex === 6, trend, pct };
   }, [daily]);
+
+  /* ----- Jauge d’objectif hebdomadaire (dérivée : réglages × semaine courante) ----- */
+  const weekGoal = useMemo(() => {
+    const perDay = settings.dailyGoal;
+    const goal = perDay * 7;
+    const done = weekCompare.current.pomodoros;
+    // Lundi = jour 1 … dimanche = 7 (même convention lundi-first que weekCompare)
+    const daysElapsed = weekCompare.daysElapsed;
+    return {
+      perDay,
+      goal,
+      done,
+      progress: goal > 0 ? Math.min(1, done / goal) : 0,
+      remaining: Math.max(0, goal - done),
+      daysLeft: 7 - daysElapsed,
+      onPace: done >= perDay * daysElapsed,
+    };
+  }, [settings.dailyGoal, weekCompare]);
 
   /* ----- Current month grid ----- */
   const monthLabel = useMemo(() => {
@@ -403,6 +424,8 @@ export function StatistiquesView() {
   // Largeur de barre (max des deux semaines = pleine largeur, plancher 2 % si actif)
   const weekBarPct = (v: number) =>
     weekMax > 0 ? Math.max((v / weekMax) * 100, 2) : 0;
+  // Largeur de la jauge d’objectif (plancher 2 % si active, même convention)
+  const goalPct = weekGoal.done > 0 ? Math.max(weekGoal.progress * 100, 2) : 0;
 
   const handleExport = () => {
     if (Object.keys(daily).length === 0) {
@@ -658,6 +681,62 @@ export function StatistiquesView() {
               <span className="text-faint">Aucun pomodoro cette semaine pour l’instant.</span>
             )}
           </p>
+
+          {/* ----- Jauge d’objectif hebdomadaire ----- */}
+          <div className="mt-4 flex flex-col gap-2.5 border-t pt-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm font-medium">Objectif hebdomadaire</span>
+              <span className="time-display text-sm font-semibold tabular-nums text-foreground">
+                {weekGoal.done} / {weekGoal.goal} pomodoro{weekGoal.goal > 1 ? "s" : ""}
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuenow={weekGoal.done}
+              aria-valuemin={0}
+              aria-valuemax={weekGoal.goal}
+              aria-label={`Objectif hebdomadaire : ${weekGoal.done} sur ${weekGoal.goal} pomodoro${
+                weekGoal.goal > 1 ? "s" : ""
+              }`}
+              className="h-2 overflow-hidden rounded-full bg-secondary/50"
+            >
+              <div
+                className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                style={{ width: `${goalPct}%` }}
+              />
+            </div>
+            <p className="m-0 text-xs text-faint">
+              Basé sur votre objectif quotidien : {weekGoal.perDay} pomodoro
+              {weekGoal.perDay > 1 ? "s" : ""} par jour × 7 jours.
+            </p>
+            <p className="m-0 flex items-center gap-2 text-sm" aria-live="polite">
+              {weekGoal.done >= weekGoal.goal ? (
+                <>
+                  <Trophy className="size-4 shrink-0 text-brand" aria-hidden />
+                  <span className="text-soft">Objectif hebdomadaire atteint, bravo !</span>
+                </>
+              ) : weekGoal.onPace ? (
+                <>
+                  <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+                  <span className="text-soft">
+                    En bonne voie — il reste{" "}
+                    <strong className="font-semibold text-foreground">
+                      {weekGoal.remaining} pomodoro{weekGoal.remaining > 1 ? "s" : ""}
+                    </strong>{" "}
+                    et {weekGoal.daysLeft} jour{weekGoal.daysLeft > 1 ? "s" : ""}.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Flag className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="text-muted-foreground">
+                    {weekGoal.remaining} pomodoro{weekGoal.remaining > 1 ? "s" : ""} restant
+                    {weekGoal.remaining > 1 ? "s" : ""} pour atteindre l’objectif.
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
         </section>
 
         {/* ----- Calendar (monthly / yearly) ----- */}

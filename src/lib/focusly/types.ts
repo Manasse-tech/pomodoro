@@ -54,6 +54,19 @@ export const DEFAULT_SETTINGS: TimerSettings = {
   autoStart: false,
 };
 
+/** Recurrence plan for a task: completing it spawns a fresh copy with the next due date */
+export type TaskRecurrence = "daily" | "weekly";
+
+export const RECURRENCE_LABELS: Record<TaskRecurrence, string> = {
+  daily: "Quotidienne",
+  weekly: "Hebdomadaire",
+};
+
+export const RECURRENCE_SHORT: Record<TaskRecurrence, string> = {
+  daily: "Quotid.",
+  weekly: "Hebdo",
+};
+
 export interface TaskItem {
   id: string;
   text: string;
@@ -67,6 +80,8 @@ export interface TaskItem {
   spent?: number;
   /** Optional due date, as a local YYYY-MM-DD key (same format as todayKey) */
   dueDate?: string;
+  /** Recurrence: on completion, a fresh not-done copy is spawned with the next due date */
+  recurrence?: TaskRecurrence;
 }
 
 export interface NoteItem {
@@ -177,6 +192,27 @@ export function daysUntil(key: string): number {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((due.getTime() - today.getTime()) / 86_400_000);
+}
+
+/**
+ * Next due-date key for a recurring task: daily → +1 day, weekly → +7 days.
+ * The base is max(parsed dueDate, today) so a late completion never plans the
+ * next occurrence in the past (daily lands on tomorrow, weekly on today + 7).
+ * Built from local Date parts — new Date(y, m-1, d + N) auto-normalizes month/
+ * year overflow, then local parts are read back (same key style as todayKey,
+ * never ISO/UTC).
+ */
+export function nextDueDate(fromKey: string | undefined, recurrence: TaskRecurrence): string {
+  let base: Date | null = null;
+  if (fromKey) {
+    const [y, m, d] = fromKey.split("-").map(Number);
+    if (y && m && d) base = new Date(y, m - 1, d);
+  }
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const from = base !== null && base > today ? base : today;
+  const step = recurrence === "weekly" ? 7 : 1;
+  return todayKey(new Date(from.getFullYear(), from.getMonth(), from.getDate() + step));
 }
 
 /** French human date + time for lists */

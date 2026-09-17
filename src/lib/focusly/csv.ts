@@ -19,6 +19,7 @@ export interface ContactCsvRow {
   subject: string | null;
   message: string;
   read: boolean;
+  archived?: boolean;
   createdAt: string;
 }
 
@@ -29,12 +30,20 @@ function csvField(value: string): string {
 
 /**
  * Build a semicolon-separated CSV of the contact messages (Excel-friendly in FR locales),
- * for the admin back-office export. `Lu` is rendered as « oui » / « non ».
+ * for the admin back-office export. `Lu` and `Archivé` are rendered as « oui » / « non ».
  */
 export function messagesToCsv(messages: ContactCsvRow[]): string {
-  const head = "Date;Nom;Email;Sujet;Message;Lu";
+  const head = "Date;Nom;Email;Sujet;Message;Lu;Archivé";
   const rows = messages.map((m) =>
-    [frDateTime(m.createdAt), m.name, m.email, m.subject ?? "", m.message, m.read ? "oui" : "non"]
+    [
+      frDateTime(m.createdAt),
+      m.name,
+      m.email,
+      m.subject ?? "",
+      m.message,
+      m.read ? "oui" : "non",
+      m.archived === undefined ? "" : m.archived ? "oui" : "non",
+    ]
       .map(csvField)
       .join(";"),
   );

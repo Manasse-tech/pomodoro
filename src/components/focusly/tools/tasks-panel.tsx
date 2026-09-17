@@ -14,6 +14,7 @@ import {
   Minus,
   Pencil,
   Plus,
+  Repeat,
   Trash2,
   X,
 } from "lucide-react";
@@ -22,7 +23,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFocusly } from "@/lib/focusly/store";
-import { daysUntil, frDate, frDateShort, type TaskItem } from "@/lib/focusly/types";
+import {
+  daysUntil,
+  frDate,
+  frDateShort,
+  nextDueDate,
+  RECURRENCE_LABELS,
+  RECURRENCE_SHORT,
+  type TaskItem,
+  type TaskRecurrence,
+} from "@/lib/focusly/types";
 
 /** Full French date from a local YYYY-MM-DD key — built from local parts, never UTC */
 function dueDateLabel(key: string): string {
@@ -40,6 +50,45 @@ const TASK_FILTERS: Array<{ value: TaskFilter; label: string }> = [
   { value: "retard", label: "En retard" },
 ];
 
+/** Compact recurrence selector — « Aucune / Quotid. / Hebdo » chips (add form + inline edit) */
+function RecurrencePicker({
+  value,
+  onChange,
+  label,
+}: {
+  value: TaskRecurrence | null;
+  onChange: (next: TaskRecurrence | null) => void;
+  label: string;
+}) {
+  const options: Array<{ value: TaskRecurrence | null; label: string }> = [
+    { value: null, label: "Aucune" },
+    { value: "daily", label: RECURRENCE_SHORT.daily },
+    { value: "weekly", label: RECURRENCE_SHORT.weekly },
+  ];
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1.5">
+      <span aria-hidden className="text-[11px] text-faint">
+        Répétition
+      </span>
+      {options.map((o) => (
+        <button
+          key={o.label}
+          type="button"
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+            value === o.value
+              ? "border-brand/40 bg-brand/15 font-medium text-brand"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function TasksPanel() {
   const tasks = useFocusly((s) => s.tasks);
   const addTask = useFocusly((s) => s.addTask);
@@ -54,10 +103,12 @@ export function TasksPanel() {
   const [value, setValue] = useState("");
   const [estimate, setEstimate] = useState(1);
   const [dueDate, setDueDate] = useState("");
+  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
   /* inline edit — only one task at a time */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [editDue, setEditDue] = useState("");
+  const [editRec, setEditRec] = useState<TaskRecurrence | null>(null);
   /* drag-and-drop reorder state (id of the dragged task / hovered target) */
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -102,6 +153,7 @@ export function TasksPanel() {
     setEditingId(t.id);
     setEditText(t.text);
     setEditDue(t.dueDate ?? "");
+    setEditRec(t.recurrence ?? null);
   };
 
   const cancelTaskEdit = () => setEditingId(null);
@@ -109,8 +161,8 @@ export function TasksPanel() {
   const saveTaskEdit = (e: FormEvent) => {
     e.preventDefault();
     if (!editingId || !editText.trim()) return;
-    // dueDate "" clears the due date (store contract)
-    updateTask(editingId, { text: editText, dueDate: editDue });
+    // dueDate "" clears the due date, editRec null clears the recurrence (store contract)
+    updateTask(editingId, { text: editText, dueDate: editDue, recurrence: editRec });
     setEditingId(null);
     toast.success("Tâche mise à jour.");
   };
@@ -200,13 +252,11 @@ export function TasksPanel() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!value.trim()) return;
-          addTask(value, estimate);
-          const stored = useFocusly.getState().tasks;
-          const added = stored[stored.length - 1];
-          if (dueDate && added) updateTask(added.id, { dueDate });
+          addTask(value, estimate, dueDate, recurrence ?? undefined);
           setValue("");
           setEstimate(1);
           setDueDate("");
+          setRecurrence(null);
         }}
       >
         <label htmlFor="task-input" className="sr-only">
@@ -258,6 +308,11 @@ export function TasksPanel() {
           onChange={(e) => setDueDate(e.target.value)}
           aria-label="Échéance (optionnelle)"
           className="h-9 w-[122px] rounded-xl border bg-secondary/60 px-2 text-xs [color-scheme:light] dark:bg-secondary/60 dark:[color-scheme:dark]"
+        />
+        <RecurrencePicker
+          value={recurrence}
+          onChange={setRecurrence}
+          label="Répétition de la nouvelle tâche"
         />
         <Button type="submit" className="min-h-11 rounded-xl active:scale-[0.98]">
           <Plus className="size-4" /> Ajouter
@@ -357,6 +412,11 @@ export function TasksPanel() {
                       </button>
                     )}
                   </div>
+                  <RecurrencePicker
+                    value={editRec}
+                    onChange={setEditRec}
+                    label="Répétition de la tâche"
+                  />
                   <div className="flex gap-2">
                     <Button
                       type="submit"
@@ -383,7 +443,19 @@ export function TasksPanel() {
                   />
                   <Checkbox
                     checked={t.done}
-                    onCheckedChange={(v) => toggleTask(t.id, v === true)}
+                    onCheckedChange={(v) => {
+                      const nextDone = v === true;
+                      if (nextDone && !t.done && t.recurrence) {
+                        toggleTask(t.id, true);
+                        toast.info(
+                          `Prochaine occurrence planifiée : ${frDateShort(
+                            nextDueDate(t.dueDate, t.recurrence),
+                          )}`,
+                        );
+                      } else {
+                        toggleTask(t.id, nextDone);
+                      }
+                    }}
                     aria-label={t.done ? "Marquer comme à faire" : "Marquer comme terminée"}
                     className="mt-0.5 size-5"
                   />
@@ -411,6 +483,15 @@ export function TasksPanel() {
                         <Calendar className="size-[11px]" />
                       )}
                       {frDateShort(due)}
+                    </span>
+                  )}
+                  {t.recurrence && (
+                    <span
+                      title={`Répétition ${RECURRENCE_LABELS[t.recurrence].toLowerCase()}`}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      <Repeat className="size-3" />
+                      {RECURRENCE_SHORT[t.recurrence]}
                     </span>
                   )}
                   {!t.done && (
@@ -502,6 +583,11 @@ export function TasksPanel() {
                         <ChevronDown className="size-3.5" />
                       </button>
                     </div>
+                  )}
+                  {t.done && t.recurrence && (
+                    <p className="w-full text-xs text-faint">
+                      Prochaine occurrence : {frDateShort(nextDueDate(t.dueDate, t.recurrence))}
+                    </p>
                   )}
                 </>
               )}

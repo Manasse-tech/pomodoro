@@ -38,5 +38,6 @@ model ContactMessage {
   subject   String?
   message   String
   read      Boolean  @default(false)
+  archived  Boolean  @default(false)
   createdAt DateTime @default(now())
 }
