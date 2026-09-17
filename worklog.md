@@ -1115,3 +1115,27 @@ Stage Summary:
 - La navigation par clics fonctionne ENFIN dans un vrai navigateur — c'était probablement le plus gros bug d'UX du projet (page d'accueil = cul-de-sac), invisible des QA précédentes à cause de la méthode de test (open() au lieu de clics réels)
 - Leçons : (1) dans une SPA hash-routée, next/link est INTERDIT pour les href="#…" — HashLink obligatoire (commentaire dans le composant) ; (2) tester la navigation au CLIC (agent-browser click) et pas seulement par navigation d'URL ; (3) les ancres d'élément (#main, #section) ne doivent JAMAIS atteindre le routeur — le TOC des articles le faisait déjà correctement (followHeading), le skip-link est maintenant aligné
 - Risques : aucun bloquant ; la recherche dans la palette/commandes (Ctrl+K) n'a pas été re-testée ce cycle (non touchée) ; si un jour on veut des ancres de section dans d'autres vues, réutiliser le pattern followHeading (preventDefault + scrollIntoView), jamais href="#section" natif
+
+---
+Task ID: r12-b
+Agent: main (Z.ai Code)
+Task: BUG CRITIQUE utilisateur — « je n'arrive pas à switcher avec les différentes pages comme de accueil à outils et autres, tous les boutons de la page ne répondent pas au clic » + erreur console React « tree hydrated but some attributes didn't match » (radix useId `_R_…` divergents dans CommandPalette)
+
+Work Log:
+- Lu worklog.md (r12-a : fix TDZ rehydration). Reproduction agent-browser : profil propre = tout fonctionne → le bug n'est PAS dans le rendu React courant.
+- Analyse de l'erreur utilisateur : useId serveur `_R_7inelbH1_` ≠ client `_R_1qnelbH1_` avec DOM identique → signature d'un HTML SSR d'un ARBRE ANCIEN (build précédent) face au bundle frais.
+- Root cause prouvée : le service worker `focusly-v4` (jamais re-bumpé depuis la round PWA) mettait en cache les chunks Turbopack DEV (`/_next/static/chunks/*`, URLs invalidées à chaque recompile) + le document HTML. Toute panne réseau transitoire → fallback cache → HTML d'un arbre périmé mélangé à du JS frais → hydration mismatch + handlers jamais attachés → TOUS les boutons morts. Cache v4 inspecté : plein de chunks turbopack obsolètes (preuve directe).
+- Théorie alternative (divergence runtime store rehydraté) testée et ÉCARTÉE : seed localStorage (theme=light, running, mode=short, tasks, daily) + reload → 0 erreur hydration. Le merge() r12-a est sain.
+- FIX 1 — `public/sw.js` réécrit en **v5 « dev-proof »** : /_next/* JAMAIS mis en cache (passthrough) ; navigation → network-first avec UNIQUE fallback /offline.html (le shell « / » n'est plus jamais servi depuis le cache) ; seuls assets immuables cachés (icônes, manifest, woff2) ; à l'install, détection de caches focusly-* legacy → `skipWaiting()` immédiat (page empoisonnée = pas cliquable pour un toast) → activate purge tous les vieux caches → clients.claim() → le handler controllerchange existant recharge une fois → auto-guérison sans action utilisateur.
+- FIX 2 — `focusly-app.tsx` : purge côté page des caches focusly-* non-v5 dès l'effet d'enregistrement (défense en profondeur, tourne même avant l'install du nouveau worker) + commentaire d'audit.
+- E2E self-healing validé sur profil réellement empoisonné (SW v4 actif + caches v4 + state seedé) : reload → v5 takeover → caches `[focusly-v5-shell]` uniquement → 0 erreur console.
+
+Stage Summary:
+- Fix dupliqué vérifié : navigation 4 routes (accueil/outils/statistiques/blog) OK, dialogues Réglages/Raccourcis + palette Ctrl+K OK, minuteur Démarrer→Pause→Réinitialiser OK, 375px zéro overflow + burger menu OK, footer push naturel OK, toast « Nouvelle version disponible / Recharger » visible = flux de mise à jour sain opérationnel.
+- tsc 0 erreur, eslint 0 erreur, dev.log propre (200s).
+- Impact utilisateur : au prochain chargement, le navigateur récupère sw.js v5 → skipWaiting auto (caches legacy détectés) → purge → auto-reload → l'app est réparée SANS intervention. Cause récurrente éliminée : plus jamais de chunks/HTML dev servis depuis le cache.
+- Leçon d'architecture : un SW qui cache des bundles Turbopack dev est intrinsèquement toxique (URLs par-compilation) ; v5 ne cache que l'immuable et délègue tout le dynamique au réseau.
+
+Risques / suite:
+- Offline complet (shell app) volontairement dégradé vers /offline.html — impossible honnêtement avec des bundles dev ; à réévaluer si un build production voit le jour.
+- Prochaine round : candidats — filtres chips Admin + export CSV complet, filtres de période Stats, PWA manifest audit (offline page FR), validation réel navigateur des animations `.fade-up`.

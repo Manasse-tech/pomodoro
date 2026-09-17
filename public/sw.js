@@ -1,20 +1,31 @@
-/* Focusly service worker — offline-first shell.
- * Strategy:
- *  - navigations (HTML): network-first, fallback to cached "/" then /offline.html
- *  - static brand assets (icons, manifest, fonts): cache-first
- *  - framework bundles (/_next/*) and everything else: network-first with cache fallback
- *  - /api/* and non-GET: never cached, straight to network
- * Update flow: a new worker installs and WAITS (no auto skipWaiting); the page
- * decides when to take it over by posting { action: "SKIP_WAITING" }, then
- * reloads on controllerchange so users never run a stale bundle silently.
+/* Focusly service worker — v5 "dev-proof" strategy.
+ *
+ * WHY v5 EXISTS (audit 2026-09-17, r12-b):
+ * v4 cached Turbopack DEV chunks (/_next/static/chunks/*) and the dev HTML
+ * document in its runtime/shell caches. Turbopack chunk URLs change on every
+ * source change, so any transient network failure made the SW fall back to a
+ * stale HTML (old component tree → stale React useId values) mixed with a
+ * fresh client bundle: hydration mismatch ("radix-_R_…" id diffs) and, worse,
+ * broken chunk combos whose event handlers never attached — every button on
+ * the page went dead.
+ *
+ * v5 rules (safe under a dev server AND under a static production build):
+ *  - HTML navigations: network-first, ONLY fallback = /offline.html.
+ *    The app shell "/" is NEVER served from cache (no more stale-tree HTML).
+ *  - /_next/* bundles: NEVER cached, NEVER served from cache (passthrough).
+ *    Serving one cached chunk from an older compile poisons the whole load.
+ *  - Only truly immutable assets (icons, manifest, woff2 fonts) are cached.
+ *  - Upgrade path: on install, if caches from a previous focusly version
+ *    exist, the worker calls skipWaiting() IMMEDIATELY (poisoned pages cannot
+ *    be trusted to click a "Recharger" toast) → activate deletes every legacy
+ *    cache → clients.claim() → the page's existing controllerchange handler
+ *    reloads once → clean state, no user action required.
  */
-const VERSION = "focusly-v4";
+const VERSION = "focusly-v5";
 const SHELL_CACHE = VERSION + "-shell";
-const RUNTIME_CACHE = VERSION + "-runtime";
 const IMMUTABLE_CACHE = VERSION + "-immutable";
 
 const PRECACHE = [
-  "/",
   "/offline.html",
   "/manifest.webmanifest",
   "/icon-192.png",
@@ -22,16 +33,24 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", (event) => {
-  // Precache the shell, then WAIT. The old service worker keeps controlling
-  // the page until it posts { action: "SKIP_WAITING" } (see message below).
   event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
+    (async () => {
+      const cache = await caches.open(SHELL_CACHE);
+      await cache.addAll(PRECACHE);
+      // Coming from focusly-v4 (or any older/foreign focusly-* cache)?
+      // The page may be running a stale, poisoned shell — take over NOW
+      // instead of waiting for a user who cannot click anything.
+      const keys = await caches.keys();
+      const hasLegacy = keys.some(
+        (k) => k.startsWith("focusly-") && !k.startsWith(VERSION)
+      );
+      if (hasLegacy) await self.skipWaiting();
+    })()
   );
 });
 
-// Handshake with the page: the update toast sends SKIP_WAITING on demand.
+// Handshake with the page: the update toast sends SKIP_WAITING on demand
+// (kept for future v5→v6 updates where the app is healthy enough to ask).
 self.addEventListener("message", (event) => {
   if (event.data && event.data.action === "SKIP_WAITING") self.skipWaiting();
 });
@@ -52,8 +71,8 @@ self.addEventListener("activate", (event) => {
 });
 
 function isImmutable(url) {
-  // Only truly static, versioned-by-filename assets. Framework chunks
-  // (/_next/*) are served network-first so dev updates always come through.
+  // Only static, content-stable brand assets. Framework chunks (/_next/*)
+  // are NEVER cached in v5 — see the strategy note at the top.
   return (
     /^\/icon-\d+\.png$/.test(url.pathname) ||
     url.pathname === "/og-image.png" ||
@@ -76,22 +95,21 @@ async function cacheFirst(request, cacheName) {
   }
 }
 
+/** Network-first with revalidation; the ONLY HTML fallback is offline.html —
+ * never the cached app shell, which is how v4 served stale trees. */
 async function networkFirst(request, cacheName, fallbackUrl, noCache) {
   const cache = await caches.open(cacheName);
   try {
-    // no-cache: revalidate with the server so bundle updates always land
+    // no-cache: revalidate with the server so updates always land
     const res = await fetch(request, noCache ? { cache: "no-cache" } : undefined);
     if (res && res.ok && request.method === "GET") {
       cache.put(request, res.clone());
     }
     return res;
   } catch (err) {
-    const hit = await cache.match(request);
-    if (hit) return hit;
     if (fallbackUrl) {
       const shell = await caches.open(SHELL_CACHE);
-      const fallback =
-        (await shell.match(fallbackUrl)) || (await shell.match("/"));
+      const fallback = await shell.match(fallbackUrl);
       if (fallback) return fallback;
     }
     return new Response("", { status: 504, statusText: "Offline" });
@@ -120,8 +138,6 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(cacheFirst(request, IMMUTABLE_CACHE));
     return;
   }
-  // Framework bundles, page data and everything else: network-first with a
-  // cached fallback so the app still boots offline once visited.
-  const revalidate = url.pathname.startsWith("/_next/");
-  event.respondWith(networkFirst(request, RUNTIME_CACHE, undefined, revalidate));
+  // EVERYTHING else — /_next/* bundles, page data, robots.txt, … — goes
+  // straight to the network. Caching dev bundles is what poisoned v4.
 });

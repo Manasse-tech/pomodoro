@@ -220,7 +220,14 @@ export function FocuslyApp() {
    * worker installs and WAITS (no auto skipWaiting in sw.js); when it reaches
    * “installed” while a controller already exists, it IS an update for this
    * page → French toast with a “Recharger” action → SKIP_WAITING → reload once
-   * on controllerchange (cold-start first claim is guarded by swHadControllerAtLoad). */
+   * on controllerchange (cold-start first claim is guarded by swHadControllerAtLoad).
+   *
+   * v5 upgrade note (audit 2026-09-17): sw.js v4 cached Turbopack dev chunks
+   * + the HTML shell, so a transient network failure served a stale tree
+   * (hydration useId mismatch) mixed with fresh bundles → every click dead.
+   * Recovery: sw.js v5 skipWaitings itself when legacy caches exist and this
+   * effect ALSO purges them from the page side, so even the first visit after
+   * the upgrade heals without user action. */
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     const secure =
@@ -228,6 +235,24 @@ export function FocuslyApp() {
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
     if (!secure) return;
+
+    // Defense in depth: drop every cache left by an older focusly worker
+    // (focusly-v4-shell/-runtime/-immutable…). v5's activate does the same,
+    // but this runs even before the new worker finishes installing.
+    if ("caches" in window) {
+      caches
+        .keys()
+        .then((keys) =>
+          Promise.all(
+            keys
+              .filter((k) => k.startsWith("focusly-") && !k.startsWith("focusly-v5"))
+              .map((k) => caches.delete(k)),
+          ),
+        )
+        .catch(() => {
+          /* storage unavailable — ignore */
+        });
+    }
 
     const onControllerChange = () => {
       if (swHadControllerAtLoad && !swUpdateReloaded) {
