@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Crosshair, Minus, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Crosshair,
+  GripVertical,
+  Minus,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,13 +23,23 @@ export function TasksPanel() {
   const clearDoneTasks = useFocusly((s) => s.clearDoneTasks);
   const setActiveTask = useFocusly((s) => s.setActiveTask);
   const setTaskEstimate = useFocusly((s) => s.setTaskEstimate);
+  const moveTask = useFocusly((s) => s.moveTask);
+  const moveTaskTo = useFocusly((s) => s.moveTaskTo);
   const [value, setValue] = useState("");
   const [estimate, setEstimate] = useState(1);
+  /* drag-and-drop reorder state (id of the dragged task / hovered target) */
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const remaining = tasks.filter((t) => !t.done).length;
   const doneCount = tasks.length - remaining;
   const plannedTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.estimate ?? 1), 0);
   const spentTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.spent ?? 0), 0);
+
+  const clearDrag = () => {
+    setDragId(null);
+    setOverId(null);
+  };
 
   return (
     <section
@@ -62,7 +80,7 @@ export function TasksPanel() {
           onChange={(e) => setValue(e.target.value)}
           placeholder="Ajouter une tâche…"
           maxLength={200}
-          className="min-h-11 flex-1 rounded-xl"
+          className="min-h-11 min-w-[200px] flex-1 rounded-xl"
         />
         <div
           role="group"
@@ -95,19 +113,51 @@ export function TasksPanel() {
             <Plus className="size-3.5" />
           </button>
         </div>
-        <Button type="submit" className="min-h-11 rounded-xl">
+        <Button type="submit" className="min-h-11 rounded-xl active:scale-[0.98]">
           <Plus className="size-4" /> Ajouter
         </Button>
       </form>
 
       <ul className="slim-scroll flex max-h-96 list-none flex-col gap-2 overflow-y-auto p-0 m-0">
-        {tasks.map((t) => (
+        {tasks.map((t, index) => (
           <li
             key={t.id}
-            className={`flex items-start gap-2.5 rounded-xl border bg-secondary px-3.5 py-3 transition-opacity ${
+            draggable
+            onDragStart={(e) => {
+              setDragId(t.id);
+              e.dataTransfer.effectAllowed = "move";
+              try {
+                e.dataTransfer.setData("text/plain", t.id);
+              } catch {
+                /* some engines forbid setData — the local state is enough */
+              }
+            }}
+            onDragEnd={clearDrag}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setOverId((v) => (dragId && dragId !== t.id ? t.id : v));
+            }}
+            onDragLeave={() => setOverId((v) => (v === t.id ? null : v))}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragId && dragId !== t.id) moveTaskTo(dragId, t.id);
+              clearDrag();
+            }}
+            className={`flex flex-wrap items-start gap-x-2 gap-y-2 rounded-xl border bg-secondary px-3 py-3 transition-[opacity,box-shadow,border-color,transform] duration-150 ${
               t.done ? "opacity-55" : ""
-            } ${t.active ? "border-brand/60 ring-1 ring-brand/40" : ""}`}
+            } ${t.active ? "border-brand/60 ring-1 ring-brand/40" : ""} ${
+              dragId === t.id ? "scale-[0.99] opacity-40" : ""
+            } ${
+              overId === t.id && dragId !== t.id
+                ? "border-brand/70 ring-2 ring-brand/35"
+                : ""
+            }`}
           >
+            <GripVertical
+              aria-hidden
+              className="mt-0.5 size-4 shrink-0 cursor-grab text-faint/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+            />
             <Checkbox
               checked={t.done}
               onCheckedChange={(v) => toggleTask(t.id, v === true)}
@@ -115,7 +165,7 @@ export function TasksPanel() {
               className="mt-0.5 size-5"
             />
             <span
-              className={`min-w-0 flex-1 break-words text-sm leading-relaxed ${
+              className={`min-w-[140px] flex-1 basis-[140px] break-words text-sm leading-relaxed ${
                 t.done ? "line-through" : ""
               }`}
             >
@@ -176,6 +226,32 @@ export function TasksPanel() {
             >
               <Trash2 className="size-4" />
             </button>
+            {tasks.length > 1 && (
+              <div
+                role="group"
+                aria-label={`Déplacer la tâche : ${t.text}`}
+                className="flex shrink-0 flex-col gap-0.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => moveTask(t.id, -1)}
+                  disabled={index === 0}
+                  aria-label={`Monter la tâche : ${t.text}`}
+                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+                >
+                  <ChevronUp className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveTask(t.id, 1)}
+                  disabled={index === tasks.length - 1}
+                  aria-label={`Descendre la tâche : ${t.text}`}
+                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+                >
+                  <ChevronDown className="size-3.5" />
+                </button>
+              </div>
+            )}
           </li>
         ))}
       </ul>

@@ -75,7 +75,7 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
             role="tab"
             aria-selected={mode === m}
             onClick={() => setMode(m)}
-            className={`min-h-9 flex-1 whitespace-nowrap rounded-xl px-1 py-2 text-[12.5px] font-semibold transition-colors ${
+            className={`min-h-9 flex-1 whitespace-nowrap rounded-xl px-1 py-2 text-[11.5px] font-semibold transition-colors sm:text-[12.5px] ${
               mode === m
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -185,7 +185,7 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
         <Button
           variant="secondary"
           size="lg"
-          className="rounded-2xl"
+          className="rounded-2xl transition-transform active:scale-95"
           onClick={resetTimer}
           aria-label="Réinitialiser le minuteur"
           title="Réinitialiser (R)"
@@ -195,7 +195,7 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
         <Button
           variant="secondary"
           size="lg"
-          className="rounded-2xl"
+          className="rounded-2xl transition-transform active:scale-95"
           onClick={() => useFocusly.getState().skipMode()}
           aria-label="Passer au mode suivant"
           title="Mode suivant (S)"

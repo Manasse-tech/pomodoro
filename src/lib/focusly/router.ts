@@ -46,7 +46,7 @@ export function navigate(route: string) {
 }
 
 /** Resolve the document title for a route (blog articles get their own). */
-function titleFor(route: string): string {
+export function titleFor(route: string): string {
   if (route.startsWith("blog/")) {
     const post = getPost(route.slice(5));
     return post ? `${post.title} — Focusly` : "Page introuvable — Focusly";

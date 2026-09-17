@@ -33,6 +33,8 @@ export interface TimerSettings {
   tickLast: boolean;
   /** Show a browser notification when a session ends */
   notifications: boolean;
+  /** Vibrate the device when a session ends (mobile, if supported) */
+  vibrate: boolean;
   /** Automatically start the next session after completion */
   autoStart: boolean;
 }
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: TimerSettings = {
   volume: 0.6,
   tickLast: false,
   notifications: false,
+  vibrate: true,
   autoStart: false,
 };
 

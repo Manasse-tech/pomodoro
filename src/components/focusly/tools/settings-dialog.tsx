@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Minus, Play, Plus, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -37,6 +38,12 @@ export function SettingsDialog() {
   const setOpen = useFocusly((s) => s.setSettingsOpen);
   const settings = useFocusly((s) => s.settings);
   const updateSettings = useFocusly((s) => s.updateSettings);
+
+  /* Vibration API support. Lazy initializer: the dialog subtree renders only
+   * when open, so the SSR/client difference never reaches the DOM. */
+  const [vibrateSupported] = useState(
+    () => typeof navigator !== "undefined" && typeof navigator.vibrate === "function",
+  );
 
   const stepSetting = (key: (typeof SETTINGS_FIELDS)[number]["key"], delta: number) => {
     updateSettings({ [key]: Math.round(settings[key]) + delta } as never);
@@ -210,6 +217,25 @@ export function SettingsDialog() {
               id="set-notif"
               checked={settings.notifications}
               onCheckedChange={handleNotifications}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="set-vibrate" className="text-sm text-soft">
+                Vibration (mobile)
+              </Label>
+              <p className="text-[11px] text-faint">
+                {vibrateSupported
+                  ? "Brève secousse à la fin d’une session."
+                  : "Non prise en charge par ce navigateur."}
+              </p>
+            </div>
+            <Switch
+              id="set-vibrate"
+              checked={settings.vibrate && vibrateSupported}
+              disabled={!vibrateSupported}
+              onCheckedChange={(v) => updateSettings({ vibrate: v })}
             />
           </div>
 

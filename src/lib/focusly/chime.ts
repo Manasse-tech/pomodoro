@@ -140,6 +140,17 @@ export function playTick(volume = 0.4) {
   }
 }
 
+/** Haptic feedback at the end of a session (mobile, feature-detected). */
+export function vibrateDevice(enabled: boolean) {
+  if (!enabled || typeof navigator === "undefined" || typeof navigator.vibrate !== "function")
+    return;
+  try {
+    navigator.vibrate([180, 90, 180]);
+  } catch {
+    /* vibration unavailable — ignore */
+  }
+}
+
 /** Short countdown blip for the final seconds of a session */
 export function playCountdownTick(volume = 0.5) {
   try {

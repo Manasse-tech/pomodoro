@@ -23,10 +23,10 @@ import {
   PlanDuSiteView,
 } from "./content/legal-views";
 import { NotFoundView } from "./content/not-found-view";
-import { playEndSound, notify, playCountdownTick } from "@/lib/focusly/chime";
+import { playEndSound, notify, playCountdownTick, vibrateDevice } from "@/lib/focusly/chime";
 import { useFocusly } from "@/lib/focusly/store";
-import { useHashRoute } from "@/lib/focusly/router";
-import { todayKey, MODE_LABELS } from "@/lib/focusly/types";
+import { useHashRoute, titleFor } from "@/lib/focusly/router";
+import { todayKey, MODE_LABELS, formatTime } from "@/lib/focusly/types";
 
 const JSON_LD = {
   "@context": "https://schema.org",
@@ -65,6 +65,7 @@ export function FocuslyApp() {
   const theme = useFocusly((s) => s.theme);
   const mode = useFocusly((s) => s.mode);
   const running = useFocusly((s) => s.running);
+  const timeLeft = useFocusly((s) => s.timeLeft);
   const settings = useFocusly((s) => s.settings);
   const setSettingsOpen = useFocusly((s) => s.setSettingsOpen);
   const setHelpOpen = useFocusly((s) => s.setHelpOpen);
@@ -89,6 +90,7 @@ export function FocuslyApp() {
         const finished = s.history[s.history.length - 1];
         const nextMode = s.mode;
         if (s.settings.sound) playEndSound(s.settings.soundKind, s.settings.volume);
+        vibrateDevice(s.settings.vibrate);
         if (s.settings.notifications) {
           notify(
             nextMode === "focus"
@@ -143,6 +145,18 @@ export function FocuslyApp() {
     }, 250);
     return () => window.clearInterval(id);
   }, [running]);
+
+  /* Live countdown in the tab title while a session runs */
+  useEffect(() => {
+    if (!running) return;
+    document.title = `${formatTime(timeLeft)} · ${MODE_LABELS[mode]} — Focusly`;
+  }, [running, timeLeft, mode, route]);
+
+  /* Restore the route title when the timer is idle (pause, reset, completion) */
+  useEffect(() => {
+    if (running) return;
+    document.title = titleFor(route);
+  }, [running, route]);
 
   /* Catch up when the tab becomes visible again */
   useEffect(() => {

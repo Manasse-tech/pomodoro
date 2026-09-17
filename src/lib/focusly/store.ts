@@ -76,6 +76,10 @@ interface FocuslyState extends PersistShape {
   setActiveTask: (id: string | null) => void;
   /** Set the pomodoro estimate of a task (clamped 1–12) */
   setTaskEstimate: (id: string, estimate: number) => void;
+  /** Move a task up (-1) or down (+1) by one position */
+  moveTask: (id: string, direction: -1 | 1) => void;
+  /** Reorder: drop task `fromId` at the position of task `toId` */
+  moveTaskTo: (fromId: string, toId: string) => void;
 
   addNote: (title: string, body: string) => void;
   removeNote: (id: string) => void;
@@ -271,6 +275,27 @@ export const useFocusly = create<FocuslyState>()(
             t.id === id ? { ...t, estimate: clamp(Math.round(estimate), 1, 12) } : t,
           ),
         }),
+
+      moveTask: (id, direction) => {
+        const tasks = [...get().tasks];
+        const i = tasks.findIndex((t) => t.id === id);
+        const j = i + direction;
+        if (i < 0 || j < 0 || j >= tasks.length) return;
+        const [item] = tasks.splice(i, 1);
+        tasks.splice(j, 0, item);
+        set({ tasks });
+      },
+
+      moveTaskTo: (fromId, toId) => {
+        if (fromId === toId) return;
+        const tasks = [...get().tasks];
+        const from = tasks.findIndex((t) => t.id === fromId);
+        const to = tasks.findIndex((t) => t.id === toId);
+        if (from < 0 || to < 0) return;
+        const [item] = tasks.splice(from, 1);
+        tasks.splice(to, 0, item);
+        set({ tasks });
+      },
 
       addNote: (title, body) => {
         const v = title.trim();

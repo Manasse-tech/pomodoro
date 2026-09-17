@@ -1,0 +1,266 @@
+     1→# Focusly — Worklog
+     2→
+     3→## Projet
+     4→Reconstruction du site HTML statique « Focusly » (minuteur Pomodoro FR, upload utilisateur) en une vraie application web Next.js 16 production-ready, avec toutes les fonctionnalités + backend (contact DB), SEO, PWA, et corrections des bugs du code source.
+     5→
+     6→Source originale analysée : `/home/z/my-project/analysis/focusly-original.html` (copie de l'upload).
+     7→
+     8→Bugs identifiés dans le code source original :
+     9→- `durationFor(m)` : `Math.round(state.settings])*60` → erreur de syntaxe
+    10→- `setMode` : `if(!MODES]||...)` → erreur de syntaxe
+    11→- `renderHistory` : `MODES.mode]?MODES.mode].label` → erreur de syntaxe
+    12→- CSS : `idden]{display:none!important}` → sélecteur cassé (devrait être `[hidden]`)
+    13→- Formulaire de contact : simple `mailto:`, aucun backend
+    14→
+    15→---
+    16→Task ID: 1
+    17→Agent: main (Z.ai Code)
+    18→Task: Fondations — types, store zustand, router, chime, thème globals.css, layout SEO, page.tsx
+    19→
+    20→Work Log:
+    21→- Analyse complète du HTML original (structure, JS, CSS, contenu)
+    22→- Création des fondations partagées (voir Stage Summary)
+    23→
+    24→Stage Summary:
+    25→- Contrats partagés définis dans `src/lib/focusly/types.ts`, `store.ts`, `router.ts`, `chime.ts`
+    26→- Thème Focusly porté dans `src/app/globals.css` (data-theme dark/light + --brand par mode)
+    27→- Layout avec métadonnées SEO FR + script anti-FOUC
+    28→- Les agents 2-a (contenu) et 2-b (backend) construisent sur ces contrats
+    29→
+    30→---
+    31→Task ID: 2-a
+    32→Agent: frontend-styling-expert
+    33→Task: Vues de contenu (FR) — accueil, guide, blog (index + 6 articles), à propos, pages légales, 404 + données blog
+    34→
+    35→Work Log:
+    36→- Lu le worklog, les contrats (types.ts, router.ts, breadcrumb.tsx, article-blocks.tsx) et extrait tout le contenu FR du HTML original (sections ACCUEIL, GUIDE, BLOG, ARTICLES, À PROPOS, CONFIDENTIALITE, CONDITIONS, MENTIONS LEGALES, PLAN DU SITE)
+    37→- Rempli `src/lib/focusly/blog.ts` avec les 6 articles complets (mêmes exports : BlogPost, BLOG_POSTS, getPost) — contenu porté fidèlement en Block[] (p/h2/h3/list ordered/cta « ← Retour au blog »), tags/dates/readMinutes/excerpt d'origine conservés
+    38→- Créé `accueil-view.tsx` : héros (h1 + em.text-brand, 2 CTA vers #outils/#guide), « Pourquoi Focusly ? », « Vos outils » (4 cartes avec icônes lucide → #outils), « À lire sur le blog » (4 cartes mappées sur BLOG_POSTS filtrés) + bouton pleine largeur « Voir tous les articles → »
+    39→- Créé `guide-view.tsx` : fil d'Ariane + article complet du guide via ArticleBlocks (cta final → #outils)
+    40→- Créé `blog-view.tsx` : fil d'Ariane + grille 6 cartes (sm:2/ lg:3 colonnes) → #blog/{slug}
+    41→- Créé `blog-article-view.tsx` : breadcrumb (titre tronqué), meta frDate + lecture, ArticleBlocks, nav précédent/suivant calculée sur BLOG_POSTS + bouton « Retour au blog » ; slug inconnu → NotView
+    42→- Créé `a-propos-view.tsx` : mission, approche (liste), équipe, lien contact inline
+    43→- Créé `legal-views.tsx` : ConfidentialiteView, ConditionsView (via ArticleBlocks), MentionsLegalesView (blockquote « À compléter avant mise en ligne. » conservée), PlanDuSiteView (listes dérivées de ROUTES + BLOG_POSTS) ; liens internes en #hash, liens externes target="_blank" rel="noopener noreferrer"
+    44→- Créé `not-found-view.tsx` : exporte NotFoundView + NotView réutilisable (404 FR, boutons vers #accueil et #plan-du-site)
+    45→- Vérifié : `bunx tsc --noEmit` → 0 erreur dans mes fichiers ; `bunx eslint src/components/focusly/content/ src/lib/focusly/blog.ts` → 0 erreur / 0 warning
+    46→
+    47→Stage Summary:
+    48→- 8 fichiers créés : `src/lib/focusly/blog.ts` + 7 vues dans `src/components/focusly/content/` (accueil, guide, blog, blog-article, a-propos, legal-views, not-found)
+    49→- Design system respecté : conteneur max-w-[920px], cartes rounded-2xl avec hover -translate-y/shadow, tag text-brand uppercase, méta text-faint, titres text-3xl/4xl
+    50→- Apostrophes typographiques (’) partout dans le texte FR (évite react/no-unescaped-entities) ; pas d'emoji, pas de bleu
+    51→- ⚠️ Bug préexistant hors de mon périmètre : `article-blocks.tsx` ligne 4 n'importe que `import type { ReactNode }` mais utilise `Fragment` (ligne 100) → erreur TS2304 + react/jsx-no-undef. Correctif 1 ligne pour le propriétaire du contrat : `import { Fragment, type ReactNode } from "react"`
+    52→- ⚠️ `src/app/page.tsx` importe `@/components/focusly/focusly-app` qui n'existe pas encore (tâche 2-b / assemblage) — erreur TS2307 attendue, hors périmètre 2-a
+    53→- Écarts mineurs assumés : italiques <em> du HTML original rendus en texte simple (Block ne supporte que **gras**) ; « bouton ⚙ » du guide reformulé « via les réglages du minuteur » ; cartes accueil/blog alimentées par les excerpts de BLOG_POSTS (versions index du blog) ; libellés du plan du site = titres complets des articles
+    54→
+    55→---
+    56→Task ID: 2-b
+    57→Agent: full-stack-developer
+    58→Task: Backend contact — modèle Prisma ContactMessage, API POST /api/contact (zod v4, honeypot, rate limit), vue ContactView (formulaire FR accessible)
+    59→
+    60→Work Log:
+    61→- Lu worklog.md + contrats existants (router.ts, globals.css, breadcrumb.tsx de 2-a, ui/shadcn)
+    62→- Ajout du modèle `ContactMessage` dans prisma/schema.prisma (User/Post conservés) puis `bun run db:push` → OK (SQLite db/custom.db, Prisma Client v6.19.2 régénéré)
+    63→- Créé `src/app/api/contact/route.ts` : POST unique, runtime nodejs, zod v4 (messages FR), honeypot `website` (silencieux, non compté), rate limit mémoire Map<ip, timestamps> 5 req/15 min (x-forwarded-for 1re valeur sinon "local"), 400 = 1er message zod, 429 FR, 500 FR avec log console, succès 200 {ok:true,id}, subject vide → null en DB
+    64→- Créé `src/components/focusly/content/contact-view.tsx` : "use client", conteneur max-w-[920px], Breadcrumb (Accueil/Contact), h1 + sous-titre + note 48 h, formulaire max-w-[560px] (Input/Textarea/Checkbox/Label/Button shadcn, min-h-[44px], rounded-xl, bg-card), honeypot caché tabIndex -1, validation client FR par champ (text-destructive text-sm, aria-invalid + aria-describedby), compteur 0/5000, envoi fetch relatif /api/contact avec Loader2 "Envoi…", succès → toast.success sonner + reset + panneau CheckCircle2 text-brand avec bouton "Envoyer un autre message", erreur → toast.error, hint email direct text-faint, labels htmlFor + astérisques corail + sr-only "(obligatoire)"
+    65→- ESLint sur mes 2 fichiers : 0 erreur 0 warning (note : `article-blocks.tsx` de 2-a a 1 erreur préexistante 'Fragment' is not defined, ligne 100 — hors de mon périmètre)
+    66→- Vérifié le endpoint via script bun isolé (supprimé après) appelant POST() directement (le dev server renvoie 500 sur toutes les routes car page.tsx importe focusly-app pas encore créé par 2-a) : validation 400 ✓, honeypot 200 sans ligne DB ✓, création 200 {ok,id} ✓, subject null ✓, consent false → 400 ✓, rate limit 5 OK puis 429 ✓ (x-forwarded-for "10.0.0.99, ..." → 1re valeur bien utilisée) ; lignes de test nettoyées (deleteMany), DB propre
+    67→- Re-vérifié dev.log en fin de tâche : seule erreur restante = import focusly-app manquant (responsabilité agent 2-a / main)
+    68→
+    69→Stage Summary:
+    70→- `prisma/schema.prisma` : + model ContactMessage (id cuid, name, email, subject?, message, createdAt) — poussé en DB
+    71→- `src/app/api/contact/route.ts` : contrat POST {name 2–100, email ≤200 valide, subject? ≤150 défaut "", message 10–5000, consent: literal true, website? honeypot vide} → 200 {ok:true,id} | 400 {error: message zod FR} | 429 {error:"Trop de messages envoyés. Réessayez plus tard."} | 500 {error:"Erreur serveur. Réessayez."} | honeypot rempli → 200 {ok:true} sans save ; rate limit 5/15 min par IP en mémoire ; export type ContactPayload
+    72→- `src/components/focusly/content/contact-view.tsx` : export function ContactView() prête à être montée par focusly-app sur la route "contact" (hash router)
+    73→- État DB : table ContactMessage vide (lignes de test supprimées)
+    74→- À signaler au main : page.tsx attend `@/components/focusly/focusly-app` (2-a) ; lint error préexistant dans article-blocks.tsx (2-a)
+    75→
+    76→---
+    77→Task ID: 3+4+5
+    78→Agent: main (Z.ai Code)
+    79→Task: App shell, header/footer, timer, tools panels, dialogs, assets, SEO files
+    80→
+    81→Work Log:
+    82→- focusly-app.tsx : shell (routeur hash, ticker 250ms, effets thème/mode, raccourcis clavier, JSON-LD)
+    83→- site-header.tsx / site-footer.tsx : nav responsive + menu mobile, footer sticky
+    84→- tools/ : timer-card (anneau SVG, points de cycle, tâche liée, stats du jour), weekly-stats (graphique 7 jours), tasks-panel, notes-panel, history-panel (export/import JSON), settings-dialog (durées, son+volume, notifications, démarrage auto, réinitialisations), help-dialog
+    85→- Images générées (icône tomate + bannière OG) via image-generation, redimensionnées avec sharp
+    86→- public/ : manifest.webmanifest, sitemap.xml, robots.txt, icon-192/512, og-image.png
+    87→- Correction import Fragment manquant dans article-blocks.tsx (bug signalé par 2-a)
+    88→
+    89→Stage Summary:
+    90→- App complète assemblée, tsc clean sur src/, eslint 0 erreur
+    91→- À faire : démarrage dev server, vérification agent-browser de tous les parcours
+    92→
+    93→---
+    94→Task ID: 6+7 (vérification)
+    95→Agent: main (Z.ai Code)
+    96→Task: Lint, serveur dev, vérification end-to-end agent-browser, corrections
+    97→
+    98→Work Log:
+    99→- tsc --noEmit : 0 erreur sur src/ (erreurs restantes = dossiers examples/skills préexistants)
+   100→- eslint src : 0 erreur, 0 warning
+   101→- Vérification agent-browser complète :
+   102→  * Accueil, Outils, Guide (7 sections), Blog (6 liens), article, Contact, plan-du-site, 404 → tous OK
+   103→  * Minuteur : démarrage (25:00→24:57), pause, changement de mode, accents par mode (coral/teal #37d3b0/blue #6aa6ff)
+   104→  * Session complète 1 min : stats +1 pomodoro/68s, entrée historique, bascule auto vers pause courte, toast ✓
+   105→  * Tâches : ajout x2, liaison au minuteur (badge sur timer card) ✓ ; Notes : ajout ✓
+   106→  * Réglages : steppers, son+volume, switches ; focus=1 min synchronise le timer instantanément ✓
+   107→  * Raccourcis clavier : T (thème), , (réglages), Échap (fermer) ✓
+   108→  * Contact end-to-end : POST /api/contact 200 → enregistrement vérifié dans SQLite, toast + panneau succès ✓
+   109→  * Graphique hebdo : barre du jour avec données réelles ✓
+   110→  * Mobile 375px : menu hamburger, pas d'overflow horizontal ✓ ; footer sticky vérifié (2000px = vh sur page courte, poussé sur page longue)
+   111→
+   112→Bugs trouvés et corrigés pendant la vérification :
+   113→1. Titre « Page introuvable » sur les articles de blog → titre dynamique par article dans router.ts
+   114→2. Erreur d'hydratation <body data-mode> (script anti-FOUC vs SSR) → suppressHydrationWarning sur <body>
+   115→3. Erreur d'hydratation nav active sur deep links (useState(getHashRoute())) → init "accueil" + sync en effet
+   116→4. scroll-behavior:smooth cause des courses de clic automatisés → retiré (aucune ancre dans la SPA)
+   117→
+   118→Stage Summary:
+   119→- Site 100 % fonctionnel, vérifié de bout en bout, propre au lint et à l'hydratation
+   120→- Données de test supprimées de la DB (0 message en base)
+   121→- Prochaines étapes possibles : service worker PWA, i18n, comptes utilisateurs, export CSV, sons multiples
+   122→
+   123→---
+   124→Task ID: r2-5
+   125→Agent: frontend-styling-expert
+   126→Task: Blog — recherche, filtre par tag, badges de lecture
+   127→
+   128→Work Log:
+   129→- Lu worklog.md + contrats (blog.ts/BLOG_POSTS, types.ts/frDate, breadcrumb.tsx, ui/badge + ui/input + ui/button, tokens globals.css text-brand/text-soft/text-faint, site-header sticky z-50 hauteur ~65px)
+   130→- Réécrit blog-view.tsx : toolbar sticky-ish (sm+) avec input de recherche (icône Search lucide en absolute + pl-9, type="search", aria-label « Rechercher un article », placeholder « Rechercher un article… ») ; chips « Tous » + 5 tags uniques (Set sur BLOG_POSTS), boutons pill rounded-full px-3.5 py-1.5 text-[13px] font-semibold avec aria-pressed, actif bg-brand text-[#14161a], inactif border bg-card text-soft hover:text-foreground ; compteur de résultats aria-live polite text-[13px] text-faint (« 6 articles » hors filtre, « N article(s) trouvé(s) » sinon, singulier géré)
+   131→- Filtrage : fold() = normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase() ; recherche sur title + excerpt + tag, insensible casse ET accents (« etudiant » trouve « Étudiants ») ; combinée en ET avec le filtre tag exact ; états useState (query, activeTag: string|null) + useMemo ; changement de tag réinitialise la requête (spec « RESET filters state when switching tag ») ; « Réinitialiser les filtres » (Button ghost) remet query + tag à zéro
+   132→- Empty state : rounded-xl border border-dashed p-8 text-center, « Aucun article ne correspond à votre recherche. » + bouton reset
+   133→- Cartes : group flex h-full flex-col rounded-2xl border bg-card p-5 + hover conservés ; meta row mt-auto (Badge variant="secondary" « ~N min de lecture » + date frDate en text-[12px] text-faint + ArrowRight déplacé en ml-auto de cette row) ; grille grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ; liens #blog/{slug} inchangés
+   134→- Toolbar « sticky-ish » : position sticky uniquement en sm+ (top-[65px] calé sous le header sticky 65px, z-20 < z-50 du header, bg-background/95 + backdrop-blur-sm, pb-4/-mb-4 pour couvrir le défilement) ; statique sur mobile (page courte, ne pas consommer le viewport) ; textes/h1/sous-titre/breadcrumb d'origine conservés à l'identique
+   135→- blog-article-view.tsx (édition légère uniquement) : + import Badge ; meta = Badge secondary tag en style uppercase des cartes index (text-[11px] font-bold uppercase tracking-[0.08em] text-brand) devant « Publié le … · Lecture … » (texte inchangé), wrapper flex flex-wrap ; cartes précédent/suivant : ligne supplémentaire « ~N min » en text-[12px] text-faint ; rien d'autre restructuré
+   136→- Vérifié : bunx tsc --noEmit → 0 erreur dans src/ (seules erreurs = examples/ et skills/ préexistantes, hors périmètre) ; bunx eslint sur les 2 fichiers → 0 erreur, 0 warning ; pas de dev server ni build (consigne)
+   137→
+   138→Stage Summary:
+   139→- 2 fichiers modifiés : src/components/focusly/content/blog-view.tsx (réécrit : recherche accent-tolérante + chips de filtre par tag + compteur aria-live + empty state + badge « ~N min de lecture » par carte) et src/components/focusly/content/blog-article-view.tsx (badge tag dans la meta line + « ~N min » dans les cartes de navigation précédent/suivant)
+   140→- Contrats respectés sans modification : BLOG_POSTS/BlogPost, frDate, Breadcrumb, Badge (variant secondary vérifié), design tokens (bg-brand via --color-brand) ; aucun autre fichier touché ; aucun `any`, aucun emoji, pas de bleu
+   141→- Interprétations à noter : « RESET filters state when switching tag » implémenté = changer de chip efface la requête (recherche + tag restent combinables en tapant après avoir choisi un tag) ; ArrowRight des cartes déplacé dans la meta row pour équilibrer le pied de carte ; sticky de la toolbar limitée à sm+ (header déjà sticky, hauteur dynamique sur mobile)
+   142→
+   143→---
+   144→Task ID: r2-4
+   145→Agent: frontend-styling-expert
+   146→Task: Palette de commandes Ctrl+K
+   147→
+   148→Work Log:
+   149→- Lu worklog.md, contrats confirmés : `@/components/ui/command` exporte bien CommandDialog/CommandInput/CommandList/CommandEmpty/CommandGroup/CommandItem/CommandSeparator (+ Command, CommandShortcut) ; `navigate()` et actions store (startTimer/pauseTimer/resetTimer/skipMode/toggleTheme/setSettingsOpen/setHelpOpen) conformes
+   150→- Vérifié versions : cmdk 1.1.1 (le Separator du cmdk se masque automatiquement dès qu'une recherche est active → pas de traits orphelins), lucide-react 0.525.0 (toutes les icônes + type LucideIcon existent)
+   151→- Vérifié focusly-app.tsx : le handler global de raccourcis ignore déjà ctrl/meta/alt → aucun conflit avec Ctrl+K/Cmd+K
+   152→- Créé `src/components/focusly/tools/command-palette.tsx` (seul fichier touché) : export function CommandPalette() sans props ; "use client" ; open en useState ; useEffect unique avec keydown global (Ctrl+K ou Meta+K → preventDefault + toggle, Échap laissé à CommandDialog/onOpenChange) + écoute CustomEvent window "focusly:open-command" → ouvre
+   153→- Groupes : Navigation (7 routes via navigate()), Minuteur (start/pause via getState() avec icône Play/Pause selon running lu au rendu, reset, skip), Application (toggleTheme, setSettingsOpen(true), setHelpOpen(true)) — chaque action ferme la palette
+   154→- Dialog FR : title "Palette de commandes" + description sr-only (remplace les défauts anglais du composant shadcn) ; CommandEmpty "Aucun résultat." ; placeholders/libellés FR avec apostrophes typographiques ; pas de style custom au-delà des icônes
+   155→- SSR-safe : tout accès window dans useEffect/handlers ; contenu du dialog uniquement rendu côté client à l'ouverture (portal) → aucun risque d'hydratation
+   156→- Self-check : `bunx tsc --noEmit` → 0 erreur dans src/ (seul bruit préexistant examples/skills) ; `bunx eslint src/components/focusly/tools/command-palette.tsx` → 0 erreur 0 warning
+   157→
+   158→Stage Summary:
+   159→- `src/components/focusly/tools/command-palette.tsx` créé : `export function CommandPalette()` (aucune prop) — prêt à être monté par le main dans focusly-app (ex. <CommandPalette /> au niveau du shell) ; le bouton header doit dispatcher `window.dispatchEvent(new CustomEvent("focusly:open-command"))` pour l'ouvrir
+   160→- Raccourcis : Ctrl+K / Cmd+K bascule l'ouverture, Échap ferme (via onOpenChange de CommandDialog)
+   161→
+   162→---
+   163→Task ID: R2 (cron webDevReview — tour 2)
+   164→Agent: main (Z.ai Code) + sous-agents frontend-styling-expert (r2-4, r2-5)
+   165→Task: Nouvelles fonctionnalités + polish styling + QA complète
+   166→
+   167→## État du projet au départ
+   168→Stable : 0 erreur lint/tsc, hydratation propre, tous les parcours vérifiés au tour 1.
+   169→
+   170→## Work Log
+   171→- QA smoke : dev.log 200, overlay Next.js clean, titre OK
+   172→- **Objectif quotidien** (nouveau) : `settings.dailyGoal` (1–20, défaut 8), stepper dans les réglages, barre de progression sous les stats du jour (« OBJECTIF 1 / 2 »), toast de célébration + carillon à l'atteinte (garde anti-doublon par ref)
+   173→- **Séries** (nouveau) : `src/lib/focusly/streaks.ts` (computeStreaks : série courante + record), bandeau « Série en cours : N jours · Record : N » dans le panneau hebdo
+   174→- **Palette de commandes** (nouveau, r2-4) : Ctrl+K / Cmd+K + bouton loupe header (CustomEvent), navigation 7 pages, actions minuteur, thème, réglages, aide — via shadcn CommandDialog (cmdk)
+   175→- **Blog recherche + filtres** (nouveau, r2-5) : recherche insensible casse/accents (title+excerpt+tag), chips de tags (Tous + 5 tags, aria-pressed), compteur aria-live, état vide + reset, badges « ~N min de lecture » + dates, badge tag sur les articles, prev/next enrichis
+   176→- **Styling (obligatoire)** : transitions de vues framer-motion (fade+slide 0.25s, respecte prefers-reduced-motion), pulsation de l'anneau pendant la course (.ring-pulse), ombre du header au scroll (.site-header-scrolled), halo de marque derrière le héros (.hero-glow), bouton loupe header
+   177→- Intégration : <CommandPalette /> dans focusly-app, aide enrichie (Ctrl K), SettingsDialog dédoublonné
+   178→
+   179→## Bugs trouvés et corrigés ce tour
+   180→1. **SettingsDialog monté 2×** (focusly-app + outils-view) → ids dupliqués, fills Radiogroup incohérents → retiré de outils-view
+   181→2. **focusSeconds 59.9999…** (dérive flottante) → « 0 minutes » affiché malgré 60 s → arrondi 0,1 s à l'accumulation
+   182→3. Raccourci « , » ignoré si un bouton a le focus (comportement attendu, documenté dans l'aide)
+   183→
+   184→## Vérifications agent-browser
+   185→- Ctrl+K ouvre la palette → clic « Guide » → #guide + titre OK
+   186→- Blog : « cerveau » → 1 article ; tag Neurosciences → 1 ; Tous → 6 ; compteur et badges OK
+   187→- Session 1 min (objectif 1) : pomodoros=1, barre 1/1 pleine, toast « Objectif du jour atteint, bravo ! », série 1 jour, bascule auto pause courte
+   188→- Retest (objectif 2) : minutes affichées = 1 (fix flottant OK), pas de double célébration
+   189→- tsc : 0 erreur src/ ; eslint : 0/0 ; overlay hydratation : clean
+   190→
+   191→## Stage Summary
+   192→- 4 nouvelles fonctionnalités livrées et vérifiées, 2 bugs corrigés, styling enrichi
+   193→- Risques : aucun connu ; dev.log propre (200)
+   194→
+   195→## Recommandations tour suivant
+   196→- Service worker PWA (cache offline) — à tester prudemment en sandbox
+   197→- Sons multiples + tick des 5 dernières secondes ; estimation pomodoros par tâche
+   198→- Page statistiques dédiée (heatmap mensuelle) ; export CSV en plus du JSON
+   199→
+   200→---
+   201→Task ID: r3-1
+   202→Agent: frontend-styling-expert
+   203→Task: Page « Statistiques » — heatmap mensuelle, KPI globaux, export CSV
+   204→
+   205→Work Log:
+   206→- Lu worklog.md + contrats confirmés : store (useFocusly((s) => s.daily), EMPTY_STAT), types (todayKey = clé locale YYYY-MM-DD → décomposition locale obligatoire), streaks (computeStreaks → {current,best}), csv (dailyToCsv, downloadTextFile), Breadcrumb (items Accueil + page courante), Button (variant outline/secondary/ghost, size icon, asChild), tokens globals.css (bg-brand via --color-brand, text-soft/text-faint, --brand-glow, ring-offset-card)
+   207→- Créé `src/components/focusly/content/statistiques-view.tsx` (seul fichier touché) : "use client", export function StatistiquesView() sans props, conteneur mx-auto max-w-[920px] px-5 py-8 sm:py-10, Breadcrumb Accueil/Statistiques, h1 + sous-titre « Vos données restent sur votre appareil »
+   208→- KPI row : grid grid-cols-2 lg:grid-cols-4 gap-4, 4 cartes rounded-3xl border bg-card p-5 (icône lucide text-brand, valeur time-display text-2xl, label uppercase 10px) : Pomodoros au total (Flame), Temps de concentration « X h YY min / Y min » (Timer), Jours actifs + hint « / N jours enregistrés » (CalendarCheck), Série record + « actuelle : N j » (Award)
+   209→- Heatmap : carte p-6, h2 « Calendrier mensuel » + mois capitalisé (« Mars 2025 ») en text-brand, nav ChevronLeft/ChevronRight (Button outline size-icon rounded-lg, aria-labels FR), « Mois suivant » disabled sur le mois courant, retour arrière illimité ; grille grid-cols-7 gap-1 min-w-[320px] dans overflow-x-auto ; en-têtes lun mar mer jeu ven sam dim (toLocaleDateString fr-FR weekday short, point retiré, semaine de référence lundi 2024-01-01 déterministe) ; offset lundi-first = (getDay()+6)%7 + padding final pour compléter la dernière semaine
+   210→- Cellules : aspect-square rounded-md transition-transform hover:scale-110 ; intensité 5 niveaux (0 bg-secondary, 1–2 bg-brand/25, 3–4 bg-brand/45, 5–6 bg-brand/70, 7+ bg-brand + shadow var(--brand-glow)) ; jours futurs invisible ; aujourd’hui ring-2 ring-brand ring-offset-2 ring-offset-card ; title par cellule « 12 mars 2025 — 4 pomodoros, 100 min de concentration » / « aucun pomodoro » (date formatée depuis new Date(y, m, d) LOCAL, jamais new Date(key) UTC) ; grille role="img" + aria-label « Mars 2025 : N pomodoros sur M pomodoros enregistrés »
+   211→- Légende « Moins / Plus » (5 pastilles size-3, text-[11px] text-faint) ; bandeau série sous la grille identique au style weekly-stats (rounded-xl border bg-secondary px-3 py-2, Award)
+   212→- Actions : Button secondary rounded-xl « Exporter en CSV » (Download) → downloadTextFile(dailyToCsv(daily), focusly-statistiques-<todayKey>.csv) + toast.success, ou toast.info si aucun jour ; Button ghost asChild « ← Retour aux outils » (#outils)
+   213→- Empty state : carte border-dashed « Aucune donnée pour l’instant. … » affichée quand 0 jour enregistré (KPI + heatmap quand même rendus) ; toasts sonner, apostrophes typographiques, aucune couleur bleue, aucun emoji
+   214→- Vérifié : bunx tsc --noEmit → 0 erreur dans src/ (seul bruit préexistant examples/ et skills/) ; bunx eslint src/components/focusly/content/statistiques-view.tsx → 0 erreur 0 warning ; sanity-check bun des libellés fr (lun…dim, Mars 2025, offset 1er mars 2025 = 5) ; pas de dev server ni build (consigne)
+   215→
+   216→Stage Summary:
+   217→- `src/components/focusly/content/statistiques-view.tsx` créé : vue « Statistiques » complète prête à être montée par focusly-app sur la route "statistiques" (déjà déclarée dans ROUTES + ROUTE_TITLES) — il ne reste qu’au main à ajouter `if (route === "statistiques") return <StatistiquesView />` dans CurrentView
+   218→- Données : totaux globaux (pomodoros, focusSeconds, jours actifs, jours enregistrés) + computeStreaks ; aucune modification des contrats, aucun autre fichier touché
+   219→- Détails d’implémentation : état de mois local {y, m} initialisé paresseusement (client-only, aucune route rendue en SSR), clés de jours reconstruites avec des parties locales (padStart) identiques à todayKey, WEEKDAY_LABELS constants module-scope déterministes
+   220→
+   221→---
+   222→Task ID: r3 (cron webDevReview — tour 3)
+   223→Agent: main (Z.ai Code) + sous-agent frontend-styling-expert (r3-1)
+   224→Task: Assessment + QA agent-browser, nouvelles fonctionnalités (stats mensuelles, sons, estimations, PWA), polish styling
+   225→
+   226→## État du projet au départ
+   227→Stable : 0 erreur lint/tsc, tous les parcours vérifiés aux tours 1-2. Décision : pas de bugs bloquants → avancer les fonctionnalités recommandées au tour 2.
+   228→
+   229→## Work Log
+   230→- Fix lint : `analysis/**`, `download/**`, `mini-services/**` ajoutés aux ignores ESLint (fichier resize.js hérité de l'analyse)
+   231→- **Page Statistiques dédiée (#statistiques)** (r3-1) : heatmap mensuelle (5 niveaux d'intensité brand, navigation mois par mois bloquée vers le futur, lundi-first, tooltips FR, today cerclé, legend Moins/Plus), 4 KPI (pomodoros total, temps de concentration, jours actifs, série record), bandeau séries, export CSV, empty state, responsive (KPI 2×2 mobile, heatmap scroll interne)
+   232→- **Export CSV** : `src/lib/focusly/csv.ts` (dailyToCsv séparateur `;` FR + downloadTextFile) ; page stats + libellés accueil mis à jour (« JSON ou CSV »)
+   233→- **Moteur de sons** : `playEndSound(kind, volume)` — carillon (3 notes), cloche (2 frappes + partiels inharmoniques), digital (3 bips carrés) ; `playCountdownTick` (blip 740 Hz) ; sélecteur segmenté 3 sons + bouton écoute (preview) + switch « Tic des dernières secondes » dans les réglages ; tick joué une fois par seconde pendant les 5 dernières secondes (garde anti-doublon par ref)
+   234→- **Estimations de pomodoros par tâche** : `TaskItem.estimate` (1–12) + `spent` ; stepper −/+ dans le formulaire (reset après ajout), stepper compact 0/3 par ligne, ligne de progression « X sur Y pomodoros estimés », badge sur la tâche liée du minuteur (surbrillance brand quand atteint), crédit automatique du pomodoro à la complétion d'une session focus
+   235→- **PWA offline** : `public/sw.js` (v3) + `public/offline.html` + manifest enrichi (id, scope, categories, raccourcis Outils/Stats) ; enregistrement sécurisé (https/localhost uniquement, 1,5 s après chargement) ; sitemap.xml : + #statistiques
+   236→- **Intégration** : route « statistiques » (ROUTES, titres, CurrentView), nav header « Stats », palette Ctrl+K (BarChart3), lien « Voir toutes les statistiques → » dans le panneau hebdo, carte pleine largeur « Statistiques mensuelles » sur l'accueil, plan du site mis à jour
+   237→- **Migration store** : `merge` personnalisé dans zustand persist (settings = défauts + persistés) → les nouveaux champs (soundKind, tickLast) gardent leur défaut chez les utilisateurs existants
+   238→
+   239→## Bugs trouvés et corrigés ce tour
+   240→1. **SW v1 cassait l'itération dev** (cache-first sur /_next/static → chunks JS périmés après recompile) → v2 : network-first pour /_next ; v3 : revalidation `cache: "no-cache"` sur navigations + /_next (garantit les mises à jour même avec un cache HTTP agressif), cache-first réservé aux icônes/manifest/fonts ; cleanup des vieux caches à l'activation
+   241→2. **Titre périmé sur deep-link reload** (le routeur client Next re-assert le titre du pathname sans hash après hydratation) → titre posé impérativement dans onChange + re-assertion rAF/0 ms/250 ms ; vérifié sur article blog, #statistiques, 404
+   242→3. Heatmap desktop : cellules ~125 px trop grandes → grille plafonnée max-w-[420px] centrée (cellules ~55 px)
+   243→4. Grammaire FR : « 1 pomodoros enregistrés » (aria heatmap) → accord singulier ; ligne de progression reformulée
+   244→
+   245→## Vérifications agent-browser
+   246→- Stats : KPI réels (2 pomodoros, 2 min, 1 jour actif, série 1), navigation mois (sept → août → juillet, bouton suivant désactivé au mois courant), export CSV → toast « Export CSV téléchargé. »
+   247→- Session 1 min avec tâche liée « Rédiger le rapport » (estimation 3) : badge 0/3 → 1/3, ligne « 1 sur 3 pomodoros estimés », stats +1, bascule auto pause courte, objectif 2/2 atteint
+   248→- Réglages : sélecteur Carillon/Cloche/Digital (sélection persistée), switch tic activé, preview au clic
+   249→- PWA : SW v3 activé et contrôleur, caches v3 créés, /sw.js + /offline.html 200 ; accueil nav « Stats » active
+   250→- Mobile 375 px : aucun overflow horizontal (accueil, stats, outils) ; heatmap scroll interne
+   251→- Thème clair : heatmap/KPI vérifiés visuellement (screenshots desktop + mobile)
+   252→- Palette Ctrl+K : entrée « Statistiques » présente ; plan du site : lien « Statistiques » présent
+   253→- Contact honeypot : 200 sans ligne DB (DB vérifiée : 0 message) ; données locales de test effacées (état d'usine)
+   254→- tsc : 0 erreur src/ ; eslint : 0/0 ; dev.log : 200 propres, aucune erreur runtime
+   255→
+   256→## Stage Summary
+   257→- 4 fonctionnalités livrées (stats mensuelles + CSV, 3 sons + tic, estimations de tâches, PWA offline), 4 bugs corrigés, intégration complète (nav, palette, accueil, plan du site, sitemap, manifest)
+   258→- Fichiers clés : `content/statistiques-view.tsx`, `lib/focusly/csv.ts`, `public/sw.js`, `public/offline.html`, `types.ts`/`store.ts`/`chime.ts` (contrats étendus)
+   259→- Risques : aucun connu ; le SW revalide /_next donc plus de chunks périmés en dev ; l'audio n'est pas vérifiable en headless (lecture seule du chemin de code)
+   260→
+   261→## Recommandations tour suivant
+   262→- Vibration mobile à la fin de session (navigator.vibrate, garde feature-detect)
+   263→- Page statistiques : heatmap année complète (12 mois) + répartition par jour de la semaine
+   264→- Tâches : glisser-déposer pour réordonner ; notes : recherche
+   265→- Contact : sauvegarde optionnelle des exports côté serveur (endpoint POST chiffré) ou QR code de partage
+   266→

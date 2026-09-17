@@ -263,3 +263,48 @@ Stable : 0 erreur lint/tsc, tous les parcours vérifiés aux tours 1-2. Décisio
 - Page statistiques : heatmap année complète (12 mois) + répartition par jour de la semaine
 - Tâches : glisser-déposer pour réordonner ; notes : recherche
 - Contact : sauvegarde optionnelle des exports côté serveur (endpoint POST chiffré) ou QR code de partage
+
+---
+Task ID: r4 (cron webDevReview — tour 4)
+Agent: main (Z.ai Code)
+Task: Assessment + QA agent-browser, nouvelles fonctionnalités (heatmap annuelle, répartition hebdo, DnD tâches, recherche notes, vibration, compte à rebours dans le titre), polish styling mobile
+
+## État du projet au départ
+Stable : 0 erreur lint/tsc, dev.log 200 propres, tous les parcours revérifiés (accueil, outils, stats, guide, blog, contact, 404 — titres corrects). Aucun bug bloquant → avancement des fonctionnalités recommandées au tour 3.
+
+## Work Log
+- QA initiale : routes + titles OK, snapshot outils OK, tsc/eslint 0/0
+- **Vue annuelle (nouveau)** : onglets Mensuel/Annuel dans la carte Calendrier (shadcn Tabs) ; heatmap style GitHub 53 semaines × 7 jours (lundi-first), cellules 11 px 5 niveaux d'intensité, jour courant cerclé, jours futurs/hors année invisibles, marqueurs de mois allégés anti-chevauchement (écart ≥ 3 semaines), navigation année (suivante disabled sur l'année courante), total annuel + jours actifs affichés
+- **Répartition par jour de la semaine (nouveau)** : 7 barres horizontales (lun→dim) proportionnelles au total de pomodoros, meilleur jour surligné text-brand + halo, ligne d'insight « Votre jour le plus productif : mardi (N pomodoros au total) », aria-live polite
+- **Tâches réordonnables (nouveau)** : glisser-déposer natif HTML5 (li draggable, drop → moveTaskTo, retours visuels : dragged opacity-40, target ring-brand) + poignée GripVertical ; boutons chevron haut/bas accessibles clavier (moveTask), affichés si ≥ 2 tâches ; store : + moveTask / moveTaskTo
+- **Recherche dans les notes (nouveau)** : input type=search avec icône + bouton effacer, filtrage insensible casse ET accents (fold NFD) sur titre+contenu, compteur « N / total », état vide « Aucune note ne correspond à « … ». »
+- **Vibration fin de session (nouveau)** : réglage vibrate (défaut activé), vibrateDevice([180,90,180]) feature-detect dans chime.ts, appelé à chaque fin de session ; switch « Vibration (mobile) » dans les réglages avec hint de non-support (détection lazy, sans setState-in-effect)
+- **Compte à rebours dans l'onglet (nouveau)** : document.title = « mm:ss · Mode — Focusly » pendant l'exécution, titre de route restauré à la pause/fin (titleFor exporté du routeur)
+- **Polish styling** : active:scale-95 sur boutons reset/skip du minuteur et boutons Ajouter/Enregistrer/Exporter ; form tâches : input min-w-[200px] (wrap propre) ; texte de tâche min-w-[140px] basis-[140px] + li flex-wrap → plus d'écrasement du libellé sur mobile ; onglets de mode 11.5 px en mobile (fin de la troncature « Pause longue »)
+
+## Bugs trouvés et corrigés ce tour
+1. **Mobile 375 px : texte des tâches écrasé à ~47 px** (« Tâch e alph a ») → li flex-wrap + min-w sur le texte → 207 px, contrôles sur 2e ligne, 0 overflow
+2. **Onglets de mode tronqués sur mobile** (« Pause lon… ») → texte 11.5 px en < sm
+3. ESLint react-hooks/set-state-in-effect sur la détection de vibration → initialState lazy (dialog fermé en SSR, aucun DOM différent)
+4. ring-1.5 inexistant en Tailwind → ring-1 (heatmap annuelle, today)
+
+## Vérifications agent-browser
+- DnD : alpha glissée sur gamma → ordre beta/gamma/alpha/bis ✓ ; chevrons : remontée ×2 → alpha en tête ✓
+- Notes : « neurosciences » → 1 résultat ; « habitude » → match accent-insensible « habitudes » ; « zzz » → état vide FR ; compteur 1/2 ✓
+- Stats : KPI réels (663 pomodoros, 276 h 15, 149 jours actifs, série 9) ; onglet Annuel → 371 cellules, 12 marqueurs, année −1 navigable, suivante disabled ; barres hebdo proportionnelles + insight mardi ✓ ; screenshots desktop dark + light + mobile
+- Titre : démarrage 1 min → « 00:58 · Concentration — Focusly » ; pause (changement de mode) → titre restauré ; fin de session → titre restauré, mode auto pause courte, stats +1 ✓
+- Réglages : switch Vibration présent, checked par défaut, hint support ✓
+- Mobile 375 px : 0 overflow horizontal (accueil, outils, tâches corrigées, stats) ; screenshots
+- Après nettoyage : localStorage vidé (état d'usine), re-smoke des 11 routes → titres tous corrects
+- Final : tsc 0 erreur src/, eslint 0/0, dev.log GET / 200 (erreurs page.tsx = historiques pré-création de focusly-app)
+
+## Stage Summary
+- 6 fonctionnalités livrées (vue annuelle, répartition hebdo, DnD + réordonnancement tâches, recherche notes, vibration, titre dynamique) + 4 corrections dont 2 responsive
+- Fichiers : statistiques-view.tsx (tabs + 2 nouvelles sections), tasks-panel.tsx (DnD), notes-panel.tsx (recherche), settings-dialog.tsx, timer-card.tsx, focusly-app.tsx, store.ts (+2 actions), types.ts (+vibrate), chime.ts (+vibrateDevice), router.ts (export titleFor)
+- Risques : aucun connu ; HTML5 DnD inopérant au tactile → chevrons couvrent ce cas (toutes tailles) ; audio/vibration non vérifiables en headless (chemins de code feature-détectés)
+
+## Recommandations tour suivant
+- Rappel du palier : blocage du drag quand la cible = tâche terminée si l'on veut séparer zones à faire/terminées
+- Notes : édition d'une note existante ; tâches : date d'échéance + tri par échéance
+- Stats : filtre de période (30/90/365 j) sur les KPI ; partage d'image des statistiques
+- Contact : réponses administrateur (mini back-office lecture des messages)
