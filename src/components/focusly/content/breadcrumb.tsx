@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 import { Fragment } from "react";
 import { ChevronRight } from "lucide-react";
 
@@ -17,12 +17,12 @@ export function Breadcrumb({ items }: { items: Crumb[] }) {
           <li key={i} className="flex items-center gap-1">
             {i > 0 && <ChevronRight className="size-3 text-faint" aria-hidden />}
             {c.href ? (
-              <Link
+              <HashLink
                 href={`#${c.href}`}
                 className="transition-colors hover:text-foreground"
               >
                 {c.label}
-              </Link>
+              </HashLink>
             ) : (
               <span aria-current="page">{c.label}</span>
             )}

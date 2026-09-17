@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 
@@ -90,9 +90,9 @@ export function ConfidentialiteView() {
       <h2 className={H2_CLASS}>1. Responsable du traitement</h2>
       <p className={P_CLASS}>
         Le responsable du traitement est Focusly. Contact : voir la{" "}
-        <Link href="#contact" className={LINK_CLASS}>
+        <HashLink href="#contact" className={LINK_CLASS}>
           page de contact
-        </Link>
+        </HashLink>
         .
       </p>
 
@@ -137,9 +137,9 @@ export function ConfidentialiteView() {
       <p className={P_CLASS}>
         Vous disposez d’un droit d’accès, de rectification, d’effacement, de
         limitation, d’opposition et de portabilité. Contactez-nous via la{" "}
-        <Link href="#contact" className={LINK_CLASS}>
+        <HashLink href="#contact" className={LINK_CLASS}>
           page de contact
-        </Link>
+        </HashLink>
         . Réclamation possible auprès de la{" "}
         <ExternalLink href="https://www.cnil.fr">CNIL</ExternalLink>.
       </p>
@@ -240,9 +240,9 @@ export function MentionsLegalesView() {
       <h2 className={H2_CLASS}>Données personnelles</h2>
       <p className={P_CLASS}>
         Voir notre{" "}
-        <Link href="#confidentialite" className={LINK_CLASS}>
+        <HashLink href="#confidentialite" className={LINK_CLASS}>
           politique de confidentialité
-        </Link>
+        </HashLink>
         .
       </p>
     </LegalShell>
@@ -288,13 +288,13 @@ const SITEMAP_LINK_CLASS =
 
 function SitemapLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} className={SITEMAP_LINK_CLASS}>
+    <HashLink href={href} className={SITEMAP_LINK_CLASS}>
       {children}
       <ArrowRight
         className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none"
         aria-hidden
       />
-    </Link>
+    </HashLink>
   );
 }
 

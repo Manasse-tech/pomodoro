@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 import { ArrowLeft, Map } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -37,16 +37,16 @@ export function NotView() {
         </p>
         <div className="fade-up-soft fade-up-3 mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button asChild className="press">
-            <Link href="#accueil">
+            <HashLink href="#accueil">
               <ArrowLeft aria-hidden />
               Retour à l’accueil
-            </Link>
+            </HashLink>
           </Button>
           <Button variant="secondary" asChild className="press">
-            <Link href="#plan-du-site">
+            <HashLink href="#plan-du-site">
               <Map aria-hidden />
               Plan du site
-            </Link>
+            </HashLink>
           </Button>
         </div>
       </div>

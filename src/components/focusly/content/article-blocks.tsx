@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 import { Fragment, type ReactNode } from "react";
 
 /**
@@ -138,12 +138,12 @@ export function ArticleBlocks({ blocks }: { blocks: Block[] }) {
           case "cta":
             return (
               <p key={i} className="mt-8">
-                <Link
+                <HashLink
                   href={`#${b.href}`}
                   className="font-medium text-brand hover:underline"
                 >
                   {b.label}
-                </Link>
+                </HashLink>
               </p>
             );
           default:

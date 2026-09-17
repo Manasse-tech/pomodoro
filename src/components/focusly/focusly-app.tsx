@@ -398,7 +398,20 @@ export function FocuslyApp() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <a href="#main" className="skip-link">
+      <a
+        href="#main"
+        className="skip-link"
+        onClick={(e) => {
+          // "#main" is an element id, NOT a hash route: a native navigation
+          // would push "#main" into the hash router and render the 404 view.
+          // Standard skip-link pattern: focus the main landmark instead.
+          e.preventDefault();
+          const el = document.getElementById("main");
+          if (!el) return;
+          el.scrollIntoView({ block: "start" });
+          el.focus({ preventScroll: true });
+        }}
+      >
         Aller au contenu principal
       </a>
       <SiteHeader
@@ -407,7 +420,7 @@ export function FocuslyApp() {
         onOpenHelp={() => setHelpOpen(true)}
         onInstallClick={handleInstallClick}
       />
-      <main id="main" className="flex-1">
+      <main id="main" tabIndex={-1} className="flex-1 outline-none">
         <motion.div
           key={route}
           initial={reduceMotion ? false : { opacity: 0, y: 10 }}

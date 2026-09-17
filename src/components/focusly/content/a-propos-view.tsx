@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 
 import { Breadcrumb } from "./breadcrumb";
 
@@ -76,9 +76,9 @@ export function AProposView() {
           <h2 className={H2_CLASS}>Nous contacter</h2>
           <p className={P_CLASS}>
             N’hésitez pas à nous écrire via la{" "}
-            <Link href="#contact" className={LINK_CLASS}>
+            <HashLink href="#contact" className={LINK_CLASS}>
               page de contact
-            </Link>
+            </HashLink>
             .
           </p>
         </div>

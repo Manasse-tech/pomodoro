@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, ListTree } from "lucide-react";
@@ -297,7 +297,7 @@ function ArticleScreen({
         >
           <div className="grid gap-4 sm:grid-cols-2">
             {prev ? (
-              <Link href={`#blog/${prev.slug}`} className={NAV_CARD_CLASS}>
+              <HashLink href={`#blog/${prev.slug}`} className={NAV_CARD_CLASS}>
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-faint">
                   <ArrowLeft className="size-3.5" aria-hidden />
                   Article précédent
@@ -308,12 +308,12 @@ function ArticleScreen({
                 <span className="tnum mt-1 block text-[12px] text-faint">
                   ~{prev.readMinutes} min
                 </span>
-              </Link>
+              </HashLink>
             ) : (
               <span className="hidden sm:block" aria-hidden />
             )}
             {next ? (
-              <Link href={`#blog/${next.slug}`} className={NAV_CARD_CLASS}>
+              <HashLink href={`#blog/${next.slug}`} className={NAV_CARD_CLASS}>
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-faint">
                   Article suivant
                   <ArrowRight className="size-3.5" aria-hidden />
@@ -324,17 +324,17 @@ function ArticleScreen({
                 <span className="tnum mt-1 block text-[12px] text-faint">
                   ~{next.readMinutes} min
                 </span>
-              </Link>
+              </HashLink>
             ) : (
               <span className="hidden sm:block" aria-hidden />
             )}
           </div>
           <div className="mt-6 flex justify-center">
             <Button variant="secondary" asChild className="press">
-              <Link href="#blog">
+              <HashLink href="#blog">
                 <ArrowLeft aria-hidden />
                 Retour au blog
-              </Link>
+              </HashLink>
             </Button>
           </div>
         </nav>

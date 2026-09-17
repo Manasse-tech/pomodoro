@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 import { ArrowRight, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +140,7 @@ export function BlogView() {
       ) : (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((post, i) => (
-            <Link
+            <HashLink
               key={post.slug}
               href={`#blog/${post.slug}`}
               className={`${CARD_CLASS} fade-up-soft${FADE_STEPS[i % 3]}`}
@@ -166,7 +166,7 @@ export function BlogView() {
                   aria-hidden
                 />
               </div>
-            </Link>
+            </HashLink>
           ))}
         </div>
       )}

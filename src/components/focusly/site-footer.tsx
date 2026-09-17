@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "./hash-link";
 
 const COLS: Array<{ title: string; links: Array<{ label: string; href: string }> }> = [
   {
@@ -59,12 +59,12 @@ export function SiteFooter() {
               <ul className="space-y-1.5">
                 {col.links.map((l) => (
                   <li key={l.href}>
-                    <Link
+                    <HashLink
                       href={`#${l.href}`}
                       className="transition-colors hover:text-foreground"
                     >
                       {l.label}
-                    </Link>
+                    </HashLink>
                   </li>
                 ))}
               </ul>

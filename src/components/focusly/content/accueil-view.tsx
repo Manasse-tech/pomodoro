@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "../hash-link";
 import { ArrowRight, BarChart3, History, ListChecks, NotebookPen, Timer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -76,10 +76,10 @@ export function AccueilView() {
         </p>
         <div className="fade-up fade-up-2 mt-6 flex flex-wrap gap-3">
           <Button asChild className="press">
-            <Link href="#outils">Ouvrir les outils</Link>
+            <HashLink href="#outils">Ouvrir les outils</HashLink>
           </Button>
           <Button variant="secondary" asChild className="press">
-            <Link href="#guide">Lire le guide</Link>
+            <HashLink href="#guide">Lire le guide</HashLink>
           </Button>
         </div>
       </section>
@@ -111,14 +111,14 @@ export function AccueilView() {
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {OUTILS.map((outil) => (
-            <Link key={outil.title} href="#outils" className={CARD_CLASS}>
+            <HashLink key={outil.title} href="#outils" className={CARD_CLASS}>
               <outil.icon className="mb-3 size-5 text-brand" aria-hidden />
               <span className={CARD_TAG_CLASS}>{outil.tag}</span>
               <h3 className={CARD_TITLE_CLASS}>{outil.title}</h3>
               <p className={CARD_TEXT_CLASS}>{outil.desc}</p>
-            </Link>
+            </HashLink>
           ))}
-          <Link href="#statistiques" className={HIGHLIGHT_CARD_CLASS}>
+          <HashLink href="#statistiques" className={HIGHLIGHT_CARD_CLASS}>
             <BarChart3 className="mb-3 size-5 text-brand" aria-hidden />
             <span className={CARD_TAG_CLASS}>Analyse</span>
             <h3 className={CARD_TITLE_CLASS}>Statistiques mensuelles</h3>
@@ -129,7 +129,7 @@ export function AccueilView() {
                 aria-hidden
               />
             </p>
-          </Link>
+          </HashLink>
         </div>
       </section>
 
@@ -140,7 +140,7 @@ export function AccueilView() {
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {articles.map((post) => (
-            <Link
+            <HashLink
               key={post.slug}
               href={`#blog/${post.slug}`}
               className={CARD_CLASS}
@@ -152,11 +152,11 @@ export function AccueilView() {
                 className="mt-3 size-4 text-faint transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand"
                 aria-hidden
               />
-            </Link>
+            </HashLink>
           ))}
         </div>
         <Button variant="secondary" asChild className="press mt-4 w-full">
-          <Link href="#blog">Voir tous les articles →</Link>
+          <HashLink href="#blog">Voir tous les articles →</HashLink>
         </Button>
       </section>
     </div>

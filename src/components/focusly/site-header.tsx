@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HashLink } from "./hash-link";
 import { useEffect, useState } from "react";
 import { Download, HelpCircle, Menu, Moon, Search, Settings2, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp, onInstallClick }
       }`}
     >
       <div className="mx-auto flex w-full max-w-[920px] flex-wrap items-center justify-between gap-3 px-5 py-3">
-        <Link
+        <HashLink
           href="#accueil"
           aria-label="Focusly — accueil"
           className="flex items-center gap-2.5 text-[17px] font-extrabold tracking-tight hover:no-underline"
@@ -71,7 +71,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp, onInstallClick }
             aria-hidden
           />
           Focusly
-        </Link>
+        </HashLink>
 
         <nav
           aria-label="Navigation principale"
@@ -84,7 +84,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp, onInstallClick }
           {NAV.map((n) => {
             const active = isNavActive(route, n.route);
             return (
-              <Link
+              <HashLink
                 key={n.route}
                 href={`#${n.route}`}
                 aria-current={active ? "page" : undefined}
@@ -96,7 +96,7 @@ export function SiteHeader({ route, onOpenSettings, onOpenHelp, onInstallClick }
                 onClick={() => setNavOpen(false)}
               >
                 {n.label}
-              </Link>
+              </HashLink>
             );
           })}
         </nav>
