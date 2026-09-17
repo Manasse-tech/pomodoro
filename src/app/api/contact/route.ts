@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
@@ -189,7 +190,101 @@ export async function POST(request: Request) {
 }
 
 /* ------------------------------------------------------------------ */
-/* GET /api/contact — liste des messages (mini back-office, protégé)   */
+/* Lecture des messages en SQL brut ($queryRaw / $executeRaw) pour     */
+/* les colonnes reply/repliedAt : le serveur de dev peut conserver un  */
+/* client Prisma généré avant le dernier db:push (instance mise en     */
+/* cache sur globalThis dans src/lib/db.ts). Le SQL brut fonctionne    */
+/* identiquement avec toutes les générations du client.                */
+/* ------------------------------------------------------------------ */
+
+/** Nombre de messages par page par défaut (pagination de l'admin). */
+const DEFAULT_PAGE_SIZE = 25;
+/** Bornes de la pagination : 1 message minimum, 100 maximum par page. */
+const MAX_PAGE_SIZE = 100;
+/** Longueur maximale d'une réponse, alignée sur la limite d'un message. */
+const REPLY_MAX_LENGTH = 5000;
+
+/** Colonnes telles que nommées dans SQLite (sans @map, le champ Prisma = la colonne). */
+const CONTACT_SELECT = `
+  SELECT "id", "name", "email", "subject", "message", "read", "archived", "reply", "repliedAt", "createdAt"
+  FROM "ContactMessage"
+`;
+
+interface RawContactRow {
+  id: string;
+  name: string;
+  email: string;
+  subject: string | null;
+  message: string;
+  read: number | boolean;
+  archived: number | boolean;
+  reply: string | null;
+  repliedAt: unknown;
+  createdAt: unknown;
+}
+
+/** Convertit une valeur date renvoyée par SQLite (Date ou texte ISO) en chaîne ISO, ou null. */
+function toIsoOrNull(value: unknown): string | null {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string" && value.length > 0) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  return null;
+}
+
+/** Normalise une ligne brute SQLite vers la forme JSON exposée par l'API. */
+function mapContactRow(row: RawContactRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    subject: row.subject ?? null,
+    message: row.message,
+    read: Number(row.read) !== 0,
+    archived: Number(row.archived) !== 0,
+    reply: typeof row.reply === "string" ? row.reply : null,
+    repliedAt: toIsoOrNull(row.repliedAt),
+    createdAt: toIsoOrNull(row.createdAt) ?? new Date(0).toISOString(),
+  };
+}
+
+/** Entier positif depuis une query string, avec valeur de repli et bornes. */
+function positiveIntParam(
+  value: string | null,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+/** Page de messages (les plus récents d'abord). */
+async function selectContactPage(page: number, pageSize: number) {
+  const rows = await db.$queryRaw<RawContactRow[]>`
+    ${Prisma.raw(CONTACT_SELECT)}
+    ORDER BY "createdAt" DESC
+    LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+  `;
+  return rows.map(mapContactRow);
+}
+
+/** Relit un message par son id (null si introuvable). */
+async function selectContactById(id: string) {
+  const rows = await db.$queryRaw<RawContactRow[]>`
+    ${Prisma.raw(CONTACT_SELECT)}
+    WHERE "id" = ${id}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  return row ? mapContactRow(row) : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* GET /api/contact — liste paginée des messages (back-office, protégé) */
+/* ?page=1&pageSize=25 → { items, total, page, pageSize, unread }       */
 /* ------------------------------------------------------------------ */
 
 export async function GET(request: Request) {
@@ -204,12 +299,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
   }
 
+  const params = new URL(request.url).searchParams;
+  const requestedPage = positiveIntParam(params.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
+  const pageSize = positiveIntParam(params.get("pageSize"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+
   try {
-    const messages = await db.contactMessage.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 300,
-    });
-    return NextResponse.json({ ok: true, messages }, { status: 200 });
+    const [total, unread] = await Promise.all([
+      db.contactMessage.count(),
+      // Compteur « non lus » = messages actifs (non archivés) non lus.
+      db.contactMessage.count({ where: { read: false, archived: false } }),
+    ]);
+    // La page demandée est ramenée dans les bornes valides.
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(requestedPage, pageCount);
+    const items = await selectContactPage(page, pageSize);
+    // `messages` : alias rétrocompatible de `items`.
+    return NextResponse.json(
+      { ok: true, items, total, page, pageSize, unread, messages: items },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("[/api/contact] Échec de lecture :", error);
     return NextResponse.json(
@@ -220,7 +328,7 @@ export async function GET(request: Request) {
 }
 
 /* ------------------------------------------------------------------ */
-/* PATCH /api/contact — lu/non lu, archiver/restaurer (protégé)        */
+/* PATCH /api/contact — lu/non lu, archiver/restaurer, répondre (protégé) */
 /* ------------------------------------------------------------------ */
 
 export async function PATCH(request: Request) {
@@ -235,32 +343,70 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
   }
 
-  let body: { id?: unknown; read?: unknown; archived?: unknown };
+  let body: { id?: unknown; read?: unknown; archived?: unknown; reply?: unknown };
   try {
     body = (await request.json()) as {
       id?: unknown;
       read?: unknown;
       archived?: unknown;
+      reply?: unknown;
     };
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
-  const { id, read, archived } = body;
+  const { id, read, archived, reply } = body;
   const hasRead = typeof read === "boolean";
   const hasArchived = typeof archived === "boolean";
+  const hasReply = typeof reply === "string";
+  const trimmedReply = hasReply ? reply.trim() : "";
+
+  if (hasReply && (trimmedReply.length === 0 || trimmedReply.length > REPLY_MAX_LENGTH)) {
+    return NextResponse.json(
+      { error: `La réponse doit contenir entre 1 et ${REPLY_MAX_LENGTH} caractères.` },
+      { status: 400 },
+    );
+  }
   if (
     typeof id !== "string" ||
     id.length === 0 ||
-    (!hasRead && !hasArchived)
+    (!hasRead && !hasArchived && !hasReply)
   ) {
     return NextResponse.json(
       {
         error:
-          "Paramètres invalides (id requis, read ou archived booléen requis).",
+          "Paramètres invalides (id requis, read, archived ou reply requis).",
       },
       { status: 400 },
     );
+  }
+
+  // Réponse à un message : on enregistre le texte, on date la réponse et on
+  // marque le message comme lu (répondre implique l'avoir lu). Écriture en SQL
+  // brut volontaire — voir la note au-dessus de selectContactPage.
+  if (hasReply) {
+    const nextRead = hasRead ? read : true;
+    try {
+      const affected = await db.$executeRaw`
+        UPDATE "ContactMessage"
+        SET "reply" = ${trimmedReply}, "repliedAt" = ${new Date().toISOString()}, "read" = ${nextRead ? 1 : 0}
+        WHERE "id" = ${id}
+      `;
+      if (affected === 0) {
+        return NextResponse.json(
+          { error: "Message introuvable." },
+          { status: 404 },
+        );
+      }
+      const message = await selectContactById(id);
+      return NextResponse.json({ ok: true, message }, { status: 200 });
+    } catch (error) {
+      console.error("[/api/contact] Échec d'enregistrement de la réponse :", error);
+      return NextResponse.json(
+        { error: "Erreur serveur. Réessayez." },
+        { status: 500 },
+      );
+    }
   }
 
   // On met à jour uniquement les champs fournis (read et/ou archived).

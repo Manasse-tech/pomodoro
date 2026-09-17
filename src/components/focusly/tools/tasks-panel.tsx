@@ -24,10 +24,14 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFocusly } from "@/lib/focusly/store";
 import {
+  clampRecurrenceDays,
   daysUntil,
+  DEFAULT_RECURRENCE_DAYS,
   frDate,
   frDateShort,
   nextDueDate,
+  RECURRENCE_DAYS_MAX,
+  RECURRENCE_DAYS_MIN,
   RECURRENCE_LABELS,
   RECURRENCE_SHORT,
   type TaskItem,
@@ -50,23 +54,41 @@ const TASK_FILTERS: Array<{ value: TaskFilter; label: string }> = [
   { value: "retard", label: "En retard" },
 ];
 
-/** Compact recurrence selector — « Aucune / Quotid. / Ouvrés / Hebdo » chips (add form + inline edit) */
+/** Compact recurrence selector — « Aucune / Quotid. / Ouvrés / Hebdo / X j » chips (add form + inline edit) */
 function RecurrencePicker({
   value,
   onChange,
   label,
+  days,
+  onDaysChange,
 }: {
   value: TaskRecurrence | null;
   onChange: (next: TaskRecurrence | null) => void;
   label: string;
+  /** Interval in days for the « custom » recurrence (2–365) */
+  days: number;
+  onDaysChange: (next: number) => void;
 }) {
+  /* Raw text while typing — partial input (« 1 » en route to « 12 ») must not be clamped mid-keystroke */
+  const [rawDays, setRawDays] = useState<string | null>(null);
+
   /* Derived from RECURRENCE_SHORT so every recurrence kind gets its pill automatically */
   const options: Array<{ value: TaskRecurrence | null; label: string }> = [
     { value: null, label: "Aucune" },
     ...(Object.entries(RECURRENCE_SHORT) as Array<[TaskRecurrence, string]>).map(
-      ([value, label]) => ({ value, label }),
+      ([v, l]) => ({
+        value: v,
+        // Once selected, the custom pill echoes the live interval (e.g. « 3 j »)
+        label: v === "custom" && value === "custom" ? `${days} j` : l,
+      }),
     ),
   ];
+
+  const commitDays = (text: string) => {
+    const n = Number.parseInt(text, 10);
+    if (Number.isFinite(n)) onDaysChange(clampRecurrenceDays(n));
+  };
+
   return (
     <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1.5">
       <span aria-hidden className="text-[11px] text-faint">
@@ -74,7 +96,7 @@ function RecurrencePicker({
       </span>
       {options.map((o) => (
         <button
-          key={o.label}
+          key={o.value ?? "none"}
           type="button"
           aria-pressed={value === o.value}
           onClick={() => onChange(o.value)}
@@ -87,6 +109,30 @@ function RecurrencePicker({
           {o.label}
         </button>
       ))}
+      {value === "custom" && (
+        <label
+          title="Répéter tous les N jours (2 à 365)"
+          className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand/15 px-2.5 py-1 text-xs font-medium text-brand"
+        >
+          <span aria-hidden>Tous les</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={RECURRENCE_DAYS_MIN}
+            max={RECURRENCE_DAYS_MAX}
+            step={1}
+            value={rawDays ?? String(days)}
+            aria-label="Nombre de jours entre chaque répétition, entre 2 et 365"
+            onChange={(e) => {
+              setRawDays(e.target.value);
+              commitDays(e.target.value);
+            }}
+            onBlur={() => setRawDays(null)}
+            className="tnum w-11 rounded-full bg-transparent text-center text-xs font-semibold text-brand outline-none [appearance:textfield] focus-visible:ring-2 focus-visible:ring-brand/60 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+          <span aria-hidden>jours</span>
+        </label>
+      )}
     </div>
   );
 }
@@ -106,11 +152,13 @@ export function TasksPanel() {
   const [estimate, setEstimate] = useState(1);
   const [dueDate, setDueDate] = useState("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
+  const [recDays, setRecDays] = useState(DEFAULT_RECURRENCE_DAYS);
   /* inline edit — only one task at a time */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [editDue, setEditDue] = useState("");
   const [editRec, setEditRec] = useState<TaskRecurrence | null>(null);
+  const [editDays, setEditDays] = useState(DEFAULT_RECURRENCE_DAYS);
   /* drag-and-drop reorder state (id of the dragged task / hovered target) */
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -165,6 +213,7 @@ export function TasksPanel() {
     setEditText(t.text);
     setEditDue(t.dueDate ?? "");
     setEditRec(t.recurrence ?? null);
+    setEditDays(t.recurrenceDays ?? DEFAULT_RECURRENCE_DAYS);
   };
 
   const cancelTaskEdit = () => setEditingId(null);
@@ -172,8 +221,14 @@ export function TasksPanel() {
   const saveTaskEdit = (e: FormEvent) => {
     e.preventDefault();
     if (!editingId || !editText.trim()) return;
-    // dueDate "" clears the due date, editRec null clears the recurrence (store contract)
-    updateTask(editingId, { text: editText, dueDate: editDue, recurrence: editRec });
+    // dueDate "" clears the due date, editRec null clears the recurrence (store contract);
+    // the custom interval is saved only when the recurrence is « custom », cleared otherwise
+    updateTask(editingId, {
+      text: editText,
+      dueDate: editDue,
+      recurrence: editRec,
+      recurrenceDays: editRec === "custom" ? editDays : null,
+    });
     setEditingId(null);
     toast.success("Tâche mise à jour.");
   };
@@ -293,6 +348,8 @@ export function TasksPanel() {
               value={editRec}
               onChange={setEditRec}
               label="Répétition de la tâche"
+              days={editDays}
+              onDaysChange={setEditDays}
             />
             <div className="flex gap-2">
               <Button
@@ -326,7 +383,7 @@ export function TasksPanel() {
                   toggleTask(t.id, true);
                   toast.info(
                     `Prochaine occurrence planifiée : ${frDateShort(
-                      nextDueDate(t.dueDate, t.recurrence),
+                      nextDueDate(t.dueDate, t.recurrence, t.recurrenceDays),
                     )}`,
                   );
                 } else {
@@ -364,11 +421,17 @@ export function TasksPanel() {
             )}
             {t.recurrence && (
               <span
-                title={`Répétition ${RECURRENCE_LABELS[t.recurrence].toLowerCase()}`}
+                title={
+                  t.recurrence === "custom"
+                    ? `Répétition tous les ${t.recurrenceDays ?? DEFAULT_RECURRENCE_DAYS} jours`
+                    : `Répétition ${RECURRENCE_LABELS[t.recurrence].toLowerCase()}`
+                }
                 className="inline-flex shrink-0 items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
               >
                 <Repeat className="size-3" />
-                {RECURRENCE_SHORT[t.recurrence]}
+                {t.recurrence === "custom"
+                  ? `${t.recurrenceDays ?? DEFAULT_RECURRENCE_DAYS} j`
+                  : RECURRENCE_SHORT[t.recurrence]}
               </span>
             )}
             {!t.done && (
@@ -461,7 +524,7 @@ export function TasksPanel() {
             )}
             {t.done && t.recurrence && (
               <p className="w-full text-xs text-faint">
-                Prochaine occurrence : {frDateShort(nextDueDate(t.dueDate, t.recurrence))}
+                Prochaine occurrence : {frDateShort(nextDueDate(t.dueDate, t.recurrence, t.recurrenceDays))}
               </p>
             )}
           </>
@@ -535,11 +598,18 @@ export function TasksPanel() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!value.trim()) return;
-          addTask(value, estimate, dueDate, recurrence ?? undefined);
+          addTask(
+            value,
+            estimate,
+            dueDate,
+            recurrence ?? undefined,
+            recurrence === "custom" ? recDays : undefined,
+          );
           setValue("");
           setEstimate(1);
           setDueDate("");
           setRecurrence(null);
+          setRecDays(DEFAULT_RECURRENCE_DAYS);
         }}
       >
         <label htmlFor="task-input" className="sr-only">
@@ -596,6 +666,8 @@ export function TasksPanel() {
           value={recurrence}
           onChange={setRecurrence}
           label="Répétition de la nouvelle tâche"
+          days={recDays}
+          onDaysChange={setRecDays}
         />
         <Button type="submit" className="min-h-11 rounded-xl active:scale-[0.98]">
           <Plus className="size-4" /> Ajouter

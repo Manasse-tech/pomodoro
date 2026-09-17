@@ -7,6 +7,11 @@ import { Breadcrumb } from "./breadcrumb";
 const H2_CLASS = "mt-9 mb-3 text-2xl font-semibold tracking-tight";
 const P_CLASS = "mb-4 leading-relaxed text-soft";
 const LINK_CLASS = "font-medium text-brand hover:underline";
+/* Cartes « Notre approche » : highlights éditoriaux (non cliquables) →
+   .card-hover-glow (lueur brand au survol) plutôt que .lift, réservé aux
+   cartes interactives. */
+const APPROACH_CARD_CLASS =
+  "card-hover-glow rounded-2xl border bg-card p-5";
 
 export function AProposView() {
   return (
@@ -15,14 +20,14 @@ export function AProposView() {
         items={[{ label: "Accueil", href: "accueil" }, { label: "À propos" }]}
       />
       <article className="max-w-[720px]">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="fade-up text-3xl font-bold tracking-tight sm:text-4xl">
           À propos de Focusly
         </h1>
-        <p className="mt-3 text-[17px] text-muted-foreground">
+        <p className="fade-up fade-up-1 mt-3 text-[17px] text-muted-foreground">
           Un projet indépendant dédié à la concentration et à la productivité.
         </p>
 
-        <div className="mt-2">
+        <div className="fade-up fade-up-2 mt-2">
           <h2 className={H2_CLASS}>Notre mission</h2>
           <p className={P_CLASS}>
             Focusly est un projet indépendant dont l’objectif est simple :
@@ -31,24 +36,32 @@ export function AProposView() {
           </p>
 
           <h2 className={H2_CLASS}>Notre approche</h2>
-          <ul className="mb-4 list-disc space-y-1.5 pl-6 text-soft">
-            <li className="leading-relaxed">
-              <strong className="font-semibold text-foreground">
+          {/* Trois principes cardés (sémantique <ul> conservée) ; le texte
+              d’origine est repris tel quel, le « : » devient titre/corps. */}
+          <ul className="mb-4 grid gap-4 sm:grid-cols-3">
+            <li className={APPROACH_CARD_CLASS}>
+              <strong className="block font-semibold text-foreground">
                 Minimalisme
-              </strong>{" "}
-              : chaque fonctionnalité doit justifier sa présence.
+              </strong>
+              <span className="mt-1.5 block text-sm leading-relaxed text-soft">
+                Chaque fonctionnalité doit justifier sa présence.
+              </span>
             </li>
-            <li className="leading-relaxed">
-              <strong className="font-semibold text-foreground">
+            <li className={APPROACH_CARD_CLASS}>
+              <strong className="block font-semibold text-foreground">
                 Respect de la vie privée
-              </strong>{" "}
-              : vos données restent sur votre appareil.
+              </strong>
+              <span className="mt-1.5 block text-sm leading-relaxed text-soft">
+                Vos données restent sur votre appareil.
+              </span>
             </li>
-            <li className="leading-relaxed">
-              <strong className="font-semibold text-foreground">
+            <li className={APPROACH_CARD_CLASS}>
+              <strong className="block font-semibold text-foreground">
                 Transparence
-              </strong>{" "}
-              : nous expliquons clairement quelles données sont utilisées.
+              </strong>
+              <span className="mt-1.5 block text-sm leading-relaxed text-soft">
+                Nous expliquons clairement quelles données sont utilisées.
+              </span>
             </li>
           </ul>
 

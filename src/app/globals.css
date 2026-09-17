@@ -438,3 +438,50 @@ kbd {
 .prose-guide :is(h2, h3) {
   text-wrap: balance;
 }
+
+/* ---------- Polish round 9: content views — blog, article, à propos, contact (purely additive) ---------- */
+
+/* Entrance variant for elements that ALSO carry hover transforms (.lift on
+   cards, .press on buttons): identical keyframes to .fade-up (round 8) but
+   with `backwards` fill instead of `both`. `backwards` still hides the
+   element in its `from` state during its delay, yet once the animation ends
+   nothing stays filled — a `forwards`/`both` fill keeps the final keyframe
+   applied, and animation declarations override normal declarations in the
+   cascade, which would deaden the :hover transform of .lift/.press on the
+   same element. Declared with longhand properties (not the `animation`
+   shorthand) so the .fade-up-1/2/3 delay classes compose regardless of
+   source order. Transform/opacity only, zero layout shift. */
+.fade-up-soft {
+  animation-name: fade-up;
+  animation-duration: 0.4s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: backwards;
+}
+
+/* Article rhythm for blog posts, scoped to the .prose-article container
+   class (mirrors .prose-guide from round 8 — article-blocks.tsx itself stays
+   untouched, the hook is applied on the <article> container the view owns):
+   - brand-tinted list markers (brand dots for unordered, brand semibold
+     tabular step numbers for ordered lists)
+   - balanced heading wraps to avoid orphaned last words on narrow screens */
+.prose-article :is(ul, ol) > li::marker {
+  color: var(--brand);
+}
+.prose-article ol > li::marker {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.prose-article :is(h2, h3) {
+  text-wrap: balance;
+}
+
+/* Explicit reduced-motion guard for the new round-9 classes (mirrors the
+   r7-d/r8-c pattern; the global * guard earlier in this file already covers
+   them — this belt-and-suspenders block also resets any animation-delay
+   composed via .fade-up-1/2/3) */
+@media (prefers-reduced-motion: reduce) {
+  .fade-up-soft {
+    animation: none !important;
+    transition: none !important;
+  }
+}

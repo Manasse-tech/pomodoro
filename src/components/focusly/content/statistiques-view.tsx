@@ -13,6 +13,7 @@ import {
   Flame,
   ImageDown,
   Minus,
+  Target,
   Timer,
   TrendingDown,
   TrendingUp,
@@ -25,7 +26,11 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dailyToCsv, downloadTextFile } from "@/lib/focusly/csv";
 import { shareOrDownloadStatsImage } from "@/lib/focusly/share-image";
-import { computeStreaks } from "@/lib/focusly/streaks";
+import {
+  computeStreaks,
+  monthGoalStreak,
+  weekGoalStreak,
+} from "@/lib/focusly/streaks";
 import { EMPTY_STAT, useFocusly } from "@/lib/focusly/store";
 import { todayKey, type DailyStat } from "@/lib/focusly/types";
 
@@ -95,6 +100,22 @@ function monthPomodorosOf(daily: Record<string, DailyStat>, y: number, m0: numbe
   for (let d = 1; d <= days; d++) {
     sum += (daily[dayKeyOf(y, m0, d)] ?? EMPTY_STAT).pomodoros;
   }
+  return sum;
+}
+
+/** Number of days in a year (sum of month lengths — leap years included). */
+function daysInYearOf(y: number): number {
+  let days = 0;
+  for (let m = 0; m < 12; m++) days += daysInMonthOf(y, m);
+  return days;
+}
+
+/** Sum of pomodoros over every day of a year — same derivation as the monthly
+ * calendar (local dayKeyOf keys via the monthly sums, EMPTY_STAT fallback);
+ * shared by the year heatmap zone and the annual goal gauge. */
+function yearPomodorosOf(daily: Record<string, DailyStat>, y: number): number {
+  let sum = 0;
+  for (let m = 0; m < 12; m++) sum += monthPomodorosOf(daily, y, m);
   return sum;
 }
 
@@ -302,6 +323,41 @@ export function StatistiquesView() {
     };
   }, [settings.dailyGoal, daily]);
 
+  /* ----- Jauge d’objectif annuel (dérivée : réglages × année courante) ----- */
+  const yearGoal = useMemo(() => {
+    const perDay = settings.dailyGoal;
+    const now = new Date();
+    const y = now.getFullYear();
+    const daysInYear = daysInYearOf(y);
+    const goal = perDay * daysInYear;
+    const done = yearPomodorosOf(daily, y);
+    // Jour de l’année en cours : 1 = 1er janvier … daysInYear (arrondi DST-safe)
+    const dayOfYear =
+      Math.round(
+        (new Date(y, now.getMonth(), now.getDate()).getTime() - new Date(y, 0, 1).getTime()) /
+          86_400_000,
+      ) + 1;
+    return {
+      perDay,
+      daysInYear,
+      goal,
+      done,
+      progress: goal > 0 ? Math.min(1, done / goal) : 0,
+      remaining: Math.max(0, goal - done),
+      daysLeft: daysInYear - dayOfYear,
+      onPace: done >= perDay * dayOfYear,
+    };
+  }, [settings.dailyGoal, daily]);
+
+  /* ----- Séries d’objectifs (semaines / mois consécutifs à objectif atteint) ----- */
+  const goalStreaks = useMemo(
+    () => ({
+      week: weekGoalStreak(daily, settings.dailyGoal),
+      month: monthGoalStreak(daily, settings.dailyGoal),
+    }),
+    [daily, settings.dailyGoal],
+  );
+
   /* ----- Current month grid ----- */
   const monthLabel = useMemo(() => {
     return capitalize(
@@ -469,6 +525,8 @@ export function StatistiquesView() {
   const goalPct = weekGoal.done > 0 ? Math.max(weekGoal.progress * 100, 2) : 0;
   // Largeur de la jauge d’objectif mensuel (plancher 2 % si active, même convention)
   const monthGoalPct = monthGoal.done > 0 ? Math.max(monthGoal.progress * 100, 2) : 0;
+  // Largeur de la jauge d’objectif annuel (plancher 2 % si active, même convention)
+  const yearGoalPct = yearGoal.done > 0 ? Math.max(yearGoal.progress * 100, 2) : 0;
 
   const handleExport = () => {
     if (Object.keys(daily).length === 0) {
@@ -836,6 +894,158 @@ export function StatistiquesView() {
               )}
             </p>
           </div>
+
+          {/* ----- Jauge d’objectif annuel ----- */}
+          <div className="mt-4 flex flex-col gap-2.5 border-t pt-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm font-medium">Objectif annuel</span>
+              <span className="time-display text-sm font-semibold tabular-nums text-foreground">
+                {yearGoal.done} / {yearGoal.goal} pomodoro{yearGoal.goal > 1 ? "s" : ""}
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuenow={yearGoal.done}
+              aria-valuemin={0}
+              aria-valuemax={yearGoal.goal}
+              aria-label={`Objectif annuel : ${yearGoal.done} sur ${yearGoal.goal} pomodoro${
+                yearGoal.goal > 1 ? "s" : ""
+              }`}
+              className="h-2 overflow-hidden rounded-full bg-secondary/50"
+            >
+              <div
+                className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                style={{ width: `${yearGoalPct}%` }}
+              />
+            </div>
+            <p className="m-0 text-xs text-faint">
+              Basé sur votre objectif quotidien : {yearGoal.perDay} pomodoro
+              {yearGoal.perDay > 1 ? "s" : ""} par jour × {yearGoal.daysInYear} jours.
+            </p>
+            <p className="m-0 flex items-center gap-2 text-sm" aria-live="polite">
+              {yearGoal.done >= yearGoal.goal ? (
+                <>
+                  <Trophy className="size-4 shrink-0 text-brand" aria-hidden />
+                  <span className="text-soft">Objectif annuel atteint, bravo !</span>
+                </>
+              ) : yearGoal.onPace ? (
+                <>
+                  <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+                  <span className="text-soft">
+                    En bonne voie — il reste{" "}
+                    <strong className="font-semibold text-foreground">
+                      {yearGoal.remaining} pomodoro{yearGoal.remaining > 1 ? "s" : ""}
+                    </strong>{" "}
+                    et {yearGoal.daysLeft} jour{yearGoal.daysLeft > 1 ? "s" : ""}.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Flag className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="text-muted-foreground">
+                    {yearGoal.remaining} pomodoro{yearGoal.remaining > 1 ? "s" : ""} restant
+                    {yearGoal.remaining > 1 ? "s" : ""} pour atteindre l’objectif.
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+        </section>
+
+        {/* ----- Séries d’objectifs ----- */}
+        <section className="flex flex-col gap-4 rounded-3xl border bg-card p-6">
+          <div>
+            <h2 className="m-0 flex items-center gap-2 text-base font-bold tracking-tight">
+              <Target className="size-4 text-brand" aria-hidden />
+              Séries d’objectifs
+            </h2>
+            <p className="mt-0.5 text-[13px] text-faint">
+              Semaines et mois consécutifs où votre objectif a été atteint. La période en
+              cours ne compte que si l’objectif est déjà atteint.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5 rounded-2xl border bg-secondary/40 p-4">
+              <small className="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                Semaines consécutives
+              </small>
+              <span className="time-display text-2xl font-bold">
+                {goalStreaks.week.current}
+                <span className="ml-1.5 text-sm font-semibold text-soft">
+                  {goalStreaks.week.current > 1 ? "semaines" : "semaine"}
+                </span>
+              </span>
+              <span className="tnum text-[11px] text-faint">
+                Semaine en cours : {goalStreaks.week.currentTotal} /{" "}
+                {goalStreaks.week.periodGoal} pomodoro
+                {goalStreaks.week.periodGoal > 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 rounded-2xl border bg-secondary/40 p-4">
+              <small className="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                Mois consécutifs
+              </small>
+              <span className="time-display text-2xl font-bold">
+                {goalStreaks.month.current}
+                <span className="ml-1.5 text-sm font-semibold text-soft">mois</span>
+              </span>
+              <span className="tnum text-[11px] text-faint">
+                Mois en cours : {goalStreaks.month.currentTotal} /{" "}
+                {goalStreaks.month.periodGoal} pomodoro
+                {goalStreaks.month.periodGoal > 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
+
+          <p className="m-0 flex items-center gap-2 text-sm" aria-live="polite">
+            {goalStreaks.week.current > 0 && goalStreaks.month.current > 0 ? (
+              <>
+                <Trophy className="size-4 shrink-0 text-brand" aria-hidden />
+                <span className="text-soft">
+                  Séries en cours :{" "}
+                  <strong className="font-semibold text-foreground">
+                    {goalStreaks.week.current} semaine{goalStreaks.week.current > 1 ? "s" : ""}
+                  </strong>{" "}
+                  et{" "}
+                  <strong className="font-semibold text-foreground">
+                    {goalStreaks.month.current} mois
+                  </strong>{" "}
+                  avec l’objectif atteint, bravo !
+                </span>
+              </>
+            ) : goalStreaks.week.current > 0 ? (
+              <>
+                <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+                <span className="text-soft">
+                  Série de{" "}
+                  <strong className="font-semibold text-foreground">
+                    {goalStreaks.week.current} semaine{goalStreaks.week.current > 1 ? "s" : ""}
+                  </strong>{" "}
+                  avec l’objectif hebdomadaire atteint.
+                </span>
+              </>
+            ) : goalStreaks.month.current > 0 ? (
+              <>
+                <TrendingUp className="size-4 shrink-0 text-brand" aria-hidden />
+                <span className="text-soft">
+                  Série de{" "}
+                  <strong className="font-semibold text-foreground">
+                    {goalStreaks.month.current} mois
+                  </strong>{" "}
+                  avec l’objectif mensuel atteint.
+                </span>
+              </>
+            ) : (
+              <>
+                <Flag className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="text-muted-foreground">
+                  Aucune série pour l’instant — atteignez votre objectif pour en démarrer
+                  une.
+                </span>
+              </>
+            )}
+          </p>
         </section>
 
         {/* ----- Calendar (monthly / yearly) ----- */}

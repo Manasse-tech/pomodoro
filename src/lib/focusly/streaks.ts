@@ -7,6 +7,20 @@ export interface Streaks {
   best: number;
 }
 
+/** Fallback for missing days (mirrors EMPTY_STAT in store.ts without importing it). */
+const EMPTY_DAY: DailyStat = { pomodoros: 0, focusSeconds: 0, breaks: 0 };
+
+/** Local YYYY-MM-DD key — same format as todayKey() in types.ts. */
+function dayKey(d: Date): string {
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+
 /**
  * Compute current and best streaks from the daily record.
  * A day counts when it has at least one completed pomodoro.
@@ -31,15 +45,9 @@ export function computeStreaks(daily: Record<string, DailyStat>): Streaks {
   }
 
   // Current: count backwards from today (or yesterday if today is still empty)
-  const key = (d: Date) =>
-    d.getFullYear() +
-    "-" +
-    String(d.getMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(d.getDate()).padStart(2, "0");
   const today = new Date();
-  const todayKey = key(today);
-  const yesterdayKey = key(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
+  const todayKey = dayKey(today);
+  const yesterdayKey = dayKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
 
   let current = 0;
   let cursor: string | null = activeDays.includes(todayKey)
@@ -50,7 +58,7 @@ export function computeStreaks(daily: Record<string, DailyStat>): Streaks {
   while (cursor) {
     current++;
     const [y, m, d] = cursor.split("-").map(Number);
-    const prev = key(new Date(y, m - 1, d - 1));
+    const prev = dayKey(new Date(y, m - 1, d - 1));
     cursor = activeDays.includes(prev) ? prev : null;
   }
 
@@ -60,11 +68,112 @@ export function computeStreaks(daily: Record<string, DailyStat>): Streaks {
 function isNextDay(a: string, b: string): boolean {
   const [y, m, d] = a.split("-").map(Number);
   const next = new Date(y, m - 1, d + 1);
-  const nk =
-    next.getFullYear() +
-    "-" +
-    String(next.getMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(next.getDate()).padStart(2, "0");
-  return nk === b;
+  return dayKey(next) === b;
+}
+
+/* ------------------------------------------------------------------ */
+/* Goal streaks (weekly / monthly)                                     */
+/* ------------------------------------------------------------------ */
+
+export interface GoalStreak {
+  /** Consecutive achieved periods ending with the current one; 0 when the
+   * in-progress period is not met yet (it only counts once already achieved). */
+  current: number;
+  /** Pomodoro total of the current in-progress period so far */
+  currentTotal: number;
+  /** Pomodoro goal for one full period (dailyGoal × period length in days) */
+  periodGoal: number;
+  /** Whether the in-progress period already meets the goal */
+  currentMet: boolean;
+}
+
+/** Monday 00:00 (local) of the Monday-first week containing d. */
+function mondayOf(d: Date): Date {
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return monday;
+}
+
+/** Sum of pomodoros over the 7 local days starting at `start` (00:00). */
+function weekPomodoros(daily: Record<string, DailyStat>, start: Date): number {
+  let sum = 0;
+  const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  for (let i = 0; i < 7; i++) {
+    sum += (daily[dayKey(cur)] ?? EMPTY_DAY).pomodoros;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return sum;
+}
+
+/** Sum of pomodoros over a whole local month (m0: 0-based month index). */
+function monthPomodoros(daily: Record<string, DailyStat>, y: number, m0: number): number {
+  const days = new Date(y, m0 + 1, 0).getDate();
+  let sum = 0;
+  for (let d = 1; d <= days; d++) {
+    sum += (daily[dayKey(new Date(y, m0, d))] ?? EMPTY_DAY).pomodoros;
+  }
+  return sum;
+}
+
+/**
+ * Current streak of consecutive weeks whose pomodoro total reaches
+ * dailyGoal × 7 (Monday-first weeks). The in-progress week counts only when
+ * its goal is already met — otherwise the streak is 0; a past week below the
+ * goal breaks the run. Weeks are walked back in exact 7-day steps, so year
+ * boundaries are handled naturally (no ISO week-number arithmetic).
+ */
+export function weekGoalStreak(
+  daily: Record<string, DailyStat>,
+  dailyGoal: number,
+  today: Date = new Date(),
+): GoalStreak {
+  const periodGoal = dailyGoal * 7;
+  const monday = mondayOf(today);
+  const currentTotal = weekPomodoros(daily, monday);
+  if (dailyGoal <= 0 || currentTotal < periodGoal) {
+    return { current: 0, currentTotal, periodGoal, currentMet: false };
+  }
+  let current = 1;
+  const cursor = new Date(monday);
+  cursor.setDate(cursor.getDate() - 7);
+  while (weekPomodoros(daily, cursor) >= periodGoal) {
+    current++;
+    cursor.setDate(cursor.getDate() - 7);
+  }
+  return { current, currentTotal, periodGoal, currentMet: true };
+}
+
+/**
+ * Current streak of consecutive months whose pomodoro total reaches
+ * dailyGoal × (days in month). The in-progress month counts only when its
+ * goal is already met — otherwise the streak is 0; a past month below its
+ * own goal (shorter or longer) breaks the run. Months are walked back with
+ * the Date constructor, so lengths and leap years are handled naturally.
+ */
+export function monthGoalStreak(
+  daily: Record<string, DailyStat>,
+  dailyGoal: number,
+  today: Date = new Date(),
+): GoalStreak {
+  const y = today.getFullYear();
+  const m0 = today.getMonth();
+  const daysInMonth = new Date(y, m0 + 1, 0).getDate();
+  const periodGoal = dailyGoal * daysInMonth;
+  const currentTotal = monthPomodoros(daily, y, m0);
+  if (dailyGoal <= 0 || currentTotal < periodGoal) {
+    return { current: 0, currentTotal, periodGoal, currentMet: false };
+  }
+  let current = 1;
+  let cy = y;
+  let cm = m0;
+  for (;;) {
+    cm -= 1;
+    if (cm < 0) {
+      cm = 11;
+      cy -= 1;
+    }
+    if (monthPomodoros(daily, cy, cm) < dailyGoal * new Date(cy, cm + 1, 0).getDate()) break;
+    current += 1;
+  }
+  return { current, currentTotal, periodGoal, currentMet: true };
 }

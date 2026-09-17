@@ -153,18 +153,18 @@ export function ContactView() {
         ]}
       />
 
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Contact</h1>
-      <p className="mt-3 text-soft">
+      <h1 className="fade-up text-3xl font-bold tracking-tight sm:text-4xl">Contact</h1>
+      <p className="fade-up fade-up-1 mt-3 text-soft">
         Une question, une suggestion ou un retour ? Écrivez-nous.
       </p>
-      <p className="mt-1 text-[13px] text-faint">
+      <p className="fade-up fade-up-1 mt-1 text-[13px] text-faint">
         Nous répondons généralement dans les 48 heures (jours ouvrés).
       </p>
 
       {sent ? (
         <section
           aria-live="polite"
-          className="mt-10 flex max-w-[560px] flex-col items-start rounded-2xl border bg-card p-6 sm:p-8"
+          className="fade-up mt-10 flex max-w-[560px] flex-col items-start rounded-2xl border bg-card p-6 sm:p-8"
         >
           <CheckCircle2 className="size-12 text-brand" aria-hidden />
           <h2 className="mt-4 text-xl font-semibold tracking-tight">
@@ -177,7 +177,7 @@ export function ContactView() {
           <Button
             type="button"
             variant="outline"
-            className="mt-6 min-h-[44px] rounded-xl"
+            className="press mt-6 min-h-[44px] rounded-xl"
             onClick={() => {
               setSent(false);
               setErrors({});
@@ -187,7 +187,13 @@ export function ContactView() {
           </Button>
         </section>
       ) : (
-        <form onSubmit={handleSubmit} noValidate className="mt-8 max-w-[560px]">
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="fade-up fade-up-2 mt-8 max-w-[560px] rounded-2xl border bg-card p-6 sm:p-8"
+        >
+          {/* Carte formulaire : même traitement que la carte de succès
+              (rounded-2xl border bg-card) + entrée .fade-up (reduced-motion OK). */}
           {/* Honeypot anti-spam : invisible pour les humains */}
           <input
             type="text"
@@ -293,7 +299,7 @@ export function ContactView() {
                   </span>
                   <span className="sr-only">(obligatoire)</span>
                 </Label>
-                <span className="text-xs text-faint" aria-hidden>
+                <span className="tnum text-xs text-faint" aria-hidden>
                   {form.message.length}/5000
                 </span>
               </div>
@@ -353,7 +359,7 @@ export function ContactView() {
             type="submit"
             size="lg"
             disabled={submitting}
-            className="mt-7 min-h-[44px] w-full rounded-xl font-semibold sm:w-auto sm:px-8"
+            className="press mt-7 min-h-[44px] w-full rounded-xl font-semibold sm:w-auto sm:px-8"
           >
             {submitting ? (
               <>

@@ -32,12 +32,14 @@ model Post {
 }
 
 model ContactMessage {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   email     String
   subject   String?
   message   String
-  read      Boolean  @default(false)
-  archived  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  reply     String?
+  repliedAt DateTime?
+  read      Boolean   @default(false)
+  archived  Boolean   @default(false)
+  createdAt DateTime  @default(now())
 }

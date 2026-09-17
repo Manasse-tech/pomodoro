@@ -11,8 +11,9 @@ import { ArticleBlocks } from "./article-blocks";
 import { Breadcrumb } from "./breadcrumb";
 import { NotView } from "./not-found-view";
 
-const NAV_CARD_CLASS =
-  "group block rounded-2xl border bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-input hover:shadow-lg hover:shadow-black/10";
+/* Cartes précédent/suivant : .lift (r7-d), même élévation que les cartes
+   du blog et de l’accueil (pas d’animation d’entrée : hors du premier écran). */
+const NAV_CARD_CLASS = "group block rounded-2xl border bg-card p-4 lift";
 
 /** Shorten long titles for the breadcrumb trail. */
 function truncate(text: string, max = 34): string {
@@ -36,22 +37,30 @@ export function BlogArticleView({ slug }: { slug: string }) {
           { label: truncate(post.title) },
         ]}
       />
-      <article className="max-w-[720px]">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+      <article className="prose-article max-w-[720px]">
+        <h1 className="fade-up text-3xl font-bold tracking-tight text-balance sm:text-4xl">
           {post.title}
         </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        {/* Filet décoratif de marque, aligné sur le guide (aria-hidden) */}
+        <div
+          className="fade-up fade-up-1 mt-5 h-0.5 w-14 rounded-full bg-brand/40"
+          aria-hidden
+        />
+        <div className="fade-up fade-up-2 mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           <Badge
             variant="secondary"
             className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand"
           >
             {post.tag}
           </Badge>
-          <p className="text-[13px] text-faint">
+          <p className="tnum text-[13px] text-faint">
             Publié le {frDate(post.date)} · Lecture ~{post.readMinutes} minutes
           </p>
         </div>
-        <div className="mt-6">
+        {/* .prose-article : rythme scopé (marqueurs de listes brand, titres
+            équilibrés) — voir globals.css round 9. Entrée en cascade OK
+            prefers-reduced-motion. */}
+        <div className="fade-up fade-up-3 mt-6">
           <ArticleBlocks blocks={post.content} />
         </div>
       </article>
@@ -70,7 +79,7 @@ export function BlogArticleView({ slug }: { slug: string }) {
               <span className="mt-1 block text-[15px] font-semibold tracking-tight">
                 {prev.title}
               </span>
-              <span className="mt-1 block text-[12px] text-faint">
+              <span className="tnum mt-1 block text-[12px] text-faint">
                 ~{prev.readMinutes} min
               </span>
             </Link>
@@ -86,7 +95,7 @@ export function BlogArticleView({ slug }: { slug: string }) {
               <span className="mt-1 block text-[15px] font-semibold tracking-tight">
                 {next.title}
               </span>
-              <span className="mt-1 block text-[12px] text-faint">
+              <span className="tnum mt-1 block text-[12px] text-faint">
                 ~{next.readMinutes} min
               </span>
             </Link>
@@ -95,7 +104,7 @@ export function BlogArticleView({ slug }: { slug: string }) {
           )}
         </div>
         <div className="mt-6 flex justify-center">
-          <Button variant="secondary" asChild>
+          <Button variant="secondary" asChild className="press">
             <Link href="#blog">
               <ArrowLeft aria-hidden />
               Retour au blog

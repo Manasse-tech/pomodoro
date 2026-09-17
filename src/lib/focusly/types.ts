@@ -55,19 +55,32 @@ export const DEFAULT_SETTINGS: TimerSettings = {
 };
 
 /** Recurrence plan for a task: completing it spawns a fresh copy with the next due date */
-export type TaskRecurrence = "daily" | "weekdays" | "weekly";
+export type TaskRecurrence = "daily" | "weekdays" | "weekly" | "custom";
+
+/** Bounds of the custom recurrence interval, in days */
+export const RECURRENCE_DAYS_MIN = 2;
+export const RECURRENCE_DAYS_MAX = 365;
+/** Interval used for "custom" when no explicit day count was chosen yet */
+export const DEFAULT_RECURRENCE_DAYS = 3;
 
 export const RECURRENCE_LABELS: Record<TaskRecurrence, string> = {
   daily: "Quotidienne",
   weekdays: "Jours ouvrés",
   weekly: "Hebdomadaire",
+  custom: "Tous les X jours…",
 };
 
 export const RECURRENCE_SHORT: Record<TaskRecurrence, string> = {
   daily: "Quotid.",
   weekdays: "Ouvrés",
   weekly: "Hebdo",
+  custom: "X j",
 };
+
+/** Clamp a custom recurrence interval (in days) to the 2–365 range, rounded to whole days */
+export function clampRecurrenceDays(v: number): number {
+  return clamp(Math.round(v), RECURRENCE_DAYS_MIN, RECURRENCE_DAYS_MAX);
+}
 
 export interface TaskItem {
   id: string;
@@ -84,6 +97,8 @@ export interface TaskItem {
   dueDate?: string;
   /** Recurrence: on completion, a fresh not-done copy is spawned with the next due date */
   recurrence?: TaskRecurrence;
+  /** Interval in days (2–365) when recurrence === "custom" — optional, backward compatible */
+  recurrenceDays?: number;
 }
 
 export interface NoteItem {
@@ -198,15 +213,21 @@ export function daysUntil(key: string): number {
 
 /**
  * Next due-date key for a recurring task: daily → +1 day, weekly → +7 days,
+ * custom → +N days (N = intervalDays clamped to 2–365, weekends NOT skipped),
  * weekdays → the next working day (Mon–Fri). The base is max(parsed dueDate,
  * today) so a late completion never plans the next occurrence in the past, and
  * the result is always strictly after that anchor: daily lands on tomorrow,
- * weekly on today + 7, weekdays on the following working day — a Friday,
- * Saturday or Sunday anchor lands on Monday. Built from local Date parts —
+ * weekly on today + 7, custom on today + N (whatever weekday that is),
+ * weekdays on the following working day — a Friday, Saturday or Sunday anchor
+ * lands on Monday. Built from local Date parts —
  * new Date(y, m-1, d + N) auto-normalizes month/year overflow, then local
  * parts are read back (same key style as todayKey, never ISO/UTC).
  */
-export function nextDueDate(fromKey: string | undefined, recurrence: TaskRecurrence): string {
+export function nextDueDate(
+  fromKey: string | undefined,
+  recurrence: TaskRecurrence,
+  intervalDays?: number,
+): string {
   let base: Date | null = null;
   if (fromKey) {
     const [y, m, d] = fromKey.split("-").map(Number);
@@ -224,7 +245,12 @@ export function nextDueDate(fromKey: string | undefined, recurrence: TaskRecurre
     const shift = dow === 6 ? 2 : dow === 0 ? 1 : 0;
     return todayKey(new Date(next.getFullYear(), next.getMonth(), next.getDate() + shift));
   }
-  const step = recurrence === "weekly" ? 7 : 1;
+  const step =
+    recurrence === "weekly"
+      ? 7
+      : recurrence === "custom"
+        ? clampRecurrenceDays(intervalDays ?? DEFAULT_RECURRENCE_DAYS)
+        : 1;
   return todayKey(new Date(from.getFullYear(), from.getMonth(), from.getDate() + step));
 }
 

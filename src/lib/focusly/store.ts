@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
   clamp,
+  clampRecurrenceDays,
   DEFAULT_SETTINGS,
   nextDueDate,
   todayKey,
@@ -22,6 +23,34 @@ export const STORAGE_KEY = "focusly.v4";
 
 export const EMPTY_STAT: DailyStat = { pomodoros: 0, focusSeconds: 0, breaks: 0 };
 
+/** Plausible ceiling for recorded focus time in a single day (24 h) — guards against corrupted stats. */
+const MAX_FOCUS_SECONDS_PER_DAY = 86_400;
+
+/**
+ * Repair daily stats loaded from localStorage or an import file:
+ * non-finite/negative numbers become 0 and focusSeconds is capped at 24 h.
+ * Prevents a legacy bug (running timer rehydrated with lastTick === 0)
+ * from displaying ~1.8 billion "seconds of focus" forever.
+ */
+export function sanitizeDaily(daily: Record<string, DailyStat>): Record<string, DailyStat> {
+  const out: Record<string, DailyStat> = {};
+  for (const [key, value] of Object.entries(daily)) {
+    if (!value || typeof value !== "object") continue;
+    const pomodoros = Number(value.pomodoros);
+    const focusSeconds = Number(value.focusSeconds);
+    const breaks = Number(value.breaks);
+    out[key] = {
+      pomodoros: Number.isFinite(pomodoros) && pomodoros > 0 ? Math.floor(pomodoros) : 0,
+      focusSeconds:
+        Number.isFinite(focusSeconds) && focusSeconds > 0
+          ? Math.min(focusSeconds, MAX_FOCUS_SECONDS_PER_DAY)
+          : 0,
+      breaks: Number.isFinite(breaks) && breaks > 0 ? Math.floor(breaks) : 0,
+    };
+  }
+  return out;
+}
+
 export interface PersistShape {
   settings: TimerSettings;
   daily: Record<string, DailyStat>;
@@ -33,6 +62,12 @@ export interface PersistShape {
   timeLeft: number;
   running: boolean;
   endTime: number;
+  /**
+   * Ticker timestamp. Persisted so a session that survives a reload keeps
+   * accruing focus time from the unload moment (up to endTime) instead of
+   * re-reading the whole elapsed time since epoch (lastTick === 0).
+   */
+  lastTick: number;
   theme: Theme;
 }
 
@@ -42,8 +77,6 @@ export interface ExportShape extends PersistShape {
 }
 
 interface FocuslyState extends PersistShape {
-  /** transient — ticker timestamp, not persisted */
-  lastTick: number;
   /** true once the persisted store has been rehydrated on the client */
   hydrated: boolean;
   /** transient — mobile navigation menu open */
@@ -77,6 +110,7 @@ interface FocuslyState extends PersistShape {
     estimate?: number,
     dueDate?: string,
     recurrence?: TaskRecurrence,
+    recurrenceDays?: number,
   ) => void;
   toggleTask: (id: string, done: boolean) => void;
   removeTask: (id: string) => void;
@@ -84,11 +118,13 @@ interface FocuslyState extends PersistShape {
   setActiveTask: (id: string | null) => void;
   /** Set the pomodoro estimate of a task (clamped 1–12) */
   setTaskEstimate: (id: string, estimate: number) => void;
-  /** Edit a task's text and/or due date (null clears the due date); recurrence: null clears it */
+  /** Edit a task's text and/or due date (null clears the due date); recurrence: null clears it;
+   *  recurrenceDays: null clears the custom interval, a number is clamped to 2–365 */
   updateTask: (
     id: string,
     patch: Partial<Pick<TaskItem, "text" | "dueDate" | "estimate">> & {
       recurrence?: TaskRecurrence | null;
+      recurrenceDays?: number | null;
     },
   ) => void;
   /** Move a task up (-1) or down (+1) by one position */
@@ -262,7 +298,7 @@ export const useFocusly = create<FocuslyState>()(
         return next;
       },
 
-      addTask: (text, estimate, dueDate, recurrence) => {
+      addTask: (text, estimate, dueDate, recurrence, recurrenceDays) => {
         const v = text.trim();
         if (!v) return;
         const est = clamp(Math.round(estimate ?? 1), 1, 12);
@@ -276,6 +312,8 @@ export const useFocusly = create<FocuslyState>()(
         };
         if (dueDate) task.dueDate = dueDate;
         if (recurrence) task.recurrence = recurrence;
+        if (recurrence === "custom" && recurrenceDays != null)
+          task.recurrenceDays = clampRecurrenceDays(recurrenceDays);
         set({
           tasks: [...get().tasks, task].slice(-200),
         });
@@ -297,8 +335,9 @@ export const useFocusly = create<FocuslyState>()(
             created: Date.now(),
             estimate: src.estimate,
             spent: 0,
-            dueDate: nextDueDate(src.dueDate, src.recurrence),
+            dueDate: nextDueDate(src.dueDate, src.recurrence, src.recurrenceDays),
             recurrence: src.recurrence,
+            recurrenceDays: src.recurrenceDays,
           });
         }
         set({ tasks: tasks.slice(-200) });
@@ -340,6 +379,13 @@ export const useFocusly = create<FocuslyState>()(
               // key (partial patch) leaves it untouched.
               if (patch.recurrence) next.recurrence = patch.recurrence;
               else delete next.recurrence;
+            }
+            if (patch.recurrenceDays !== undefined) {
+              // Explicit null clears the custom interval (e.g. recurrence
+              // switched away from "custom"); a number is clamped to 2–365.
+              if (patch.recurrenceDays != null)
+                next.recurrenceDays = clampRecurrenceDays(patch.recurrenceDays);
+              else delete next.recurrenceDays;
             }
             return next;
           }),
@@ -472,6 +518,7 @@ export const useFocusly = create<FocuslyState>()(
           timeLeft: s.timeLeft,
           running: false,
           endTime: 0,
+          lastTick: 0,
           theme: s.theme,
         };
         return JSON.stringify(data, null, 2);
@@ -486,12 +533,12 @@ export const useFocusly = create<FocuslyState>()(
           const daily = { ...s.daily };
           if (d.daily && typeof d.daily === "object") {
             Object.entries(d.daily).forEach(([k, v]) => {
-              if (v && typeof v.pomodoros === "number") daily[k] = v;
+              if (v && typeof v.pomodoros === "number") daily[k] = v as DailyStat;
             });
           }
           set({
             settings,
-            daily,
+            daily: sanitizeDaily(daily),
             history: Array.isArray(d.history) ? d.history.slice(-200) : s.history,
             tasks: Array.isArray(d.tasks) ? d.tasks.slice(-200) : s.tasks,
             notes: Array.isArray(d.notes) ? d.notes.slice(-200) : s.notes,
@@ -515,6 +562,10 @@ export const useFocusly = create<FocuslyState>()(
         return {
           ...current,
           ...p,
+          // Repair stats corrupted by pre-fix versions (e.g. focusSeconds
+          // inflated to epoch scale when a running timer was rehydrated
+          // with lastTick === 0).
+          daily: p.daily ? sanitizeDaily(p.daily) : current.daily,
           settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
         } as FocuslyState;
       },
@@ -529,6 +580,7 @@ export const useFocusly = create<FocuslyState>()(
         timeLeft: s.timeLeft,
         running: s.running,
         endTime: s.endTime,
+        lastTick: s.lastTick,
         theme: s.theme,
       }),
       onRehydrateStorage: () => (state) => {
@@ -538,6 +590,11 @@ export const useFocusly = create<FocuslyState>()(
         // A running timer that survived reload keeps counting down
         if (state.running && state.endTime > Date.now()) {
           patch.timeLeft = Math.max(0, Math.round((state.endTime - Date.now()) / 1000));
+          // Guard against a missing or incoherent ticker timestamp: without
+          // this, the first tick() would accrue (now − lastTick) ≈ epoch.
+          if (!state.lastTick || state.lastTick > state.endTime) {
+            patch.lastTick = Date.now();
+          }
         } else {
           patch.running = false;
           patch.endTime = 0;

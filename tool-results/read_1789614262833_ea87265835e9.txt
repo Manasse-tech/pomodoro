@@ -1,0 +1,683 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useRef, useState, type FormEvent } from "react";
+     4→import {
+     5→  ArrowDownWideNarrow,
+     6→  Calendar,
+     7→  CalendarClock,
+     8→  Check,
+     9→  CheckCircle2,
+    10→  ChevronDown,
+    11→  ChevronUp,
+    12→  Crosshair,
+    13→  GripVertical,
+    14→  Minus,
+    15→  Pencil,
+    16→  Plus,
+    17→  Repeat,
+    18→  Trash2,
+    19→  X,
+    20→} from "lucide-react";
+    21→import { toast } from "sonner";
+    22→import { Button } from "@/components/ui/button";
+    23→import { Input } from "@/components/ui/input";
+    24→import { Checkbox } from "@/components/ui/checkbox";
+    25→import { useFocusly } from "@/lib/focusly/store";
+    26→import {
+    27→  daysUntil,
+    28→  frDate,
+    29→  frDateShort,
+    30→  nextDueDate,
+    31→  RECURRENCE_LABELS,
+    32→  RECURRENCE_SHORT,
+    33→  type TaskItem,
+    34→  type TaskRecurrence,
+    35→} from "@/lib/focusly/types";
+    36→
+    37→/** Full French date from a local YYYY-MM-DD key — built from local parts, never UTC */
+    38→function dueDateLabel(key: string): string {
+    39→  const [y, m, d] = key.split("-").map(Number);
+    40→  if (!y || !m || !d) return key;
+    41→  return frDate(new Date(y, m - 1, d).getTime());
+    42→}
+    43→
+    44→/** View-level filters — « Aujourd’hui » = due today or overdue, « En retard » = overdue only */
+    45→type TaskFilter = "toutes" | "aujourdhui" | "retard";
+    46→
+    47→const TASK_FILTERS: Array<{ value: TaskFilter; label: string }> = [
+    48→  { value: "toutes", label: "Toutes" },
+    49→  { value: "aujourdhui", label: "Aujourd’hui" },
+    50→  { value: "retard", label: "En retard" },
+    51→];
+    52→
+    53→/** Compact recurrence selector — « Aucune / Quotid. / Ouvrés / Hebdo » chips (add form + inline edit) */
+    54→function RecurrencePicker({
+    55→  value,
+    56→  onChange,
+    57→  label,
+    58→}: {
+    59→  value: TaskRecurrence | null;
+    60→  onChange: (next: TaskRecurrence | null) => void;
+    61→  label: string;
+    62→}) {
+    63→  /* Derived from RECURRENCE_SHORT so every recurrence kind gets its pill automatically */
+    64→  const options: Array<{ value: TaskRecurrence | null; label: string }> = [
+    65→    { value: null, label: "Aucune" },
+    66→    ...(Object.entries(RECURRENCE_SHORT) as Array<[TaskRecurrence, string]>).map(
+    67→      ([value, label]) => ({ value, label }),
+    68→    ),
+    69→  ];
+    70→  return (
+    71→    <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1.5">
+    72→      <span aria-hidden className="text-[11px] text-faint">
+    73→        Répétition
+    74→      </span>
+    75→      {options.map((o) => (
+    76→        <button
+    77→          key={o.label}
+    78→          type="button"
+    79→          aria-pressed={value === o.value}
+    80→          onClick={() => onChange(o.value)}
+    81→          className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+    82→            value === o.value
+    83→              ? "border-brand/40 bg-brand/15 font-medium text-brand"
+    84→              : "text-muted-foreground hover:text-foreground"
+    85→          }`}
+    86→        >
+    87→          {o.label}
+    88→        </button>
+    89→      ))}
+    90→    </div>
+    91→  );
+    92→}
+    93→
+    94→export function TasksPanel() {
+    95→  const tasks = useFocusly((s) => s.tasks);
+    96→  const addTask = useFocusly((s) => s.addTask);
+    97→  const updateTask = useFocusly((s) => s.updateTask);
+    98→  const toggleTask = useFocusly((s) => s.toggleTask);
+    99→  const removeTask = useFocusly((s) => s.removeTask);
+   100→  const clearDoneTasks = useFocusly((s) => s.clearDoneTasks);
+   101→  const setActiveTask = useFocusly((s) => s.setActiveTask);
+   102→  const setTaskEstimate = useFocusly((s) => s.setTaskEstimate);
+   103→  const moveTask = useFocusly((s) => s.moveTask);
+   104→  const moveTaskTo = useFocusly((s) => s.moveTaskTo);
+   105→  const [value, setValue] = useState("");
+   106→  const [estimate, setEstimate] = useState(1);
+   107→  const [dueDate, setDueDate] = useState("");
+   108→  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
+   109→  /* inline edit — only one task at a time */
+   110→  const [editingId, setEditingId] = useState<string | null>(null);
+   111→  const [editText, setEditText] = useState("");
+   112→  const [editDue, setEditDue] = useState("");
+   113→  const [editRec, setEditRec] = useState<TaskRecurrence | null>(null);
+   114→  /* drag-and-drop reorder state (id of the dragged task / hovered target) */
+   115→  const [dragId, setDragId] = useState<string | null>(null);
+   116→  const [overId, setOverId] = useState<string | null>(null);
+   117→  /* view-level filter — never reorders or mutates the store */
+   118→  const [filter, setFilter] = useState<TaskFilter>("toutes");
+   119→
+   120→  /* PWA shortcut « /?tache=nouvelle#outils » — focus the new-task input once, then clean the URL */
+   121→  const newTaskInputRef = useRef<HTMLInputElement | null>(null);
+   122→  const deepLinkFired = useRef(false);
+   123→  useEffect(() => {
+   124→    if (new URLSearchParams(window.location.search).get("tache") !== "nouvelle") return;
+   125→    const id = window.setTimeout(() => {
+   126→      if (deepLinkFired.current) return;
+   127→      deepLinkFired.current = true;
+   128→      newTaskInputRef.current?.focus();
+   129→      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+   130→    }, 400);
+   131→    return () => window.clearTimeout(id);
+   132→  }, []);
+   133→
+   134→  const remaining = tasks.filter((t) => !t.done).length;
+   135→  const doneCount = tasks.length - remaining;
+   136→  const plannedTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.estimate ?? 1), 0);
+   137→  const spentTotal = tasks.reduce((a, t) => a + (t.done ? 0 : t.spent ?? 0), 0);
+   138→
+   139→  /* « Aujourd’hui » keeps due-today + overdue, « En retard » only overdue — done tasks included */
+   140→  const visibleTasks =
+   141→    filter === "toutes"
+   142→      ? tasks
+   143→      : tasks.filter((t) => {
+   144→          if (!t.dueDate) return false;
+   145→          const d = daysUntil(t.dueDate);
+   146→          return filter === "aujourdhui" ? d <= 0 : d < 0;
+   147→        });
+   148→
+   149→  /* Sectioned « Aujourd’hui » view — the three groups partition visibleTasks exactly */
+   150→  const overdueTasks = visibleTasks.filter(
+   151→    (t) => !t.done && t.dueDate && daysUntil(t.dueDate) < 0,
+   152→  );
+   153→  const dueTodayTasks = visibleTasks.filter(
+   154→    (t) => !t.done && t.dueDate && daysUntil(t.dueDate) === 0,
+   155→  );
+   156→  const doneInView = visibleTasks.filter((t) => t.done);
+   157→
+   158→  const clearDrag = () => {
+   159→    setDragId(null);
+   160→    setOverId(null);
+   161→  };
+   162→
+   163→  const startTaskEdit = (t: TaskItem) => {
+   164→    setEditingId(t.id);
+   165→    setEditText(t.text);
+   166→    setEditDue(t.dueDate ?? "");
+   167→    setEditRec(t.recurrence ?? null);
+   168→  };
+   169→
+   170→  const cancelTaskEdit = () => setEditingId(null);
+   171→
+   172→  const saveTaskEdit = (e: FormEvent) => {
+   173→    e.preventDefault();
+   174→    if (!editingId || !editText.trim()) return;
+   175→    // dueDate "" clears the due date, editRec null clears the recurrence (store contract)
+   176→    updateTask(editingId, { text: editText, dueDate: editDue, recurrence: editRec });
+   177→    setEditingId(null);
+   178→    toast.success("Tâche mise à jour.");
+   179→  };
+   180→
+   181→  /** One-shot sort: due dates first (ascending, YYYY-MM-DD keys sort chronologically), stable otherwise */
+   182→  const sortByDueDate = () => {
+   183→    if (!tasks.some((t) => t.dueDate)) {
+   184→      toast.info("Aucune échéance définie.");
+   185→      return;
+   186→    }
+   187→    useFocusly.setState((s) => {
+   188→      const withDue = s.tasks.filter((t) => t.dueDate);
+   189→      const without = s.tasks.filter((t) => !t.dueDate);
+   190→      withDue.sort((a, b) => {
+   191→        const ka = a.dueDate ?? "";
+   192→        const kb = b.dueDate ?? "";
+   193→        if (ka === kb) return 0;
+   194→        return ka < kb ? -1 : 1;
+   195→      });
+   196→      return { tasks: [...withDue, ...without] };
+   197→    });
+   198→    toast.success("Tâches triées par échéance.");
+   199→  };
+   200→
+   201→  /** One task row — shared by the flat list and the sectioned « Aujourd’hui » view */
+   202→  const renderTask = (t: TaskItem) => {
+   203→    const editing = t.id === editingId;
+   204→    const due = t.dueDate ?? null;
+   205→    const dueDays = due ? daysUntil(due) : null;
+   206→    /* chevron bounds follow the store order — the filter is view-level only */
+   207→    const storeIndex = tasks.findIndex((x) => x.id === t.id);
+   208→    return (
+   209→      <li
+   210→        key={t.id}
+   211→        draggable={!editing}
+   212→        onDragStart={(e) => {
+   213→          setDragId(t.id);
+   214→          e.dataTransfer.effectAllowed = "move";
+   215→          try {
+   216→            e.dataTransfer.setData("text/plain", t.id);
+   217→          } catch {
+   218→            /* some engines forbid setData — the local state is enough */
+   219→          }
+   220→        }}
+   221→        onDragEnd={clearDrag}
+   222→        onDragOver={(e) => {
+   223→          if (t.done) {
+   224→            // Never drop onto a completed task (keeps to-do / done zones separate)
+   225→            e.dataTransfer.dropEffect = "none";
+   226→            return;
+   227→          }
+   228→          e.preventDefault();
+   229→          e.dataTransfer.dropEffect = "move";
+   230→          setOverId((v) => (dragId && dragId !== t.id ? t.id : v));
+   231→        }}
+   232→        onDragLeave={() => setOverId((v) => (v === t.id ? null : v))}
+   233→        onDrop={(e) => {
+   234→          e.preventDefault();
+   235→          if (t.done || !dragId || dragId === t.id) {
+   236→            clearDrag();
+   237→            return;
+   238→          }
+   239→          moveTaskTo(dragId, t.id);
+   240→          clearDrag();
+   241→        }}
+   242→        className={`flex flex-wrap items-start gap-x-2 gap-y-2 rounded-xl border px-3 py-3 transition-[opacity,box-shadow,border-color,transform] duration-150 ${
+   243→          editing ? "bg-brand/5 ring-1 ring-brand" : "bg-secondary"
+   244→        } ${t.done ? "opacity-55" : ""} ${
+   245→          !editing && t.active ? "border-brand/60 ring-1 ring-brand/40" : ""
+   246→        } ${dragId === t.id ? "scale-[0.99] opacity-40" : ""} ${
+   247→          overId === t.id && dragId !== t.id ? "border-brand/70 ring-2 ring-brand/35" : ""
+   248→        } ${dragId && t.done ? "cursor-not-allowed" : ""}`}
+   249→      >
+   250→        {editing ? (
+   251→          <form
+   252→            className="flex w-full flex-col gap-2"
+   253→            autoComplete="off"
+   254→            onSubmit={saveTaskEdit}
+   255→            onKeyDown={(e) => {
+   256→              if (e.key === "Escape") {
+   257→                e.preventDefault();
+   258→                cancelTaskEdit();
+   259→              }
+   260→            }}
+   261→          >
+   262→            <div className="flex flex-wrap items-center gap-2">
+   263→              <label htmlFor={`task-edit-text-${t.id}`} className="sr-only">
+   264→                Texte de la tâche
+   265→              </label>
+   266→              <Input
+   267→                id={`task-edit-text-${t.id}`}
+   268→                value={editText}
+   269→                onChange={(e) => setEditText(e.target.value)}
+   270→                maxLength={200}
+   271→                className="min-h-11 min-w-[140px] flex-1 rounded-xl"
+   272→              />
+   273→              <Input
+   274→                type="date"
+   275→                value={editDue}
+   276→                onChange={(e) => setEditDue(e.target.value)}
+   277→                aria-label="Échéance de la tâche"
+   278→                className="h-11 w-[122px] rounded-xl border bg-secondary/60 px-2 text-xs [color-scheme:light] dark:bg-secondary/60 dark:[color-scheme:dark] sm:h-9"
+   279→              />
+   280→              {editDue && (
+   281→                <button
+   282→                  type="button"
+   283→                  onClick={() => setEditDue("")}
+   284→                  aria-label="Retirer l’échéance"
+   285→                  title="Retirer l’échéance"
+   286→                  className="grid size-8 place-items-center rounded-md text-faint transition-colors hover:bg-accent hover:text-foreground"
+   287→                >
+   288→                  <X className="size-3.5" />
+   289→                </button>
+   290→              )}
+   291→            </div>
+   292→            <RecurrencePicker
+   293→              value={editRec}
+   294→              onChange={setEditRec}
+   295→              label="Répétition de la tâche"
+   296→            />
+   297→            <div className="flex gap-2">
+   298→              <Button
+   299→                type="submit"
+   300→                disabled={!editText.trim()}
+   301→                className="min-h-11 flex-1 rounded-xl active:scale-[0.98]"
+   302→              >
+   303→                <Check className="size-4" /> Enregistrer
+   304→              </Button>
+   305→              <Button
+   306→                type="button"
+   307→                variant="outline"
+   308→                onClick={cancelTaskEdit}
+   309→                className="min-h-11 rounded-xl"
+   310→              >
+   311→                <X className="size-4" /> Annuler
+   312→              </Button>
+   313→            </div>
+   314→          </form>
+   315→        ) : (
+   316→          <>
+   317→            <GripVertical
+   318→              aria-hidden
+   319→              className="mt-0.5 size-4 shrink-0 cursor-grab text-faint/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+   320→            />
+   321→            <Checkbox
+   322→              checked={t.done}
+   323→              onCheckedChange={(v) => {
+   324→                const nextDone = v === true;
+   325→                if (nextDone && !t.done && t.recurrence) {
+   326→                  toggleTask(t.id, true);
+   327→                  toast.info(
+   328→                    `Prochaine occurrence planifiée : ${frDateShort(
+   329→                      nextDueDate(t.dueDate, t.recurrence),
+   330→                    )}`,
+   331→                  );
+   332→                } else {
+   333→                  toggleTask(t.id, nextDone);
+   334→                }
+   335→              }}
+   336→              aria-label={t.done ? "Marquer comme à faire" : "Marquer comme terminée"}
+   337→              className="mt-0.5 size-5"
+   338→            />
+   339→            <span
+   340→              className={`min-w-[140px] flex-1 basis-[140px] break-words text-sm leading-relaxed ${
+   341→                t.done ? "line-through" : ""
+   342→              }`}
+   343→            >
+   344→              {t.text}
+   345→            </span>
+   346→            {due && dueDays !== null && (
+   347→              <span
+   348→                title={`Échéance : ${dueDateLabel(due)}`}
+   349→                className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+   350→                  dueDays < 0
+   351→                    ? "border-destructive/30 bg-destructive/15 text-destructive"
+   352→                    : dueDays === 0
+   353→                      ? "border-brand/30 bg-brand/15 text-brand"
+   354→                      : "bg-secondary text-muted-foreground"
+   355→                }`}
+   356→              >
+   357→                {dueDays === 0 ? (
+   358→                  <CalendarClock className="size-[11px]" />
+   359→                ) : (
+   360→                  <Calendar className="size-[11px]" />
+   361→                )}
+   362→                {frDateShort(due)}
+   363→              </span>
+   364→            )}
+   365→            {t.recurrence && (
+   366→              <span
+   367→                title={`Répétition ${RECURRENCE_LABELS[t.recurrence].toLowerCase()}`}
+   368→                className="inline-flex shrink-0 items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
+   369→              >
+   370→                <Repeat className="size-3" />
+   371→                {RECURRENCE_SHORT[t.recurrence]}
+   372→              </span>
+   373→            )}
+   374→            {!t.done && (
+   375→              <div
+   376→                role="group"
+   377→                aria-label={`Estimation de la tâche : ${t.text}`}
+   378→                className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-background/60"
+   379→              >
+   380→                <button
+   381→                  type="button"
+   382→                  aria-label="Diminuer l’estimation"
+   383→                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) - 1)}
+   384→                  disabled={(t.estimate ?? 1) <= 1}
+   385→                  className="grid size-6 place-items-center rounded-l-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+   386→                >
+   387→                  <Minus className="size-3" />
+   388→                </button>
+   389→                <span
+   390→                  title={`Estimation : ${t.estimate ?? 1} pomodoro${(t.estimate ?? 1) > 1 ? "s" : ""} · Effectués : ${t.spent ?? 0}`}
+   391→                  className={`w-9 text-center text-[11px] font-semibold tabular-nums ${
+   392→                    (t.spent ?? 0) >= (t.estimate ?? 1) ? "text-brand" : "text-muted-foreground"
+   393→                  }`}
+   394→                >
+   395→                  {t.spent ?? 0}/{t.estimate ?? 1}
+   396→                </span>
+   397→                <button
+   398→                  type="button"
+   399→                  aria-label="Augmenter l’estimation"
+   400→                  onClick={() => setTaskEstimate(t.id, (t.estimate ?? 1) + 1)}
+   401→                  disabled={(t.estimate ?? 1) >= 12}
+   402→                  className="grid size-6 place-items-center rounded-r-md text-faint transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+   403→                >
+   404→                  <Plus className="size-3" />
+   405→                </button>
+   406→              </div>
+   407→            )}
+   408→            {!t.done && (
+   409→              <button
+   410→                onClick={() => setActiveTask(t.id)}
+   411→                aria-label="Lier au minuteur"
+   412→                title="Lier au minuteur"
+   413→                className={`transition-colors ${
+   414→                  t.active ? "text-brand" : "text-faint hover:text-foreground"
+   415→                }`}
+   416→              >
+   417→                <Crosshair className="size-4" />
+   418→              </button>
+   419→            )}
+   420→            <button
+   421→              type="button"
+   422→              onClick={() => startTaskEdit(t)}
+   423→              aria-label={`Modifier la tâche : ${t.text}`}
+   424→              title="Modifier la tâche"
+   425→              className="text-faint transition-colors hover:text-foreground"
+   426→            >
+   427→              <Pencil className="size-4" />
+   428→            </button>
+   429→            <button
+   430→              onClick={() => removeTask(t.id)}
+   431→              aria-label={`Supprimer la tâche : ${t.text}`}
+   432→              className="text-faint transition-colors hover:text-destructive"
+   433→            >
+   434→              <Trash2 className="size-4" />
+   435→            </button>
+   436→            {tasks.length > 1 && (
+   437→              <div
+   438→                role="group"
+   439→                aria-label={`Déplacer la tâche : ${t.text}`}
+   440→                className="flex shrink-0 flex-col gap-0.5"
+   441→              >
+   442→                <button
+   443→                  type="button"
+   444→                  onClick={() => moveTask(t.id, -1)}
+   445→                  disabled={storeIndex === 0}
+   446→                  aria-label={`Monter la tâche : ${t.text}`}
+   447→                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+   448→                >
+   449→                  <ChevronUp className="size-3.5" />
+   450→                </button>
+   451→                <button
+   452→                  type="button"
+   453→                  onClick={() => moveTask(t.id, 1)}
+   454→                  disabled={storeIndex === tasks.length - 1}
+   455→                  aria-label={`Descendre la tâche : ${t.text}`}
+   456→                  className="grid size-4 place-items-center text-faint transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-faint"
+   457→                >
+   458→                  <ChevronDown className="size-3.5" />
+   459→                </button>
+   460→              </div>
+   461→            )}
+   462→            {t.done && t.recurrence && (
+   463→              <p className="w-full text-xs text-faint">
+   464→                Prochaine occurrence : {frDateShort(nextDueDate(t.dueDate, t.recurrence))}
+   465→              </p>
+   466→            )}
+   467→          </>
+   468→        )}
+   469→      </li>
+   470→    );
+   471→  };
+   472→
+   473→  return (
+   474→    <section
+   475→      aria-label="Tâches"
+   476→      className="flex flex-col gap-4 rounded-3xl border bg-card p-6"
+   477→    >
+   478→      <div className="flex flex-wrap items-center justify-between gap-2">
+   479→        <h2 className="m-0 text-base font-bold tracking-tight">Tâches</h2>
+   480→        <div className="flex items-center gap-1.5">
+   481→          {tasks.length >= 2 && (
+   482→            <Button
+   483→              variant="ghost"
+   484→              size="sm"
+   485→              onClick={sortByDueDate}
+   486→              className="text-muted-foreground"
+   487→            >
+   488→              <ArrowDownWideNarrow className="size-4" />
+   489→              Trier par échéance
+   490→            </Button>
+   491→          )}
+   492→          <span className="text-xs font-semibold text-muted-foreground">
+   493→            {remaining} / {tasks.length}
+   494→          </span>
+   495→          {filter !== "toutes" && (
+   496→            <span className="text-xs text-faint">
+   497→              · {visibleTasks.length} affichée{visibleTasks.length > 1 ? "s" : ""}
+   498→            </span>
+   499→          )}
+   500→        </div>
+   501→      </div>
+   502→
+   503→      <div
+   504→        role="group"
+   505→        aria-label="Filtrer les tâches"
+   506→        className="-mt-2 flex flex-wrap items-center gap-1.5"
+   507→      >
+   508→        {TASK_FILTERS.map((f) => (
+   509→          <button
+   510→            key={f.value}
+   511→            type="button"
+   512→            aria-pressed={filter === f.value}
+   513→            onClick={() => setFilter(f.value)}
+   514→            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+   515→              filter === f.value
+   516→                ? "border-brand/40 bg-brand/15 font-medium text-brand"
+   517→                : "text-muted-foreground hover:text-foreground"
+   518→            }`}
+   519→          >
+   520→            {f.label}
+   521→          </button>
+   522→        ))}
+   523→      </div>
+   524→
+   525→      {tasks.length > 0 && remaining > 0 && (
+   526→        <p className="-mt-2 text-[11.5px] text-faint" aria-live="polite">
+   527→          Progression : {spentTotal} sur {plannedTotal} pomodoro{plannedTotal > 1 ? "s" : ""}{" "}
+   528→          estimé{plannedTotal > 1 ? "s" : ""} — tâches en cours
+   529→        </p>
+   530→      )}
+   531→
+   532→      <form
+   533→        className="flex flex-wrap gap-2"
+   534→        autoComplete="off"
+   535→        onSubmit={(e) => {
+   536→          e.preventDefault();
+   537→          if (!value.trim()) return;
+   538→          addTask(value, estimate, dueDate, recurrence ?? undefined);
+   539→          setValue("");
+   540→          setEstimate(1);
+   541→          setDueDate("");
+   542→          setRecurrence(null);
+   543→        }}
+   544→      >
+   545→        <label htmlFor="task-input" className="sr-only">
+   546→          Nouvelle tâche
+   547→        </label>
+   548→        <Input
+   549→          ref={newTaskInputRef}
+   550→          id="task-input"
+   551→          value={value}
+   552→          onChange={(e) => setValue(e.target.value)}
+   553→          placeholder="Ajouter une tâche…"
+   554→          maxLength={200}
+   555→          className="min-h-11 min-w-[200px] flex-1 rounded-xl"
+   556→        />
+   557→        <div
+   558→          role="group"
+   559→          aria-label="Estimation en pomodoros"
+   560→          className="flex items-center rounded-xl border bg-secondary"
+   561→        >
+   562→          <button
+   563→            type="button"
+   564→            aria-label="Diminuer l’estimation"
+   565→            onClick={() => setEstimate((v) => Math.max(1, v - 1))}
+   566→            disabled={estimate <= 1}
+   567→            className="grid size-9 place-items-center rounded-l-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-35 disabled:hover:bg-transparent"
+   568→          >
+   569→            <Minus className="size-3.5" />
+   570→          </button>
+   571→          <span
+   572→            aria-live="polite"
+   573→            title={`${estimate} pomodoro${estimate > 1 ? "s" : ""} estimé${estimate > 1 ? "s" : ""}`}
+   574→            className="w-9 text-center text-[13px] font-semibold tabular-nums"
+   575→          >
+   576→            {estimate}
+   577→          </span>
+   578→          <button
+   579→            type="button"
+   580→            aria-label="Augmenter l’estimation"
+   581→            onClick={() => setEstimate((v) => Math.min(12, v + 1))}
+   582→            disabled={estimate >= 12}
+   583→            className="grid size-9 place-items-center rounded-r-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-35 disabled:hover:bg-transparent"
+   584→          >
+   585→            <Plus className="size-3.5" />
+   586→          </button>
+   587→        </div>
+   588→        <Input
+   589→          type="date"
+   590→          value={dueDate}
+   591→          onChange={(e) => setDueDate(e.target.value)}
+   592→          aria-label="Échéance (optionnelle)"
+   593→          className="h-9 w-[122px] rounded-xl border bg-secondary/60 px-2 text-xs [color-scheme:light] dark:bg-secondary/60 dark:[color-scheme:dark]"
+   594→        />
+   595→        <RecurrencePicker
+   596→          value={recurrence}
+   597→          onChange={setRecurrence}
+   598→          label="Répétition de la nouvelle tâche"
+   599→        />
+   600→        <Button type="submit" className="min-h-11 rounded-xl active:scale-[0.98]">
+   601→          <Plus className="size-4" /> Ajouter
+   602→        </Button>
+   603→      </form>
+   604→
+   605→      {filter === "aujourdhui" ? (
+   606→        /* Sectioned « Aujourd’hui » — overdue first, then today's due dates, then done.
+   607→           Empty sections are never rendered (no header without content). */
+   608→        <div className="slim-scroll flex max-h-96 flex-col gap-4 overflow-y-auto">
+   609→          {overdueTasks.length > 0 && (
+   610→            <section aria-labelledby="tasks-overdue-heading" className="flex flex-col gap-2">
+   611→              <h3
+   612→                id="tasks-overdue-heading"
+   613→                className="m-0 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint"
+   614→              >
+   615→                <span aria-hidden className="size-1.5 rounded-full bg-destructive/70" />
+   616→                En retard · {overdueTasks.length}
+   617→              </h3>
+   618→              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+   619→                {overdueTasks.map(renderTask)}
+   620→              </ul>
+   621→            </section>
+   622→          )}
+   623→          {dueTodayTasks.length > 0 && (
+   624→            <section aria-labelledby="tasks-today-heading" className="flex flex-col gap-2">
+   625→              <h3
+   626→                id="tasks-today-heading"
+   627→                className="m-0 text-[11px] font-semibold uppercase tracking-wide text-faint"
+   628→              >
+   629→                Échéances du jour · {dueTodayTasks.length}
+   630→              </h3>
+   631→              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+   632→                {dueTodayTasks.map(renderTask)}
+   633→              </ul>
+   634→            </section>
+   635→          )}
+   636→          {doneInView.length > 0 && (
+   637→            <section aria-labelledby="tasks-done-heading" className="flex flex-col gap-2">
+   638→              <h3
+   639→                id="tasks-done-heading"
+   640→                className="m-0 text-[11px] font-semibold uppercase tracking-wide text-faint"
+   641→              >
+   642→                Terminées · {doneInView.length}
+   643→              </h3>
+   644→              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+   645→                {doneInView.map(renderTask)}
+   646→              </ul>
+   647→            </section>
+   648→          )}
+   649→        </div>
+   650→      ) : (
+   651→        <ul className="slim-scroll flex max-h-96 list-none flex-col gap-2 overflow-y-auto p-0 m-0">
+   652→          {visibleTasks.map(renderTask)}
+   653→        </ul>
+   654→      )}
+   655→
+   656→      {tasks.length === 0 && (
+   657→        <div className="rounded-xl border border-dashed px-4 py-6 text-center text-[13.5px] text-faint">
+   658→          Aucune tâche pour le moment. Ajoutez-en une pour la lier au minuteur.
+   659→        </div>
+   660→      )}
+   661→
+   662→      {tasks.length > 0 && visibleTasks.length === 0 && filter !== "toutes" && (
+   663→        filter === "retard" ? (
+   664→          <div className="flex flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center text-[13.5px] text-faint">
+   665→            <CheckCircle2 aria-hidden className="size-5 text-brand" />
+   666→            Aucune tâche en retard. Vous êtes à jour.
+   667→          </div>
+   668→        ) : (
+   669→          <div className="rounded-xl border border-dashed px-4 py-6 text-center text-[13.5px] text-faint">
+   670→            Rien de prévu aujourd’hui. Profitez-en ou planifiez une échéance.
+   671→          </div>
+   672→        )
+   673→      )}
+   674→
+   675→      {doneCount > 0 && (
+   676→        <Button variant="ghost" size="sm" className="self-start" onClick={clearDoneTasks}>
+   677→          Effacer les tâches terminées ({doneCount})
+   678→        </Button>
+   679→      )}
+   680→    </section>
+   681→  );
+   682→}
+   683→

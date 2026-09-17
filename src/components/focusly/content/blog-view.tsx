@@ -11,8 +11,13 @@ import { BLOG_POSTS } from "@/lib/focusly/blog";
 import { frDate } from "@/lib/focusly/types";
 import { Breadcrumb } from "./breadcrumb";
 
-const CARD_CLASS =
-  "group flex h-full flex-col rounded-2xl border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-input hover:shadow-lg hover:shadow-black/10";
+/* .lift (r7-d) remplace l’ancien trio transition-all/hover — même traitement
+   que les cartes de l’accueil. .fade-up-soft (r9) : entrée en cascade sans
+   fill « forwards », sinon l’animation écraserait le :hover de .lift. */
+const CARD_CLASS = "group flex h-full flex-col rounded-2xl border bg-card p-5 lift";
+
+/** Entrée en cascade plafonnée à 3 niveaux de délai (recommence à la rangée suivante). */
+const FADE_STEPS: readonly string[] = ["", " fade-up-1", " fade-up-2"];
 
 const CHIP_SHAPE =
   "rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors";
@@ -65,16 +70,16 @@ export function BlogView() {
       <Breadcrumb
         items={[{ label: "Accueil", href: "accueil" }, { label: "Blog" }]}
       />
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+      <h1 className="fade-up text-3xl font-bold tracking-tight sm:text-4xl">
         Le blog de Focusly
       </h1>
-      <p className="mt-3 text-[17px] text-muted-foreground">
+      <p className="fade-up fade-up-1 mt-3 text-[17px] text-muted-foreground">
         Articles et guides sur la concentration, la productivité et la gestion
         du temps.
       </p>
 
       {/* Barre d’outils : recherche + filtre par tag (collante au défilement sur écran large) */}
-      <div className="mt-8 sm:sticky sm:top-[65px] sm:z-20 sm:-mb-4 sm:bg-background/95 sm:pb-4 sm:backdrop-blur-sm">
+      <div className="fade-up-soft fade-up-2 mt-8 sm:sticky sm:top-[65px] sm:z-20 sm:-mb-4 sm:bg-background/95 sm:pb-4 sm:backdrop-blur-sm">
         <div className="relative max-w-[380px]">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint"
@@ -116,7 +121,7 @@ export function BlogView() {
           ))}
         </div>
 
-        <p aria-live="polite" className="mt-4 text-[13px] text-faint">
+        <p aria-live="polite" className="tnum mt-4 text-[13px] text-faint">
           {isFiltering
             ? `${filtered.length} article${filtered.length > 1 ? "s" : ""} trouvé${filtered.length > 1 ? "s" : ""}`
             : `${BLOG_POSTS.length} articles`}
@@ -124,21 +129,21 @@ export function BlogView() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-4 rounded-xl border border-dashed p-8 text-center">
+        <div className="fade-up mt-4 rounded-xl border border-dashed p-8 text-center">
           <p className="text-sm text-muted-foreground">
             Aucun article ne correspond à votre recherche.
           </p>
-          <Button variant="ghost" className="mt-4" onClick={resetFilters}>
+          <Button variant="ghost" className="press mt-4" onClick={resetFilters}>
             Réinitialiser les filtres
           </Button>
         </div>
       ) : (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((post) => (
+          {filtered.map((post, i) => (
             <Link
               key={post.slug}
               href={`#blog/${post.slug}`}
-              className={CARD_CLASS}
+              className={`${CARD_CLASS} fade-up-soft${FADE_STEPS[i % 3]}`}
             >
               <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
                 {post.tag}
@@ -150,10 +155,10 @@ export function BlogView() {
                 {post.excerpt}
               </p>
               <div className="mt-auto flex flex-wrap items-center gap-x-2.5 gap-y-2 pt-4">
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="tnum">
                   ~{post.readMinutes} min de lecture
                 </Badge>
-                <span className="text-[12px] text-faint">
+                <span className="tnum text-[12px] text-faint">
                   {frDate(post.date)}
                 </span>
                 <ArrowRight
