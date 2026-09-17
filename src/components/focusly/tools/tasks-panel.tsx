@@ -22,6 +22,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useFocusly } from "@/lib/focusly/store";
 import {
   clampRecurrenceDays,
@@ -34,6 +41,7 @@ import {
   RECURRENCE_DAYS_MIN,
   RECURRENCE_LABELS,
   RECURRENCE_SHORT,
+  todayKey,
   type TaskItem,
   type TaskRecurrence,
 } from "@/lib/focusly/types";
@@ -47,6 +55,109 @@ function dueDateLabel(key: string): string {
 
 /** View-level filters — « Aujourd’hui » = due today or overdue, « En retard » = overdue only */
 type TaskFilter = "toutes" | "aujourdhui" | "retard";
+
+/** Local YYYY-MM-DD key offset by N days from today — same local-parts arithmetic as todayKey
+ *  (new Date(y, m-1, d + N) auto-normalizes month/year overflow; never ISO/UTC) */
+function dayKeyFromToday(offsetDays: number): string {
+  const now = new Date();
+  return todayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays));
+}
+
+/** Quick-reschedule destinations offered on every task row */
+type RescheduleChoice = "today" | "tomorrow" | "week" | "none";
+
+/** Short French confirmation toast for each quick-reschedule choice */
+const RESCHEDULE_TOASTS: Record<RescheduleChoice, string> = {
+  today: "Tâche reprogrammée pour aujourd’hui.",
+  tomorrow: "Tâche reprogrammée pour demain.",
+  week: "Tâche reprogrammée dans une semaine.",
+  none: "Échéance retirée.",
+};
+
+/** Due-date key written by each quick-reschedule choice (day-key format, same as addTask) */
+function rescheduleKey(choice: Exclude<RescheduleChoice, "none">): string {
+  return dayKeyFromToday(choice === "today" ? 0 : choice === "tomorrow" ? 1 : 7);
+}
+
+/**
+ * Row-level quick reschedule (closes the R9+R10 « glisser une tâche dans
+ * Échéances du jour » need — fast replanning to today, no cross-filter DnD):
+ * - overdue to-do → the dominant case is a one-click « back to today », no menu;
+ * - every other row → a compact dropdown menu (Aujourd’hui / Demain /
+ *   Dans une semaine / Retirer l’échéance). Pure view: mutation happens
+ *   through onReschedule so the panel keeps a single updateTask call site.
+ * The icon matches the other row icons (size-4, ghost hover); the 44 px hit
+ * area comes from symmetric padding cancelled by negative margins, so the
+ * visual layout of the row is unchanged and the target stays ≥ 44 px on touch.
+ */
+function RescheduleControl({
+  task,
+  onReschedule,
+}: {
+  task: TaskItem;
+  onReschedule: (choice: RescheduleChoice) => void;
+}) {
+  const dueDays = task.dueDate ? daysUntil(task.dueDate) : null;
+  if (!task.done && dueDays !== null && dueDays < 0) {
+    return (
+      <button
+        type="button"
+        onClick={() => onReschedule("today")}
+        aria-label={`Reprogrammer pour aujourd’hui : ${task.text}`}
+        title="Reprogrammer pour aujourd’hui"
+        className="grid size-11 -m-3.5 place-items-center text-faint transition-colors hover:text-foreground"
+      >
+        <CalendarClock className="size-4" />
+      </button>
+    );
+  }
+  /* « Aujourd’hui » is pointless when the due date already is today */
+  const showToday = !task.dueDate || (dueDays !== null && dueDays !== 0);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Reprogrammer : ${task.text}`}
+          title="Reprogrammer"
+          className="grid size-11 -m-3.5 place-items-center text-faint transition-colors hover:text-foreground"
+        >
+          <CalendarClock className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {showToday && (
+          <DropdownMenuItem className="justify-between" onSelect={() => onReschedule("today")}>
+            <span>Aujourd’hui</span>
+            <span aria-hidden className="text-xs text-faint">
+              {frDateShort(dayKeyFromToday(0))}
+            </span>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem className="justify-between" onSelect={() => onReschedule("tomorrow")}>
+          <span>Demain</span>
+          <span aria-hidden className="text-xs text-faint">
+            {frDateShort(dayKeyFromToday(1))}
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="justify-between" onSelect={() => onReschedule("week")}>
+          <span>Dans une semaine</span>
+          <span aria-hidden className="text-xs text-faint">
+            {frDateShort(dayKeyFromToday(7))}
+          </span>
+        </DropdownMenuItem>
+        {task.dueDate && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onReschedule("none")}>
+              Retirer l’échéance
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 const TASK_FILTERS: Array<{ value: TaskFilter; label: string }> = [
   { value: "toutes", label: "Toutes" },
@@ -217,6 +328,17 @@ export function TasksPanel() {
   };
 
   const cancelTaskEdit = () => setEditingId(null);
+
+  /**
+   * Quick reschedule (R9+R10 follow-up — « replanifier vite vers aujourd’hui »):
+   * writes a fresh due-date day key (or clears it) through the existing
+   * updateTask patch. Recurrence is untouched by the partial patch, so a
+   * rescheduled recurring task keeps spawning — anchored on its NEW due date.
+   */
+  const rescheduleTask = (id: string, choice: RescheduleChoice) => {
+    updateTask(id, choice === "none" ? { dueDate: "" } : { dueDate: rescheduleKey(choice) });
+    toast.success(RESCHEDULE_TOASTS[choice]);
+  };
 
   const saveTaskEdit = (e: FormEvent) => {
     e.preventDefault();
@@ -434,6 +556,7 @@ export function TasksPanel() {
                   : RECURRENCE_SHORT[t.recurrence]}
               </span>
             )}
+            <RescheduleControl task={t} onReschedule={(choice) => rescheduleTask(t.id, choice)} />
             {!t.done && (
               <div
                 role="group"

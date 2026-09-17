@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Minus, Play, Plus, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useFocusly } from "@/lib/focusly/store";
@@ -32,6 +33,25 @@ import {
   requestNotificationPermission,
 } from "@/lib/focusly/chime";
 import { SETTINGS_FIELDS, SOUND_KINDS, type SoundKind } from "@/lib/focusly/types";
+
+/* Section groupings (visual only): the fields themselves stay defined in
+ * types.ts (imported SETTINGS_FIELDS) — same keys, labels, min/max and
+ * render order as before. */
+const DURATION_FIELDS = SETTINGS_FIELDS.filter(
+  (f) => f.key === "focus" || f.key === "short" || f.key === "long",
+);
+const GOAL_FIELDS = SETTINGS_FIELDS.filter(
+  (f) => f.key === "longEvery" || f.key === "dailyGoal",
+);
+
+/* Small uppercase French section label (round 11 dialog rhythm) */
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-wide text-faint">
+      {children}
+    </p>
+  );
+}
 
 export function SettingsDialog() {
   const open = useFocusly((s) => s.settingsOpen);
@@ -71,6 +91,47 @@ export function SettingsDialog() {
     }
   };
 
+  /* One settings row (stepper cluster). Shared verbatim by the two grouped
+     sections — same markup, ids and handlers as the previous flat list. */
+  const renderField = (f: (typeof SETTINGS_FIELDS)[number]) => (
+    <div key={f.key} className="flex items-center justify-between gap-3">
+      <Label htmlFor={`set-${f.key}`} className="text-sm text-soft">
+        {f.label}
+      </Label>
+      <div className="flex items-center gap-0.5 rounded-xl border bg-secondary p-0.5">
+        <button
+          type="button"
+          aria-label={`Diminuer ${f.label}`}
+          onClick={() => stepSetting(f.key, -1)}
+          className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Minus className="size-4" />
+        </button>
+        <input
+          id={`set-${f.key}`}
+          type="number"
+          inputMode="numeric"
+          min={f.min}
+          max={f.max}
+          step={1}
+          value={settings[f.key]}
+          onChange={(e) =>
+            updateSettings({ [f.key]: Number(e.target.value) } as never)
+          }
+          className="w-[52px] bg-transparent text-center text-[15px] font-semibold text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <button
+          type="button"
+          aria-label={`Augmenter ${f.label}`}
+          onClick={() => stepSetting(f.key, 1)}
+          className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Plus className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-h-[90vh] w-[min(440px,calc(100vw-2rem))] overflow-y-auto rounded-3xl p-6">
@@ -83,47 +144,26 @@ export function SettingsDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2.5">
-          {SETTINGS_FIELDS.map((f) => (
-            <div key={f.key} className="flex items-center justify-between gap-3">
-              <Label htmlFor={`set-${f.key}`} className="text-sm text-soft">
-                {f.label}
-              </Label>
-              <div className="flex items-center gap-0.5 rounded-xl border bg-secondary p-0.5">
-                <button
-                  type="button"
-                  aria-label={`Diminuer ${f.label}`}
-                  onClick={() => stepSetting(f.key, -1)}
-                  className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <Minus className="size-4" />
-                </button>
-                <input
-                  id={`set-${f.key}`}
-                  type="number"
-                  inputMode="numeric"
-                  min={f.min}
-                  max={f.max}
-                  step={1}
-                  value={settings[f.key]}
-                  onChange={(e) =>
-                    updateSettings({ [f.key]: Number(e.target.value) } as never)
-                  }
-                  className="w-[52px] bg-transparent text-center text-[15px] font-semibold text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
-                <button
-                  type="button"
-                  aria-label={`Augmenter ${f.label}`}
-                  onClick={() => stepSetting(f.key, 1)}
-                  className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <Plus className="size-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+        {/* Grouped sections (round 11): Durées / Objectifs / Sons et alertes /
+            Comportement — pure visual grouping, same rows, ids and logic. */}
+        <div role="group" aria-label="Durées" className="flex flex-col gap-2.5">
+          <SectionLabel>Durées</SectionLabel>
+          {DURATION_FIELDS.map(renderField)}
+        </div>
 
-          <div className="mt-2 flex items-center justify-between gap-3">
+        <Separator />
+
+        <div role="group" aria-label="Objectifs" className="flex flex-col gap-2.5">
+          <SectionLabel>Objectifs</SectionLabel>
+          {GOAL_FIELDS.map(renderField)}
+        </div>
+
+        <Separator />
+
+        <div role="group" aria-label="Sons et alertes" className="flex flex-col gap-2.5">
+          <SectionLabel>Sons et alertes</SectionLabel>
+
+          <div className="flex items-center justify-between gap-3">
             <Label htmlFor="set-sound" className="text-sm text-soft">
               Sonnerie de fin
             </Label>
@@ -208,6 +248,12 @@ export function SettingsDialog() {
               </div>
             </>
           )}
+        </div>
+
+        <Separator />
+
+        <div role="group" aria-label="Comportement" className="flex flex-col gap-2.5">
+          <SectionLabel>Comportement</SectionLabel>
 
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="set-notif" className="text-sm text-soft">
@@ -256,7 +302,7 @@ export function SettingsDialog() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="secondary" className="w-full rounded-xl">

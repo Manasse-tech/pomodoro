@@ -9,6 +9,7 @@ import {
   Keyboard,
   Mail,
   Map,
+  Maximize2,
   Newspaper,
   Pause,
   Play,
@@ -28,7 +29,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { navigate } from "@/lib/focusly/router";
+import { getHashRoute, navigate } from "@/lib/focusly/router";
 import { useFocusly } from "@/lib/focusly/store";
 
 interface NavItem {
@@ -128,6 +129,22 @@ export function CommandPalette() {
           >
             <SkipForward />
             Passer au mode suivant
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              setOpen(false);
+              // Zen lives on the Outils view: make sure it is mounted before
+              // the toggle event fires (outils-view listens for it). Same
+              // window-event channel as « focusly:open-command » — no store
+              // flag (store.ts is off-limits for this round).
+              if (getHashRoute() !== "outils") navigate("outils");
+              window.setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("focusly:toggle-zen"));
+              }, 200);
+            }}
+          >
+            <Maximize2 />
+            Mode zen
           </CommandItem>
         </CommandGroup>
 

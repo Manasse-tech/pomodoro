@@ -183,6 +183,20 @@ export async function POST(request: Request) {
         message,
       },
     });
+    // Colonne `search` (ajoutée au schéma après la génération du client mis en
+    // cache par le serveur de dev) : écrite en SQL brut avec paramètres liés —
+    // voir la note au-dessus de selectContactPage. En cas d'échec, le message
+    // reste créé : le backfill paresseux du GET réparera la ligne (search IS
+    // NULL) au prochain chargement de l'admin.
+    try {
+      await db.$executeRaw`
+        UPDATE "ContactMessage"
+        SET "search" = ${buildSearchValue({ name, email, subject, message, reply: null })}
+        WHERE "id" = ${created.id}
+      `;
+    } catch (searchError) {
+      console.error("[/api/contact] Échec d'indexation search :", searchError);
+    }
     return NextResponse.json({ ok: true, id: created.id }, { status: 200 });
   } catch (error) {
     console.error("[/api/contact] Échec d'enregistrement :", error);
@@ -282,16 +296,94 @@ function escapeLikePattern(value: string): string {
 }
 
 /**
- * Clause WHERE partagée par la liste paginée, le compteur « total » et l'export CSV :
- * filtre (actifs / non-lus / archives) + recherche plein texte ?q= sur
- * name / email / subject / message / reply.
+ * Pliage accent-insensible (fold) : décomposition canonique NFD → suppression
+ * des signes diacritiques combinants (é → e, à → a, ç → c, ü → u…) → minuscules.
  *
- * Recherche : LIKE avec LOWER() des deux côtés — insensible à la casse ASCII
- * (SQLite LOWER() ne foldant que l'ASCII). Les jokers LIKE du user (%, _) sont
- * neutralisés (ESCAPE '\') pour une recherche littérale.
- * ⚠️ Limitation assumée, documentée honnêtement : SQLite n'a pas de collation
- * insensible aux accents, LIKE est donc ACCENT-SENSIBLE — taper « reponse »
- * ne trouvera pas « réponse ».
+ * ⚠️ Cohérence contractuelle : cette fonction est utilisée À L'IDENTIQUE pour
+ * (1) l'INDEXATION — remplissage de la colonne `search` à chaque écriture
+ * (POST, PATCH reply/read/archive, backfill) — et (2) la REQUÊTE — pliage de
+ * ?q= dans buildWhereClause. Une seule implémentation partagée par les deux
+ * chemins garantit que l'index et la requête ne peuvent jamais diverger.
+ *
+ * Limitation assumée : les ligatures non décomposables par NFD (œ, æ) sont
+ * conservées telles quelles — « cœur » trouvera « Cœur » (casse pliée) mais
+ * pas la variante « coeur ».
+ */
+function fold(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * Valeur de la colonne `search` : concaténation pliée des champs textuels du
+ * message (reply inclus — répondre met l'index à jour). Les champs optionnels
+ * absents (subject / reply) comptent pour une chaîne vide.
+ */
+function buildSearchValue(parts: {
+  name: string;
+  email: string;
+  subject: string | null;
+  message: string;
+  reply?: string | null;
+}): string {
+  return fold(
+    [parts.name, parts.email, parts.subject ?? "", parts.message, parts.reply ?? ""].join(" "),
+  );
+}
+
+/**
+ * Backfill paresseux de la colonne `search` : les lignes insérées avant la
+ * migration (search IS NULL) sont recalculées en JS (fold) puis écrites en
+ * $executeRaw, au premier GET qui les détecte.
+ *
+ * Garde anti-travail inutile : le SELECT … WHERE search IS NULL EST la garde —
+ * une fois toutes les lignes renseignées, chaque GET ne paie qu'une lecture
+ * vide (table de boîte de contact, quelques centaines de lignes max) et le
+ * backfill ne réécrit jamais une ligne déjà indexée. Il est aussi auto-réparant
+ * (une ligne NULL insérée par un chemin externe est rattrapée). Idempotent en
+ * cas de GET concurrents : deux écritures du même fold sont identiques.
+ * Une erreur n'interrompt JAMAIS le GET (journalisée, retentée au GET suivant).
+ */
+async function ensureSearchBackfill(): Promise<void> {
+  try {
+    const pending = await db.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        email: string;
+        subject: string | null;
+        message: string;
+        reply: string | null;
+      }>
+    >`
+      SELECT "id", "name", "email", "subject", "message", "reply"
+      FROM "ContactMessage"
+      WHERE "search" IS NULL
+    `;
+    for (const row of pending) {
+      await db.$executeRaw`
+        UPDATE "ContactMessage"
+        SET "search" = ${buildSearchValue(row)}
+        WHERE "id" = ${row.id}
+      `;
+    }
+  } catch (error) {
+    console.error("[/api/contact] Backfill de la colonne search impossible :", error);
+  }
+}
+
+/**
+ * Clause WHERE partagée par la liste paginée, le compteur « total » et l'export CSV :
+ * filtre (actifs / non-lus / archives) + recherche plein texte ?q= sur la
+ * colonne `search` (concaténation pliée de name + email + subject + message + reply).
+ *
+ * Recherche : la requête est pliée avec le MÊME fold() que l'indexation (NFD →
+ * diacritiques retirés → minuscules) puis comparée LIKE à la colonne `search` —
+ * la recherche est désormais ACCENT-INSENSIBLE (« reponse » trouve « réponse »,
+ * « REUNION » trouve « réunion ») et insensible à la casse. Les jokers LIKE du
+ * user (%, _) sont neutralisés (ESCAPE '\') pour une recherche littérale.
  */
 function buildWhereClause(filter: ContactFilter, query: string): Prisma.Sql {
   const chunks: Prisma.Sql[] = [];
@@ -302,16 +394,10 @@ function buildWhereClause(filter: ContactFilter, query: string): Prisma.Sql {
   } else {
     chunks.push(Prisma.sql`"archived" = 0`);
   }
-  const needle = query.trim().toLowerCase();
+  const needle = fold(query.trim());
   if (needle.length > 0) {
     const pattern = `%${escapeLikePattern(needle)}%`;
-    chunks.push(
-      Prisma.sql`(LOWER("name") LIKE ${pattern} ESCAPE '\\'
-        OR LOWER("email") LIKE ${pattern} ESCAPE '\\'
-        OR LOWER(COALESCE("subject", '')) LIKE ${pattern} ESCAPE '\\'
-        OR LOWER("message") LIKE ${pattern} ESCAPE '\\'
-        OR LOWER(COALESCE("reply", '')) LIKE ${pattern} ESCAPE '\\')`,
-    );
+    chunks.push(Prisma.sql`"search" LIKE ${pattern} ESCAPE '\\'`);
   }
   return Prisma.sql` WHERE ${Prisma.join(chunks, " AND ")}`;
 }
@@ -377,11 +463,15 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const requestedPage = positiveIntParam(params.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
   const pageSize = positiveIntParam(params.get("pageSize"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
-  // Recherche ?q= : trim + plafonnée à 100 caractères (accent-sensitive — voir buildWhereClause).
+  // Recherche ?q= : trim + plafonnée à 100 caractères, puis pliée par
+  // buildWhereClause avec le même fold() que l'indexation (accent-insensible).
   const query = (params.get("q") ?? "").trim().slice(0, MAX_QUERY_LENGTH);
   const filter = parseFilterParam(params.get("filter"));
 
   try {
+    // Répare les lignes antérieures à la colonne `search` (search IS NULL)
+    // AVANT toute lecture filtrée — no-op tant que tout est indexé.
+    await ensureSearchBackfill();
     const where = buildWhereClause(filter, query);
     const [filteredTotal, unread] = await Promise.all([
       // `total` = messages correspondant au filtre + à la recherche (la pagination
@@ -442,19 +532,51 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
   }
 
-  let body: { id?: unknown; read?: unknown; archived?: unknown; reply?: unknown };
+  let body: {
+    id?: unknown;
+    read?: unknown;
+    archived?: unknown;
+    reply?: unknown;
+    markAllRead?: unknown;
+  };
   try {
     body = (await request.json()) as {
       id?: unknown;
       read?: unknown;
       archived?: unknown;
       reply?: unknown;
+      markAllRead?: unknown;
     };
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const { id, read, archived, reply } = body;
+
+  // Action globale « tout marquer comme lu » : prioritaire sur toute autre
+  // clé du corps (id / read / archived / reply ignorés) — marque TOUS les
+  // messages non archivés comme lus. read/archived sont des colonnes connues
+  // du client périmé : updateMany typé possible (pas de SQL brut nécessaire).
+  // La sémantique de reply reste inchangée (aucune écriture de reply ici).
+  if (body.markAllRead === true) {
+    try {
+      const result = await db.contactMessage.updateMany({
+        where: { archived: false, read: false },
+        data: { read: true },
+      });
+      // Après un « tout lire », plus aucun actif non lu par construction.
+      return NextResponse.json(
+        { ok: true, updated: result.count, unread: 0 },
+        { status: 200 },
+      );
+    } catch (error) {
+      console.error("[/api/contact] Échec du marquage global comme lu :", error);
+      return NextResponse.json(
+        { error: "Erreur serveur. Réessayez." },
+        { status: 500 },
+      );
+    }
+  }
   const hasRead = typeof read === "boolean";
   const hasArchived = typeof archived === "boolean";
   const hasReply = typeof reply === "string";
@@ -482,13 +604,30 @@ export async function PATCH(request: Request) {
 
   // Réponse à un message : on enregistre le texte, on date la réponse et on
   // marque le message comme lu (répondre implique l'avoir lu). Écriture en SQL
-  // brut volontaire — voir la note au-dessus de selectContactPage.
+  // brut volontaire — voir la note au-dessus de selectContactPage. La colonne
+  // `search` est réindexée dans le MÊME UPDATE (le texte de la réponse fait
+  // partie de l'index de recherche) — pliage calculé depuis la ligne relue
+  // AVANT l'écriture (jamais depuis un objet typé : le client périmé omet reply).
   if (hasReply) {
     const nextRead = hasRead ? read : true;
     try {
+      const existing = await selectContactById(id);
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Message introuvable." },
+          { status: 404 },
+        );
+      }
+      const searchValue = buildSearchValue({
+        name: existing.name,
+        email: existing.email,
+        subject: existing.subject,
+        message: existing.message,
+        reply: trimmedReply,
+      });
       const affected = await db.$executeRaw`
         UPDATE "ContactMessage"
-        SET "reply" = ${trimmedReply}, "repliedAt" = ${new Date().toISOString()}, "read" = ${nextRead ? 1 : 0}
+        SET "reply" = ${trimmedReply}, "repliedAt" = ${new Date().toISOString()}, "read" = ${nextRead ? 1 : 0}, "search" = ${searchValue}
         WHERE "id" = ${id}
       `;
       if (affected === 0) {
@@ -509,15 +648,36 @@ export async function PATCH(request: Request) {
   }
 
   // On met à jour uniquement les champs fournis (read et/ou archived).
+  // Chemin typé conservé (colonnes connues du client périmé) ; `search` ne
+  // dépend pas de read/archived mais on la réécrit quand même, pliée depuis
+  // une relecture BRUTE complète — l'objet renvoyé par le client périmé omet
+  // reply, recalculer depuis lui écraserait l'index avec un reply manquant.
+  // Bonus : ce passage réindexe aussi une ligne restée sans search.
   const data: { read?: boolean; archived?: boolean } = {};
   if (hasRead) data.read = read;
   if (hasArchived) data.archived = archived;
 
   try {
+    const existing = await selectContactById(id);
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Message introuvable." },
+        { status: 404 },
+      );
+    }
     const updated = await db.contactMessage.update({
       where: { id },
       data,
     });
+    try {
+      await db.$executeRaw`
+        UPDATE "ContactMessage"
+        SET "search" = ${buildSearchValue(existing)}
+        WHERE "id" = ${id}
+      `;
+    } catch (searchError) {
+      console.error("[/api/contact] Échec de réindexation search :", searchError);
+    }
     return NextResponse.json({ ok: true, message: updated }, { status: 200 });
   } catch {
     return NextResponse.json(

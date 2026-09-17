@@ -25,7 +25,7 @@ export function HelpDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="w-[min(440px,calc(100vw-2rem))] rounded-3xl p-6">
+      <DialogContent className="max-h-[90vh] w-[min(440px,calc(100vw-2rem))] overflow-y-auto rounded-3xl p-6">
         <DialogHeader>
           <DialogTitle className="text-[13px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
             Raccourcis clavier
@@ -34,14 +34,20 @@ export function HelpDialog() {
             Liste des raccourcis clavier disponibles.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-2.5">
+        {/* Editorial rhythm (round 11): hairline-divided rows, kbd pinned
+           right (shrink-0 so « Ctrl K » never wraps). Global `kbd` styling
+           untouched. */}
+        <ul className="m-0 flex list-none flex-col divide-y divide-border p-0">
           {SHORTCUTS.map(([label, key]) => (
-            <div key={key} className="flex items-center justify-between gap-3 text-sm text-soft">
+            <li
+              key={key}
+              className="flex items-center justify-between gap-3 py-2.5 text-sm text-soft first:pt-0 last:pb-0"
+            >
               <span>{label}</span>
-              <kbd>{key}</kbd>
-            </div>
+              <kbd className="shrink-0">{key}</kbd>
+            </li>
           ))}
-        </div>
+        </ul>
         <p className="mt-3 text-center text-xs text-faint">
           Les raccourcis sont désactivés pendant la saisie de texte.
         </p>

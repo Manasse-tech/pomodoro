@@ -602,4 +602,38 @@ kbd {
   }
 }
 
-/* r10-c: css recompile nudge */
+/* ---------- Polish round 11: timer surface & dialogs (purely additive) ---------- */
+
+/* Breathing life for the timer digits, toggled by the view ONLY while a
+   session is running (idle/paused render the plain .time-display — static).
+   Transform/opacity only: zero layout shift, GPU-friendly, and it composes
+   with .time-display's tabular figures. Pairs with .ring-pulse (round 1)
+   on the ring arc — the ring pulses in glow, the digits breathe in place. */
+@keyframes time-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.84;
+    transform: scale(1.012);
+  }
+}
+.time-breathe {
+  animation: time-breathe 3.2s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* Explicit reduced-motion guard for the new round-11 classes (mirrors the
+   r7-d/r8-c/r9-c/r10-c pattern; the global * guard earlier in this file
+   already neutralizes them — this named block documents intent: with reduced
+   motion the timer keeps counting down numerically but never breathes). */
+@media (prefers-reduced-motion: reduce) {
+  .time-breathe {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* r11-c: timer surface polish — recompile nudge */

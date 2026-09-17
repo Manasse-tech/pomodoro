@@ -5,6 +5,7 @@ import {
   Archive,
   ArchiveRestore,
   Check,
+  CheckCheck,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -140,6 +141,8 @@ export function AdminView() {
   const [sendingReply, setSendingReply] = useState(false);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [exportingCsv, setExportingCsv] = useState(false);
+  /* Tout marquer comme lu */
+  const [markingAll, setMarkingAll] = useState(false);
 
   /* Restore a previously unlocked key (same tab only) */
   useEffect(() => {
@@ -452,6 +455,45 @@ export function AdminView() {
     }
   };
 
+  /* ----- Tout marquer comme lu : action globale côté serveur
+     (PATCH { markAllRead: true } → tous les messages non archivés passent en
+     « lu »). Instantané optimiste, restauré en cas d’échec. Sous le filtre
+     « non-lus », la liste se vide (plus aucun message ne correspond). ----- */
+  const handleMarkAllRead = async () => {
+    if (markingAll || unreadCount === 0) return;
+    setMarkingAll(true);
+    const snapshot = { messages, total, unreadCount };
+    setMessages((ms) => ms.map((m) => (m.archived ? m : { ...m, read: true })));
+    setUnreadCount(0);
+    if (filter === "non-lus") {
+      setMessages([]);
+      setTotal(0);
+    }
+    try {
+      const res = await fetch("/api/contact", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey ?? "",
+        },
+        body: JSON.stringify({ markAllRead: true }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Erreur réseau.");
+      }
+      // Le serveur confirme unread = 0 par construction après un « tout lire ».
+      toast.success("Messages marqués comme lus.");
+    } catch (err) {
+      setMessages(snapshot.messages);
+      setTotal(snapshot.total);
+      setUnreadCount(snapshot.unreadCount);
+      toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   /* ----- Export ALL messages matching the current search + filter as CSV
      (server-side endpoint ?format=csv — no pagination limit) ----- */
   const handleExportCsv = async () => {
@@ -596,7 +638,9 @@ export function AdminView() {
               </Badge>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
+          {/* flex-wrap : à 375 px la rangée d'actions passe sur 2 lignes
+              (le bouton « Tout marquer comme lu » est large) sans déborder. */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               variant="outline"
               size="icon"
@@ -607,6 +651,43 @@ export function AdminView() {
             >
               <RefreshCw className={loading ? "animate-spin" : undefined} aria-hidden />
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  aria-label="Tout marquer comme lu"
+                  disabled={unreadCount === 0 || markingAll}
+                >
+                  {markingAll ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <CheckCheck aria-hidden />
+                  )}
+                  Tout marquer comme lu
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Marquer tous les messages non lus comme lus ?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tous les messages non archivés ({unreadCount} non lu
+                    {unreadCount > 1 ? "s" : ""}) seront marqués comme lus.
+                    Chacun pourra ensuite être remis en «&nbsp;non lu&nbsp;»
+                    individuellement.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void handleMarkAllRead()}>
+                    Confirmer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button
               variant="outline"
               size="sm"

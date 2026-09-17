@@ -37,6 +37,10 @@ model ContactMessage {
   email     String
   subject   String?
   message   String
+  /// Colonne technique de recherche admin : concaténation pliée (accents et
+  /// casse retirés via fold()) de name + email + subject + message + reply.
+  /// Maintenue par l'API à chaque écriture (POST/PATCH) — jamais écrite ailleurs.
+  search    String?
   reply     String?
   repliedAt DateTime?
   read      Boolean   @default(false)

@@ -77,7 +77,7 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
             onClick={() => setMode(m)}
             className={`min-h-9 flex-1 whitespace-nowrap rounded-xl px-1 py-2 text-[11.5px] font-semibold transition-colors sm:text-[12.5px] ${
               mode === m
-                ? "bg-accent text-foreground"
+                ? "bg-brand/12 text-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--brand)_35%,transparent)]"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -114,12 +114,26 @@ export function TimerCard({ onOpenSettings }: { onOpenSettings: () => void }) {
             role="timer"
             aria-live="polite"
             aria-atomic
-            className="time-display text-[clamp(42px,12vw,54px)] font-light leading-none"
+            className={`time-display text-[clamp(42px,12vw,54px)] font-light leading-none ${
+              running ? "time-breathe" : ""
+            }`}
           >
             {formatTime(timeLeft)}
           </div>
           <div className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             {MODE_LABELS[mode]}
+          </div>
+          {/* Fixed-height slot for the partial-session hint: rendered empty
+              when the session is at full duration so the centered stack never
+              shifts mid-session. The chip itself is plain static text (the
+              « Reprendre » button label already carries the state to AT). */}
+          <div className="flex h-[18px] items-center justify-center">
+            {isPartial && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/12 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-brand">
+                <span aria-hidden className="size-1 rounded-full bg-brand" />
+                Reprise
+              </span>
+            )}
           </div>
           <div className="flex h-1.5 gap-1.5" aria-hidden>
             {dots.map((_, i) => (
