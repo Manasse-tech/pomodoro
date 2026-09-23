@@ -52,3 +52,13 @@ prompt
 server.log
 # Skills directory
 /skills/
+# --- Internal / secrets hygiene (r12-i) ---
+db/
+upload/
+tool-results/
+agent-ctx/
+analysis/
+worklog.md
+dev.log
+*.log
+!.env.example
