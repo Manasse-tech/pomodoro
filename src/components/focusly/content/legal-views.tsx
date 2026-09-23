@@ -248,11 +248,11 @@ export function MentionsLegalesView() {
 
       <h2 className={H2_CLASS}>Hébergeur</h2>
       <p className={P_CLASS}>
-        Netlify, Inc.
+        Vercel Inc.
         <br />
-        610 22nd Street, Suite 503, San Francisco, CA 94107, États-Unis
+        440 N Barranca Ave #4133, Covina, CA 91723, États-Unis
         <br />
-        www.netlify.com
+        vercel.com
       </p>
 
       <h2 className={H2_CLASS}>Propriété intellectuelle</h2>

@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#outils</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#statistiques</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#guide</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#blog</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#blog/methode-pomodoro-debutant</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#blog/pauses-cerveau</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#blog/comparaison-methodes</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#blog/activites-pauses</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#blog/erreurs-pomodoro</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#blog/etudiants-revisions</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#a-propos</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#contact</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#confidentialite</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#mentions-legales</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://tangerine-cactus-866ff3.netlify.app/#plan-du-site</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#outils</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#statistiques</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#guide</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#blog</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#blog/methode-pomodoro-debutant</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#blog/pauses-cerveau</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#blog/comparaison-methodes</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#blog/activites-pauses</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#blog/erreurs-pomodoro</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#blog/etudiants-revisions</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#a-propos</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#contact</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#confidentialite</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#mentions-legales</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://pomodoro-sage-chi-32.vercel.app/#plan-du-site</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
 </urlset>

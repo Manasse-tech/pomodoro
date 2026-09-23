@@ -1,7 +1,7 @@
 # 📋 Note de sortie — Focusly (r12-c)
 
-**Date** : 17 septembre 2026 · **Périmètre** : déployabilité, efficacité, conformité Google AdSense · **Révision r12-d** : socle AdSense implémenté (contenus 600+, bandeau consentement, ads.txt) · **Révision r12-e** : intégration AdSense réelle (script `ca-pub-6410999448746776`, ads.txt officiel, consentement actif, contact éditeur centralisé) · **Révision r12-f** : site en ligne vérifié, domaine réel + email éditeur + hébergeur · **Révision r12-g** : éditeur nommé (Erik) + fichier de vérification Google Search Console
-**Verdict** : 🟢 **Déployable sous conditions** (checklist §4) · 🟢 **Efficace (QA complète verte)** · 🟢 **Site EN LIGNE** (Netlify HTTPS — version r12-e/r12-f vérifiée en ligne r12-g) · 🟡 **AdSense : validation Google restante** — r12-g : éditeur nommé (Erik) + fichier de vérification Search Console intégré ; CMP TCF requise pour la pub personnalisée EEE/UK
+**Date** : 17 septembre 2026 · **Périmètre** : déployabilité, efficacité, conformité Google AdSense · **Révision r12-d** : socle AdSense implémenté (contenus 600+, bandeau consentement, ads.txt) · **Révision r12-e** : intégration AdSense réelle (script `ca-pub-6410999448746776`, ads.txt officiel, consentement actif, contact éditeur centralisé) · **Révision r12-f** : site en ligne vérifié, domaine réel + email éditeur + hébergeur · **Révision r12-g** : éditeur nommé (Erik) + fichier de vérification Google Search Console · **Révision r12-h** : migration Netlify → **Vercel** (https://pomodoro-sage-chi-32.vercel.app) — déploiement Vercel vérifié à jour (r12-g inclus : preuve de propriété Google EN LIGNE)
+**Verdict** : 🟢 **Déployable sous conditions** (checklist §4) · 🟢 **Efficace (QA complète verte)** · 🟢 **Site EN LIGNE sur Vercel** (HTTPS, version r12-g vérifiée en ligne) · 🟡 **AdSense : validation Google restante** — r12-h : domaine canonique basculé sur Vercel ; CMP TCF requise pour la pub personnalisée EEE/UK
 
 ---
 
@@ -19,8 +19,8 @@
 | Qualité | `tsc --noEmit` 0 erreur · `eslint` 0 erreur · console navigateur 0 erreur sur les 12 routes |
 
 ### ⚠️ Conditions de mise en production (bloquantes)
-1. ✅ **Domaine réel** (r12-f) — URL Netlify `https://tangerine-cactus-866ff3.netlify.app` branchée dans `src/app/layout.tsx` (`metadataBase`, OpenGraph), `public/robots.txt` et `public/sitemap.xml` (17 URLs). Un domaine personnalisé reste optionnel (image de marque) — un seul endroit à changer le cas échéant : `SITE_INFO.siteUrl`.
-2. **Mentions légales** — ✅ r12-f/r12-g : email éditeur (`ephrainguetta@gmail.com`), hébergeur (Netlify, Inc., San Francisco), nom de l'éditeur et directeur de publication (**Erik**) renseignés ; reste : adresse postale de l'éditeur (seul champ encore en placeholder).
+1. ✅ **Domaine réel** (r12-f, migré r12-h) — URL Vercel `https://pomodoro-sage-chi-32.vercel.app` branchée dans `src/lib/focusly/site-config.ts` (`siteUrl` → `metadataBase`, OpenGraph), `public/robots.txt` et `public/sitemap.xml` (17 URLs). Un domaine personnalisé reste optionnel — un seul endroit à changer le cas échéant : `SITE_INFO.siteUrl`.
+2. **Mentions légales** — ✅ r12-f/r12-g/r12-h : email éditeur (`ephrainguetta@gmail.com`), nom de l'éditeur et directeur de publication (**Erik**), hébergeur **Vercel Inc.** (Covina, CA) renseignés ; reste : adresse postale de l'éditeur (seul champ encore en placeholder).
 3. **Secrets de prod** — définir `ADMIN_KEY` fort (la clé par défaut n'est **plus affichée** en production — corrigé r12-c : le message « Clé de développement » n'apparaît que dans les builds dev) et `DATABASE_URL` pointant vers un volume persistant (chemin absolu actuel lié au sandbox).
 4. **Vérifier le build de prod** : `bun run build && bun run start` (impossible dans le sandbox dev — les règles d'environnement interdisent le build ici ; tsc/lint/ESLint verts servent de garantie statique).
 5. Recommandé : passer `typescript.ignoreBuildErrors: false` dans `next.config.ts` une fois le build prod validé (le code actuel est déjà clean).
@@ -54,11 +54,12 @@
 2. **Socle de consentement CMP-ready** — bandeau RGPD complet (`consent-banner.tsx` + store `focusly.consent.v1`) : Tout accepter / Continuer sans publicité personnalisée / réouverture via le lien « Cookies & publicité » du pied de page. **Inactif par défaut** (`ADS_CONFIG.enabled: false`) — la procédure d'activation pas-à-pas (script gtag conditionné au consentement, CMP TCF, ads.txt) est documentée dans `src/lib/focusly/ads-config.ts`. Flux validé E2E en navigateur.
 3. **ads.txt** — `public/ads.txt` contient la ligne officielle `google.com, pub-6410999448746776, DIRECT, f08c47fec0942fa0` (déposée en r12-e).
 4. **Intégration AdSense réelle (r12-e)** — identifiant éditeur `pub-6410999448746776` : script `adsbygoogle.js` chargé dans le `<head>` du HTML servi (`layout.tsx`, `beforeInteractive` → tag `ca-pub-…` visible du crawler de vérification Google) ; `ADS_CONFIG.enabled: true` ; bannière de consentement désormais **active** ; sans décision ou en cas de refus → `requestNonPersonalizedAds = 1` (annonces non personnalisées uniquement, défaut RGPD-safe via `ad-consent-sync.tsx`).
-5. **Contact éditeur centralisé (r12-e, email réel r12-f)** — `src/lib/focusly/site-config.ts` alimente la page Contact (encart email direct cliquable), les mentions légales et la politique de confidentialité. Email renseigné : `ephrainguetta@gmail.com`. Hébergeur déclaré : Netlify, Inc.
+5. **Contact éditeur centralisé (r12-e, email réel r12-f)** — `src/lib/focusly/site-config.ts` alimente la page Contact (encart email direct cliquable), les mentions légales et la politique de confidentialité. Email renseigné : `ephrainguetta@gmail.com`. Hébergeur déclaré : Vercel Inc. (r12-h).
 6. **Identité éditeur + Search Console (r12-g)** — `SITE_INFO.editorName = "Erik"` câblé dans les mentions légales (Éditeur + Directeur de la publication) ; fichier de vérification Google `public/google0be7b3a266557144.html` servi à la racine (contenu exact vérifié, 200).
 
 ### ⚠️ Reste à faire (nécessite infos/action utilisateur)
-1. ✅ **Redéploiement Netlify effectué (vérifié en ligne r12-g)** — le HTML servi contient le tag AdSense (2 occurrences `ca-pub-…`), l'ads.txt officiel répond 200 et les balises OG pointent vers le domaine Netlify. Reste : **un nouveau redéploiement** pour publier r12-g (fichier de vérification Search Console + nom « Erik » dans les mentions légales).
+1. ✅ **Déploiement Vercel effectué et vérifié en ligne (r12-h)** — accueil 200, tag AdSense ×2, NPA inline, ads.txt officielle 200, **fichier de vérification Search Console 200 avec contenu exact**, sw v5. Reste : **1 redéploiement Vercel** pour publier r12-h (bascule SEO canonique metadataBase/OG/robots/sitemap → Vercel + hébergeur Vercel dans les mentions légales).
+1b. Netlify reste en ligne (version r12-f, ancien og:image) — recommandé : désactiver le site Netlify ou le rediriger vers Vercel pour éviter tout contenu dupliqué aux yeux de Google.
 2. Minor : les routes sont en `#hash` (single-page). Acceptable pour AdSense, mais pour un SEO optimal envisager plus tard des routes réelles (`/blog/[slug]`).
 
 ### Verdict AdSense
@@ -68,14 +69,14 @@
 
 ## 4. Checklist de mise en ligne (ordre recommandé)
 
-- [x] **Redéployer sur Netlify** — effectué, vérifié en ligne r12-g (tag AdSense + ads.txt officiel + OG domaine Netlify)
-- [ ] **Redéployer une fois de plus** (publie r12-g : fichier de vérification Search Console + nom « Erik » mentions légales)
-- [x] Hébergement : Netlify HTTPS en ligne (r12-f — sous-domaine netlify.app ; domaine personnalisé optionnel)
-- [x] `metadataBase`, `robots.txt`, `sitemap.xml` → domaine réel (r12-f : URL Netlify)
-- [ ] Mentions légales : email + hébergeur + nom Éditeur/Directeur faits (r12-f/r12-g) — reste l'adresse postale de l'éditeur
+- [x] **Redéployer** — effectué : site EN LIGNE sur Vercel, version r12-g vérifiée (AdSense + ads.txt + preuve de propriété Google 200)
+- [ ] **Redéployer sur Vercel après r12-h** (publie : domaine canonique Vercel dans metadataBase/OG/robots/sitemap + hébergeur Vercel mentions légales)
+- [x] Hébergement : Vercel HTTPS en ligne (r12-h — migration depuis Netlify ; sous-domaine vercel.app, domaine personnalisé optionnel)
+- [x] `metadataBase`, `robots.txt`, `sitemap.xml` → domaine réel (r12-h : URL Vercel — publie au prochain redéploiement)
+- [ ] Mentions légales : email + hébergeur (Vercel) + nom Éditeur/Directeur faits (r12-f/r12-g/r12-h) — reste l'adresse postale de l'éditeur
 - [ ] Env de prod : `ADMIN_KEY` fort, `DATABASE_URL` (volume persistant)
 - [ ] `bun run build` + `bun run start` → smoke-test des 12 routes
-- [ ] Soumission Google Search Console (sitemap) — fichier de vérification intégré (r12-g), validable dès le prochain redéploiement
+- [ ] Soumission Google Search Console (sitemap) — **preuve de propriété déjà EN LIGNE sur Vercel (200)** : validation immédiate possible ; soumettre ensuite https://pomodoro-sage-chi-32.vercel.app/sitemap.xml
 - [x] AdSense côté code (r12-e) : script `ca-pub-6410999448746776` dans le `<head>` + ads.txt officiel + consentement actif (NPA=1 sans acceptation)
 - [ ] CMP certifiée TCF (obligatoire pour la publicité personnalisée EEE/UK — sinon annonces non personnalisées uniquement)
 - [x] Email de contact réel (r12-f : renseigné dans `src/lib/focusly/site-config.ts`)

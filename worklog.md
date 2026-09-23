@@ -1238,3 +1238,23 @@ Stage Summary:
 - État live vérifié par curl (pas d'hypothèse) : en ligne = r12-e + r12-f ; en attente de déploiement = r12-g.
 - Reste : adresse postale mentions légales, ADMIN_KEY prod + DATABASE_URL persistant, build prod à valider, CMP TCF si pub personnalisée.
 - Prochaine round : selon retours utilisateur (redéploiement, adresse) ; sinon candidats internes : filtres chips Admin + CSV complet, filtres de période Stats, validation anims `.fade-up`.
+
+---
+Task ID: r12-h
+Agent: main (Z.ai Code)
+Task: Utilisateur annonce le nouveau déploiement Vercel (https://pomodoro-sage-chi-32.vercel.app/) + re-colle le script AdSense + « npx plugins add vercel/vercel-plugin »
+
+Work Log:
+- DIAGNOSTIC LIVE Vercel (curl) : accueil 200 + title OK ; tag AdSense `ca-pub-6410999448746776` ×2 ✓ ; inline NPA=1 ✓ ; ads.txt officielle 200 ✓ ; FICHIER DE VÉRIFICATION Search Console `google0be7b3a266557144.html` 200 avec contenu exact ✓ (le déploiement Vercel inclut donc r12-g) ; sw.js focusly-v5 ✓ ; og:image/robots encore sur le domaine Netlify (état r12-f) → bascule canonique nécessaire.
+- « npx plugins add vercel/vercel-plugin » : PAS une commande standard (aucun CLI « plugins » officiel, pas de repo vercel/vercel-plugin) — volontairement NON exécutée (risque supply-chain npx) ; de toute façon inutile : le déploiement Vercel fonctionne sans plugin.
+- Migration canonique Netlify → Vercel : `site-config.ts` (siteUrl + JSDoc r12-h) ; `public/robots.txt` ; `public/sitemap.xml` (17 <loc>) ; `legal-views.tsx` hébergeur → Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, États-Unis, vercel.com. 0 référence restante à l'ancien domaine (rg vérifié sur src/ + public/).
+- QA : tsc 0 erreur, eslint 0 erreur ; navigateur : mentions légales = Vercel Inc. ✓ + Erik ✓ + email ✓ + 0 occurrence Netlify/ancien domaine ✓ ; accueil rendu, title OK, 0 erreur console.
+- RELEASE-NOTE.md révisé (r12-h) : en-tête/verdict (Vercel en ligne), §1 conditions 1-2, §3 reste réécrit (1 redéploiement Vercel pour publier la bascule canonique + recommandation désactivation/redirection Netlify), checklist mise à jour (hébergement Vercel ✓, Search Console validable immédiatement).
+
+Stage Summary:
+- Le site canonique est désormais Vercel : la preuve de propriété Google est DÉJÀ en ligne (200) — Search Console validable sans attendre ; 1 redéploiement Vercel publie la bascule SEO complète (metadataBase/OG/robots/sitemap → Vercel).
+- Le script AdSense re-collé par l'utilisateur était DÉJÀ intégré et EN LIGNE (2 occurrences ca-pub sur Vercel) — aucune action requise de ce côté.
+- Netlify reste en ligne (version r12-f, ancien og:image) : recommandation transmise — désactiver ou rediriger vers Vercel pour éviter le duplicate content.
+- Risque inchangé : SQLite éphémère sur Vercel serverless (comme Netlify) — messages de contact non garantis entre invocations ; migration DB managée toujours recommandée.
+- Leçon : re-vérifier le LIVE par curl à chaque nouvelle URL utilisateur (rare cas où la version déployée était déjà à jour, fichier de vérification inclus).
+- Prochaine round : retours utilisateur (redéploiement Vercel, validation GSC, désactivation Netlify) ; sinon candidats : filtres chips Admin, filtres période Stats, validation anims `.fade-up`.
