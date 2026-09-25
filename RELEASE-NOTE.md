@@ -31,9 +31,9 @@
 ## 2. Efficacité (QA sortie)
 
 - **12 routes** (`accueil, outils, statistiques, guide, blog×6, a-propos, contact, 3 pages légales, plan-du-site, admin` + 404) : rendu OK, **console 0 erreur**, 375 px zéro overflow horizontal, footer collant/poussé naturellement.
-- **Interactions vérifiées en navigateur** : navigation hash (4 routes), dialogues Réglages/Raccourcis, palette Ctrl+K, minuteur Démarrer→Pause→Réinitialiser, burger menu mobile, formulaire de contact (validation + consentement), admin (gate + liste + réponses + export CSV).
+- **Interactions vérifiées en navigateur** : navigation hash (4 routes), dialogues Réglages/Raccourcis, palette Ctrl+K, minuteur Démarrer→Pause→Réinitialiser, burger menu mobile, contact (r12-j : email direct + copie presse-papiers ; formulaire retiré sur demande de l'éditeur), admin (gate + liste + réponses + export CSV).
 - **Résilience** : scénario d'empoisonnement SW v4 reproduit puis **auto-guéri** par sw.js v5 (skipWaiting + purge + reload) — la cause du bug « tous les boutons morts » signalé par l'utilisateur est éliminée structurellement.
-- **Correction intégrée à cette note** : politique de confidentialité désormais exacte sur les données du formulaire de contact (transparence RGPD/AdSense).
+- **Correction intégrée à cette note** : politique de confidentialité exacte — r12-j : contact par email direct uniquement, aucune donnée personnelle stockée sur les serveurs (transparence RGPD/AdSense).
 
 ---
 
@@ -42,7 +42,7 @@
 ### ✅ Déjà conforme
 | Exigence AdSense | État |
 |---|---|
-| Pages obligatoires | ✅ À propos · Contact (formulaire fonctionnel) · Confidentialité · Conditions · Mentions légales · Plan du site |
+| Pages obligatoires | ✅ À propos · Contact (r12-j : email direct avec bouton copier) · Confidentialité · Conditions · Mentions légales · Plan du site |
 | Politique de confidentialité | ✅ Section publicité **AdSense explicite** (§4, lien Paramètres des annonces), cookies publicitaires « avec consentement » (§3), droits RGPD + CNIL (§6) — mise à jour r12-c sur les données collectées |
 | Contenu original | ✅ Guide 694 mots + 6 articles de blog originaux, zéro contenu dupliqué |
 | Contenus interdits | ✅ Aucun (productivité — thématique « advertiser-friendly ») |

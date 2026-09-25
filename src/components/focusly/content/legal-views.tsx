@@ -116,14 +116,15 @@ export function ConfidentialiteView() {
         appareil.
       </p>
       <p className={P_CLASS}>
-        La seule donnée transmise à nos serveurs est celle que vous nous
-        envoyez volontairement via le{" "}
+        Aucune donnée personnelle n&apos;est stockée sur nos serveurs : le
+        contact se fait exclusivement par{" "}
         <HashLink href="#contact" className={LINK_CLASS}>
-          formulaire de contact
-        </HashLink>{" "}
-        (nom, adresse email, message) : elle est conservée uniquement pour
-        traiter votre demande et y répondre, puis supprimée sur simple demande
-        de votre part.
+          email direct
+        </HashLink>
+        . Votre message est envoyé depuis votre propre application de
+        messagerie ; votre adresse est utilisée uniquement pour vous répondre,
+        et vos échanges relèvent du traitement habituel d&apos;une
+        correspondance email.
       </p>
 
       <h2 className={H2_CLASS}>3. Cookies et technologies similaires</h2>

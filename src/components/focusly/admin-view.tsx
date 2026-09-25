@@ -626,7 +626,7 @@ export function AdminView() {
 
       <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Administration</h1>
       <p className="mt-3 max-w-[680px] text-[17px] text-muted-foreground">
-        Consultez et gérez les messages reçus via le formulaire de contact.
+        Consultez et gérez les messages de contact archivés (le formulaire a été retiré : le contact se fait désormais par email direct).
       </p>
 
       <div className="mt-8 flex flex-col gap-4">
