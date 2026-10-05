@@ -37,17 +37,7 @@
 
 ---
 
-## 3. Conformité Google AdSense
 
-### ✅ Déjà conforme
-| Exigence AdSense | État |
-|---|---|
-| Pages obligatoires | ✅ À propos · Contact (r12-j : email direct avec bouton copier) · Confidentialité · Conditions · Mentions légales · Plan du site |
-| Politique de confidentialité | ✅ Section publicité **AdSense explicite** (§4, lien Paramètres des annonces), cookies publicitaires « avec consentement » (§3), droits RGPD + CNIL (§6) — mise à jour r12-c sur les données collectées |
-| Contenu original | ✅ Guide 694 mots + 6 articles de blog originaux, zéro contenu dupliqué |
-| Contenus interdits | ✅ Aucun (productivité — thématique « advertiser-friendly ») |
-| UX | ✅ Rapide, responsive, pas d'interstitiels intrusifs, navigation claire |
-| robots.txt | ✅ `Allow: /` — le crawler AdSense/Mediapartners n'est pas bloqué |
 
 ### ✅ Fait (r12-d / r12-e)
 1. **Contenu enrichi** — les 6 articles dépassent désormais 600 mots (775 / 622 / 625 / 640 / 671 / 693 mots, ~4 000 mots au total, sections expertes originales : FAQ, plans d'action, méthode des trois passes, transitions, auto-diagnostic…). Sommaires auto-générés enrichis en conséquence.
@@ -57,29 +47,4 @@
 5. **Contact éditeur centralisé (r12-e, email réel r12-f)** — `src/lib/focusly/site-config.ts` alimente la page Contact (encart email direct cliquable), les mentions légales et la politique de confidentialité. Email renseigné : `ephrainguetta@gmail.com`. Hébergeur déclaré : Vercel Inc. (r12-h).
 6. **Identité éditeur + Search Console (r12-g)** — `SITE_INFO.editorName = "Erik"` câblé dans les mentions légales (Éditeur + Directeur de la publication) ; fichier de vérification Google `public/google0be7b3a266557144.html` servi à la racine (contenu exact vérifié, 200).
 
-### ⚠️ Reste à faire (nécessite infos/action utilisateur)
-1. ✅ **Déploiement Vercel effectué et vérifié en ligne (r12-h)** — accueil 200, tag AdSense ×2, NPA inline, ads.txt officielle 200, **fichier de vérification Search Console 200 avec contenu exact**, sw v5. Reste : **1 redéploiement Vercel** pour publier r12-h (bascule SEO canonique metadataBase/OG/robots/sitemap → Vercel + hébergeur Vercel dans les mentions légales).
-1b. Netlify reste en ligne (version r12-f, ancien og:image) — recommandé : désactiver le site Netlify ou le rediriger vers Vercel pour éviter tout contenu dupliqué aux yeux de Google.
-2. Minor : les routes sont en `#hash` (single-page). Acceptable pour AdSense, mais pour un SEO optimal envisager plus tard des routes réelles (`/blog/[slug]`).
 
-### Verdict AdSense
-🟡 **Éligible après validation Google** : le site en ligne sert déjà le tag AdSense, l'ads.txt officiel, les contenus profonds (600+ mots/article), le consentement RGPD actif, l'identifiant éditeur intégré et le domaine réel branché. Restent : validation Google du site, CMP certifiée TCF pour la publicité **personnalisée** EEE/UK (sinon, annonces non personnalisées conformes).
-
----
-
-## 4. Checklist de mise en ligne (ordre recommandé)
-
-- [x] **Redéployer** — effectué : site EN LIGNE sur Vercel, version r12-g vérifiée (AdSense + ads.txt + preuve de propriété Google 200)
-- [ ] **Redéployer sur Vercel après r12-h** (publie : domaine canonique Vercel dans metadataBase/OG/robots/sitemap + hébergeur Vercel mentions légales)
-- [x] Hébergement : Vercel HTTPS en ligne (r12-h — migration depuis Netlify ; sous-domaine vercel.app, domaine personnalisé optionnel)
-- [x] `metadataBase`, `robots.txt`, `sitemap.xml` → domaine réel (r12-h : URL Vercel — publie au prochain redéploiement)
-- [ ] Mentions légales : email + hébergeur (Vercel) + nom Éditeur/Directeur faits (r12-f/r12-g/r12-h) — reste l'adresse postale de l'éditeur
-- [ ] Env de prod : `ADMIN_KEY` fort, `DATABASE_URL` (volume persistant)
-- [ ] `bun run build` + `bun run start` → smoke-test des 12 routes
-- [ ] Soumission Google Search Console (sitemap) — **preuve de propriété déjà EN LIGNE sur Vercel (200)** : validation immédiate possible ; soumettre ensuite https://pomodoro-sage-chi-32.vercel.app/sitemap.xml
-- [x] AdSense côté code (r12-e) : script `ca-pub-6410999448746776` dans le `<head>` + ads.txt officiel + consentement actif (NPA=1 sans acceptation)
-- [ ] CMP certifiée TCF (obligatoire pour la publicité personnalisée EEE/UK — sinon annonces non personnalisées uniquement)
-- [x] Email de contact réel (r12-f : renseigné dans `src/lib/focusly/site-config.ts`)
-- [ ] Sauvegarde planifiée de la base SQLite
-
-*Généré lors de l'audit de sortie r12-c — détails d'exécution dans `worklog.md`.*
